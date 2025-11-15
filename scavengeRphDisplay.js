@@ -372,4 +372,9 @@ function main() {
     calculateResults(100, '02:00:00');
 }
 
-main();
+// Auto-execute when loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', main);
+} else {
+    main();
+}
