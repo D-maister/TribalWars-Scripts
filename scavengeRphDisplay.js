@@ -1,12 +1,5 @@
 // Tribal Wars Scavenge Efficiency Calculator - Game Styled
 function main() {
-    if (window.scavengeWindow) {
-        try {
-            document.body.removeChild(window.scavengeWindow);
-            window.scavengeWindow = null;
-        } catch(e) {}
-    }
-    
     var data = localStorage.getItem('scavengeData');
     if (!data) {
         alert('No scavenge data found. Please run the data collector first.');
