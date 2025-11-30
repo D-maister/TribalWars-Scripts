@@ -180,6 +180,20 @@
     }
 
     /**
+     * Check if a scavenge mode is locked (not researched)
+     * @param {number} modeIndex - Index of the mode to check
+     * @returns {boolean} - True if mode is locked
+     */
+    function isModeLocked(modeIndex) {
+        var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+        if (modeElement) {
+            var lockedView = modeElement.querySelector('.locked-view');
+            return !!lockedView;
+        }
+        return false;
+    }
+
+    /**
      * Format troop counts into a readable string
      * @param {Object} troopCounts - Object containing troop counts
      * @returns {string} - Formatted troop string
@@ -280,6 +294,22 @@
     }
 
     /**
+     * Get locked (not researched) scavenge modes
+     * @returns {Array} - Array of locked mode indices
+     */
+    function getLockedModes() {
+        var lockedModes = [];
+        var modeElements = document.querySelectorAll('.scavenge-option');
+        
+        for (var modeIndex = 0; modeIndex < modeElements.length; modeIndex++) {
+            if (isModeLocked(modeIndex)) {
+                lockedModes.push(modeIndex);
+            }
+        }
+        return lockedModes;
+    }
+
+    /**
      * Log activity to localStorage for debugging and tracking
      * @param {string} message - The log message
      * @param {string} type - Message type (info, success, warning, error)
@@ -308,140 +338,159 @@
         localStorage.setItem('scavengeLogs', JSON.stringify(existingLogs));
     }
 
-    // Main execution
-    try {
-        console.log('=== Scavenge Auto Farmer Started ===');
-        logActivity('Scavenge Auto Farmer Started', 'info');
-        
-        console.log('Settings: ' + percentageToUse + '% troops, ratios: ' + modeRatios);
-        logActivity('Settings: ' + percentageToUse + '% troops, ratios: ' + modeRatios, 'info');
+    /**
+     * Main function - wrapped to prevent "Main function is not found" error
+     */
+    function main() {
+        try {
+            console.log('=== Scavenge Auto Farmer Started ===');
+            logActivity('Scavenge Auto Farmer Started', 'info');
+            
+            console.log('Settings: ' + percentageToUse + '% troops, ratios: ' + modeRatios);
+            logActivity('Settings: ' + percentageToUse + '% troops, ratios: ' + modeRatios, 'info');
 
-        // Parse mode ratios
-        var parsedRatios = modeRatios.split('/').map(function(ratio) {
-            return parseInt(ratio);
-        });
-        var totalRatio = parsedRatios.reduce(function(sum, ratio) {
-            return sum + ratio;
-        }, 0);
-
-        var activeModes = getActiveModes();
-        var availableModes = getAvailableModes();
-        
-        console.log('Active modes: ' + Object.keys(activeModes).length + 
-                   ', Available modes: ' + availableModes.length);
-        logActivity('Active modes: ' + Object.keys(activeModes).length + 
-                   ', Available: ' + availableModes.length, 'info');
-
-        // Check if any modes are available
-        if (availableModes.length === 0) {
-            console.log('No available modes found');
-            logActivity('No available modes found', 'warning');
-            return;
-        }
-
-        // Calculate used and free ratios
-        var usedRatio = 0;
-        for (var modeIndex = 0; modeIndex < parsedRatios.length; modeIndex++) {
-            if (activeModes[modeIndex]) {
-                usedRatio += parsedRatios[modeIndex];
+            // Parse mode ratios
+            var parsedRatios = modeRatios.split('/').map(function(ratio) {
+                return parseInt(ratio);
+            });
+            
+            // Get locked modes and recalculate total ratio excluding locked modes
+            var lockedModes = getLockedModes();
+            var availableModes = getAvailableModes();
+            var activeModes = getActiveModes();
+            
+            console.log('Locked modes: ' + lockedModes.length + 
+                       ', Active modes: ' + Object.keys(activeModes).length + 
+                       ', Available modes: ' + availableModes.length);
+            
+            // Recalculate total ratio excluding locked modes
+            var actualTotalRatio = 0;
+            for (var modeIndex = 0; modeIndex < parsedRatios.length; modeIndex++) {
+                if (!lockedModes.includes(modeIndex)) {
+                    actualTotalRatio += parsedRatios[modeIndex];
+                }
             }
-        }
-        var freeRatio = totalRatio - usedRatio;
-        
-        console.log('Total ratio: ' + totalRatio + ', Used ratio: ' + usedRatio + 
-                   ', Free ratio: ' + freeRatio);
-        logActivity('Ratio: Total ' + totalRatio + ', Used ' + usedRatio + 
-                   ', Free ' + freeRatio, 'info');
+            
+            console.log('Original total ratio: ' + parsedRatios.reduce(function(a, b) { return a + b; }, 0) + 
+                       ', Actual total ratio (excluding locked): ' + actualTotalRatio);
 
-        // Check if there's free ratio available
-        if (freeRatio <= 0) {
-            console.log('No free ratio available');
-            logActivity('No free ratio available', 'warning');
-            return;
-        }
-
-        // Find the first available mode with non-zero ratio
-        var selectedMode = -1;
-        for (modeIndex = 0; modeIndex < parsedRatios.length; modeIndex++) {
-            if (parsedRatios[modeIndex] > 0 && !activeModes[modeIndex] && availableModes.includes(modeIndex)) {
-                selectedMode = modeIndex;
-                break;
+            // Check if any modes are available
+            if (availableModes.length === 0) {
+                console.log('No available modes found');
+                logActivity('No available modes found', 'warning');
+                return;
             }
-        }
 
-        if (selectedMode === -1) {
-            console.log('No available mode with non-zero ratio found');
-            logActivity('No available mode with non-zero ratio found', 'warning');
-            return;
-        }
-
-        var selectedModeRatio = parsedRatios[selectedMode];
-        if (selectedModeRatio === 0) {
-            console.log('Skipping ' + getModeName(selectedMode) + ' - ratio is 0');
-            return;
-        }
-
-        // Clear existing inputs and calculate new troop distribution
-        clearAllTroopInputs();
-        var troopsToSend = calculateTroopDistribution(selectedModeRatio, freeRatio);
-
-        // Fill the troop inputs
-        Object.keys(troopsToSend).forEach(function(unitType) {
-            fillTroopInput(unitType, troopsToSend[unitType]);
-        });
-
-        // Log the operation details
-        var modeDuration = getModeDuration(selectedMode);
-        var troopString = formatTroopString(troopsToSend);
-        var modeResources = getModeResources(selectedMode);
-        var efficiency = calculateEfficiency(modeResources, selectedMode);
-        var modeName = getModeName(selectedMode);
-        
-        console.log(modeName + '; ' + troopString + '; dur: ' + modeDuration);
-        console.log('📦 Resources: Wood:' + modeResources.wood + ' Clay:' + modeResources.stone + 
-                   ' Iron:' + modeResources.iron + ' Total:' + efficiency.total);
-        console.log('⏱️  Resources/hour: ' + efficiency.perHour);
-        
-        logActivity(
-            modeName + ' - ' + troopString + ' - ' + modeDuration + 
-            ' - Total: ' + efficiency.total + ' - Per hour: ' + efficiency.perHour,
-            'success',
-            modeName,
-            troopString,
-            {
-                wood: modeResources.wood,
-                stone: modeResources.stone,
-                iron: modeResources.iron,
-                total: efficiency.total,
-                perHour: efficiency.perHour,
-                duration: modeDuration
+            // Calculate used ratio excluding locked modes
+            var usedRatio = 0;
+            for (modeIndex = 0; modeIndex < parsedRatios.length; modeIndex++) {
+                if (activeModes[modeIndex] && !lockedModes.includes(modeIndex)) {
+                    usedRatio += parsedRatios[modeIndex];
+                }
             }
-        );
+            var freeRatio = actualTotalRatio - usedRatio;
+            
+            console.log('Actual total ratio: ' + actualTotalRatio + ', Used ratio: ' + usedRatio + 
+                       ', Free ratio: ' + freeRatio);
+            logActivity('Ratio: Total ' + actualTotalRatio + ', Used ' + usedRatio + 
+                       ', Free ' + freeRatio, 'info');
 
-        // Send troops after a short delay
-        console.log('Troops filled. Waiting 1 second before sending...');
-        setTimeout(function() {
-            if (sendTroops(selectedMode)) {
-                console.log('✓ Sent troops for ' + modeName);
-                logActivity('Sent troops for ' + modeName, 'success', modeName, troopString, {
+            // Check if there's free ratio available
+            if (freeRatio <= 0) {
+                console.log('No free ratio available');
+                logActivity('No free ratio available', 'warning');
+                return;
+            }
+
+            // Find the first available mode with non-zero ratio that's not locked
+            var selectedMode = -1;
+            for (modeIndex = 0; modeIndex < parsedRatios.length; modeIndex++) {
+                if (parsedRatios[modeIndex] > 0 && 
+                    !activeModes[modeIndex] && 
+                    availableModes.includes(modeIndex) &&
+                    !lockedModes.includes(modeIndex)) {
+                    selectedMode = modeIndex;
+                    break;
+                }
+            }
+
+            if (selectedMode === -1) {
+                console.log('No available mode with non-zero ratio found');
+                logActivity('No available mode with non-zero ratio found', 'warning');
+                return;
+            }
+
+            var selectedModeRatio = parsedRatios[selectedMode];
+            if (selectedModeRatio === 0) {
+                console.log('Skipping ' + getModeName(selectedMode) + ' - ratio is 0');
+                return;
+            }
+
+            // Clear existing inputs and calculate new troop distribution using ACTUAL total ratio
+            clearAllTroopInputs();
+            var troopsToSend = calculateTroopDistribution(selectedModeRatio, actualTotalRatio);
+
+            // Fill the troop inputs
+            Object.keys(troopsToSend).forEach(function(unitType) {
+                fillTroopInput(unitType, troopsToSend[unitType]);
+            });
+
+            // Log the operation details
+            var modeDuration = getModeDuration(selectedMode);
+            var troopString = formatTroopString(troopsToSend);
+            var modeResources = getModeResources(selectedMode);
+            var efficiency = calculateEfficiency(modeResources, selectedMode);
+            var modeName = getModeName(selectedMode);
+            
+            console.log(modeName + '; ' + troopString + '; dur: ' + modeDuration);
+            console.log('📦 Resources: Wood:' + modeResources.wood + ' Clay:' + modeResources.stone + 
+                       ' Iron:' + modeResources.iron + ' Total:' + efficiency.total);
+            console.log('⏱️  Resources/hour: ' + efficiency.perHour);
+            
+            logActivity(
+                modeName + ' - ' + troopString + ' - ' + modeDuration + 
+                ' - Total: ' + efficiency.total + ' - Per hour: ' + efficiency.perHour,
+                'success',
+                modeName,
+                troopString,
+                {
                     wood: modeResources.wood,
                     stone: modeResources.stone,
                     iron: modeResources.iron,
                     total: efficiency.total,
                     perHour: efficiency.perHour,
                     duration: modeDuration
-                });
-            } else {
-                console.log('✗ Failed to send troops for ' + modeName);
-                logActivity('Failed to send troops for ' + modeName, 'error');
-            }
-        }, 1000);
+                }
+            );
 
-        logActivity('Scavenge Auto Farmer Finished', 'info');
-        console.log('=== Scavenge Auto Farmer Finished ===');
+            // Send troops after a short delay
+            console.log('Troops filled. Waiting 1 second before sending...');
+            setTimeout(function() {
+                if (sendTroops(selectedMode)) {
+                    console.log('✓ Sent troops for ' + modeName);
+                    logActivity('Sent troops for ' + modeName, 'success', modeName, troopString, {
+                        wood: modeResources.wood,
+                        stone: modeResources.stone,
+                        iron: modeResources.iron,
+                        total: efficiency.total,
+                        perHour: efficiency.perHour,
+                        duration: modeDuration
+                    });
+                } else {
+                    console.log('✗ Failed to send troops for ' + modeName);
+                    logActivity('Failed to send troops for ' + modeName, 'error');
+                }
+            }, 1000);
 
-    } catch (error) {
-        console.error('Script error:', error);
-        logActivity('Script error: ' + error.message, 'error');
+            logActivity('Scavenge Auto Farmer Finished', 'info');
+            console.log('=== Scavenge Auto Farmer Finished ===');
+
+        } catch (error) {
+            console.error('Script error:', error);
+            logActivity('Script error: ' + error.message, 'error');
+        }
     }
+
+    // Execute main function - this prevents the "Main function is not found" error
+    main();
 })();
