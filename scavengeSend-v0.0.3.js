@@ -69,7 +69,7 @@ function clearAllTroopInputs() {
  * @param {number} modeIndex - Index of the mode
  * @param {number} modeRatio - Ratio for this mode
  * @param {number} totalRatio - Total available ratio
- * @returns {Object} - Object containing troop counts and time
+ * @returns {Object} - Object containing troop counts
  */
 function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
     var modePercentage = modeRatio / totalRatio;
@@ -91,9 +91,8 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
         }
     });
     
-    // Get mode duration
-    var durationText = getModeDuration(modeIndex);
-    var durationInSeconds = getDurationInSeconds(modeIndex);
+    // Get mode duration - will be filled later when mode is actually processed
+    var durationText = '-';
     
     return {
         modeIndex: modeIndex,
@@ -102,11 +101,24 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
         troops: troopsForMode,
         totalTroops: totalTroops,
         durationText: durationText,
-        durationSeconds: durationInSeconds,
         isAvailable: isModeAvailable(modeIndex),
         isLocked: isModeLocked(modeIndex),
         isActive: isModeActive(modeIndex)
     };
+}
+
+/**
+ * Get actual duration for a mode (by filling troops and checking time)
+ * @param {number} modeIndex - Index of the mode
+ * @returns {string} - Duration text
+ */
+function getActualDurationForMode(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var durationElement = modeElement.querySelector('.duration');
+        return durationElement ? durationElement.textContent : 'Unknown';
+    }
+    return 'Unknown';
 }
 
 /**
@@ -136,33 +148,6 @@ function getModeName(modeIndex) {
         'Великие собиратели'    // Great Gatherers
     ];
     return modeNames[modeIndex] || 'Unknown Mode';
-}
-
-/**
- * Get the duration text for a scavenge mode
- * @param {number} modeIndex - Index of the mode
- * @returns {string} - Duration as string (HH:MM:SS)
- */
-function getModeDuration(modeIndex) {
-    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
-    if (modeElement) {
-        var durationElement = modeElement.querySelector('.duration');
-        return durationElement ? durationElement.textContent : 'Unknown';
-    }
-    return 'Unknown';
-}
-
-/**
- * Calculate duration in seconds from HH:MM:SS string
- * @param {number} modeIndex - Index of the mode
- * @returns {number} - Duration in seconds
- */
-function getDurationInSeconds(modeIndex) {
-    var durationText = getModeDuration(modeIndex);
-    if (durationText === 'Unknown') return 0;
-    
-    var timeParts = durationText.split(':').map(Number);
-    return (3600 * timeParts[0]) + (60 * timeParts[1]) + timeParts[2];
 }
 
 /**
@@ -247,7 +232,7 @@ function calculateAllModes() {
         }
     });
     
-    // Calculate data for each mode
+    // Calculate data for each mode (without durations initially)
     var modesData = [];
     for (var i = 0; i < parsedRatios.length; i++) {
         var modeData = calculateTroopsForMode(i, parsedRatios[i], actualTotalRatio);
@@ -322,7 +307,10 @@ function createControlPanel() {
         line-height: 1;
     `;
     closeBtn.onclick = function() {
-        controlPanel.remove();
+        if (controlPanel) {
+            controlPanel.remove();
+            controlPanel = null;
+        }
         isPanelVisible = false;
     };
     
@@ -443,7 +431,7 @@ function createControlPanel() {
             timeCell.textContent = 'Active';
             timeCell.style.color = '#ff9800';
         } else {
-            timeCell.textContent = mode.durationText || 'Unknown';
+            timeCell.textContent = mode.durationText;
             timeCell.style.color = '#4CAF50';
         }
         timeCell.style.padding = '8px';
@@ -482,9 +470,9 @@ function createControlPanel() {
         margin-top: 15px;
     `;
     
-    // Calculate button
+    // Calculate button - NEW: sequential calculation
     var calculateBtn = document.createElement('button');
-    calculateBtn.textContent = '📊 Calculate & Fill';
+    calculateBtn.textContent = '📊 Calculate All Modes';
     calculateBtn.style.cssText = `
         padding: 10px 15px;
         background: #2196F3;
@@ -496,9 +484,7 @@ function createControlPanel() {
         font-weight: bold;
     `;
     calculateBtn.onclick = function() {
-        fillTroopsForAvailableModes();
-        updateControlPanel();
-        alert('Troops calculated and filled!');
+        calculateAndFillSequentially();
     };
     
     // Send All button
@@ -531,7 +517,10 @@ function createControlPanel() {
         flex: 1;
     `;
     closePanelBtn.onclick = function() {
-        controlPanel.remove();
+        if (controlPanel) {
+            controlPanel.remove();
+            controlPanel = null;
+        }
         isPanelVisible = false;
     };
     
@@ -560,26 +549,89 @@ function updateControlPanel() {
 }
 
 /**
- * Fill troops for all available modes
+ * Calculate and fill troops sequentially for all available modes
  */
-function fillTroopsForAvailableModes() {
-    clearAllTroopInputs();
-    
+function calculateAndFillSequentially() {
     var data = calculateAllModes();
     var availableModes = data.modes.filter(mode => mode.isAvailable);
     
     if (availableModes.length === 0) {
-        alert('No available modes to fill!');
+        alert('No available modes to calculate!');
         return;
     }
     
-    // Fill troops for the first available mode
-    var firstMode = availableModes[0];
-    Object.keys(firstMode.troops).forEach(function(unitType) {
-        fillTroopInput(unitType, firstMode.troops[unitType]);
+    alert('Starting sequential calculation for ' + availableModes.length + ' mode(s).\n' +
+          'Each mode will be calculated one by one with 1-second intervals.');
+    
+    var currentIndex = 0;
+    
+    function processNextMode() {
+        if (currentIndex >= availableModes.length) {
+            alert('Sequential calculation completed!');
+            updateControlPanel(); // Refresh the panel with all times
+            return;
+        }
+        
+        var mode = availableModes[currentIndex];
+        console.log('Processing mode ' + (currentIndex + 1) + ' of ' + availableModes.length + ': ' + mode.modeName);
+        
+        // Clear previous inputs
+        clearAllTroopInputs();
+        
+        // Wait a bit for UI to update
+        setTimeout(function() {
+            // Fill troops for this mode
+            Object.keys(mode.troops).forEach(function(unitType) {
+                fillTroopInput(unitType, mode.troops[unitType]);
+            });
+            
+            // Wait for UI to update with duration
+            setTimeout(function() {
+                // Get the actual duration (now that troops are filled)
+                var actualDuration = getActualDurationForMode(mode.modeIndex);
+                
+                // Update the mode data with actual duration
+                mode.durationText = actualDuration;
+                
+                console.log('Mode ' + mode.modeName + ': ' + 
+                          Object.keys(mode.troops).map(t => t + ':' + mode.troops[t]).join(', ') + 
+                          ' | Time: ' + actualDuration);
+                
+                // Clear inputs for next mode
+                clearAllTroopInputs();
+                
+                // Move to next mode after 1 second
+                currentIndex++;
+                setTimeout(processNextMode, 1000);
+                
+            }, 500); // Wait for duration to update
+            
+        }, 500); // Wait after clearing
+    }
+    
+    // Start processing
+    processNextMode();
+}
+
+/**
+ * Fill troops for a single mode (for testing)
+ */
+function fillTroopsForSingleMode(modeIndex) {
+    clearAllTroopInputs();
+    
+    var data = calculateAllModes();
+    var mode = data.modes[modeIndex];
+    
+    if (!mode || !mode.isAvailable) {
+        alert('Mode not available!');
+        return;
+    }
+    
+    Object.keys(mode.troops).forEach(function(unitType) {
+        fillTroopInput(unitType, mode.troops[unitType]);
     });
     
-    console.log('Filled troops for mode: ' + firstMode.modeName);
+    console.log('Filled troops for mode: ' + mode.modeName);
 }
 
 /**
@@ -601,9 +653,10 @@ function sendAllAvailableModes() {
     
     var sentCount = 0;
     var failedCount = 0;
+    var currentIndex = 0;
     
-    function sendNextMode(index) {
-        if (index >= availableModes.length) {
+    function sendNextMode() {
+        if (currentIndex >= availableModes.length) {
             var message = 'Completed! Sent: ' + sentCount + ', Failed: ' + failedCount;
             console.log(message);
             alert(message);
@@ -611,34 +664,37 @@ function sendAllAvailableModes() {
             return;
         }
         
-        var mode = availableModes[index];
-        console.log('Sending mode ' + (index + 1) + ' of ' + availableModes.length + ': ' + mode.modeName);
+        var mode = availableModes[currentIndex];
+        console.log('Sending mode ' + (currentIndex + 1) + ' of ' + availableModes.length + ': ' + mode.modeName);
         
-        // Fill troops for this mode
+        // Clear previous inputs
         clearAllTroopInputs();
-        Object.keys(mode.troops).forEach(function(unitType) {
-            fillTroopInput(unitType, mode.troops[unitType]);
-        });
         
-        // Wait a bit and send
+        // Wait a bit and fill troops for this mode
         setTimeout(function() {
-            if (sendTroops(mode.modeIndex)) {
-                console.log('✓ Sent: ' + mode.modeName);
-                sentCount++;
-            } else {
-                console.log('✗ Failed: ' + mode.modeName);
-                failedCount++;
-            }
+            Object.keys(mode.troops).forEach(function(unitType) {
+                fillTroopInput(unitType, mode.troops[unitType]);
+            });
             
-            // Send next mode after 1 second
+            // Wait a bit more and send
             setTimeout(function() {
-                sendNextMode(index + 1);
-            }, 1000);
+                if (sendTroops(mode.modeIndex)) {
+                    console.log('✓ Sent: ' + mode.modeName);
+                    sentCount++;
+                } else {
+                    console.log('✗ Failed: ' + mode.modeName);
+                    failedCount++;
+                }
+                
+                // Move to next mode after 1 second
+                currentIndex++;
+                setTimeout(sendNextMode, 1000);
+            }, 500);
         }, 500);
     }
     
     // Start sending
-    sendNextMode(0);
+    sendNextMode();
 }
 
 /**
@@ -648,6 +704,7 @@ function toggleControlPanel() {
     if (isPanelVisible) {
         if (controlPanel) {
             controlPanel.remove();
+            controlPanel = null;
         }
         isPanelVisible = false;
     } else {
