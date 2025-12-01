@@ -60,64 +60,38 @@ function clearAllTroopInputs() {
  * @returns {Object} - Object containing troop counts for each type
  */
 function calculateTroopDistribution(modeRatio, totalRatio) {
-    var availableTroops = {};
-    var totalTroopsToUse = 0;
+    var troopsToSend = {};
     var troopTypes = ['spear', 'sword', 'axe', 'light', 'heavy', 'knight'];
     
-    // Calculate available troops for each enabled type
+    // Calculate the percentage for this mode
+    var modePercentage = modeRatio / totalRatio;
+    
+    console.log('Mode percentage: ' + (modePercentage * 100).toFixed(2) + '%');
+    
+    // Calculate troops for each enabled unit type
     troopTypes.forEach(function(unitType) {
         if (troopSettings[unitType]) {
+            // Get available troops for this type
             var availableCount = getAvailableTroops(unitType);
-            var troopsToUse = Math.floor(availableCount * percentageToUse / 100);
-            availableTroops[unitType] = troopsToUse;
-            totalTroopsToUse += troopsToUse;
-            console.log(unitType + ': ' + availableCount + ' available, using ' + troopsToUse);
-        }
-    });
-
-    var troopsToSend = {};
-    
-    // Calculate the percentage of troops for this mode based on ratio
-    var modePercentage = modeRatio / totalRatio;
-    var totalTroopsForDistribution = Math.floor(totalTroopsToUse * modePercentage);
-    
-    console.log('Total troops available: ' + totalTroopsToUse + 
-               ', Mode ratio: ' + modeRatio + '/' + totalRatio + 
-               ', Mode percentage: ' + (modePercentage * 100).toFixed(1) + '%' +
-               ', Troops for this mode: ' + totalTroopsForDistribution);
-
-    // Distribute troops proportionally among enabled unit types
-    var enabledUnitTypes = troopTypes.filter(function(unitType) {
-        return troopSettings[unitType] && availableTroops[unitType] > 0;
-    });
-
-    if (enabledUnitTypes.length > 0) {
-        // Calculate the proportion of each unit type in the total available troops
-        var totalAvailableForEnabledTypes = enabledUnitTypes.reduce(function(sum, unitType) {
-            return sum + availableTroops[unitType];
-        }, 0);
-
-        var remainingTroops = totalTroopsForDistribution;
-        
-        // Distribute troops proportionally
-        for (var i = 0; i < enabledUnitTypes.length; i++) {
-            var unitType = enabledUnitTypes[i];
-            var proportion = availableTroops[unitType] / totalAvailableForEnabledTypes;
-            var calculatedTroops = Math.floor(totalTroopsForDistribution * proportion);
             
-            // For the last unit type, use all remaining troops to avoid rounding errors
-            if (i === enabledUnitTypes.length - 1) {
-                troopsToSend[unitType] = Math.min(remainingTroops, availableTroops[unitType]);
-            } else {
-                troopsToSend[unitType] = Math.min(calculatedTroops, availableTroops[unitType]);
-                remainingTroops -= troopsToSend[unitType];
+            // Calculate how many to use (based on percentageToUse)
+            var troopsToUse = Math.floor(availableCount * percentageToUse / 100);
+            
+            // Apply mode percentage to this troop type
+            var troopsForThisMode = Math.floor(troopsToUse * modePercentage);
+            
+            // Ensure we don't send more than available
+            troopsForThisMode = Math.min(troopsForThisMode, availableCount);
+            
+            if (troopsForThisMode > 0) {
+                troopsToSend[unitType] = troopsForThisMode;
             }
             
-            console.log(unitType + ': sending ' + troopsToSend[unitType] + ' of ' + availableTroops[unitType] + 
-                       ' (' + (proportion * 100).toFixed(1) + '%)');
+            console.log(unitType + ': ' + availableCount + ' available, ' + 
+                       troopsToUse + ' to use, sending ' + (troopsToSend[unitType] || 0));
         }
-    }
-
+    });
+    
     return troopsToSend;
 }
 
