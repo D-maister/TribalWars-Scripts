@@ -275,6 +275,72 @@ function calculateAllModes() {
 }
 
 /**
+ * Create troop type checkboxes
+ */
+function createTroopCheckboxes() {
+    var container = document.createElement('div');
+    container.style.cssText = `
+        margin-bottom: 15px;
+        padding: 10px;
+        background: #f5f5f5;
+        border-radius: 4px;
+    `;
+    
+    var label = document.createElement('label');
+    label.textContent = 'Troop types to use: ';
+    label.style.marginRight = '10px';
+    label.style.fontWeight = 'bold';
+    container.appendChild(label);
+    
+    var troopTypes = [
+        { id: 'spear', name: 'Spear', color: '#2196F3' },
+        { id: 'sword', name: 'Sword', color: '#4CAF50' },
+        { id: 'axe', name: 'Axe', color: '#FF9800' },
+        { id: 'light', name: 'Light', color: '#9C27B0' },
+        { id: 'heavy', name: 'Heavy', color: '#F44336' },
+        { id: 'knight', name: 'Knight', color: '#795548' }
+    ];
+    
+    troopTypes.forEach(function(troop) {
+        var checkboxContainer = document.createElement('span');
+        checkboxContainer.style.cssText = `
+            margin-right: 15px;
+            display: inline-flex;
+            align-items: center;
+        `;
+        
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = 'troop_' + troop.id;
+        checkbox.checked = troopSettings[troop.id];
+        checkbox.style.cssText = `
+            margin-right: 5px;
+            cursor: pointer;
+        `;
+        
+        checkbox.onchange = function() {
+            troopSettings[troop.id] = this.checked;
+            updateControlPanel();
+        };
+        
+        var checkboxLabel = document.createElement('label');
+        checkboxLabel.htmlFor = 'troop_' + troop.id;
+        checkboxLabel.textContent = troop.name;
+        checkboxLabel.style.cssText = `
+            cursor: pointer;
+            color: ${troop.color};
+            font-weight: bold;
+        `;
+        
+        checkboxContainer.appendChild(checkbox);
+        checkboxContainer.appendChild(checkboxLabel);
+        container.appendChild(checkboxContainer);
+    });
+    
+    return container;
+}
+
+/**
  * Create control panel HTML
  */
 function createControlPanel() {
@@ -319,17 +385,21 @@ function createControlPanel() {
     title.style.margin = '0';
     
     var closeBtn = document.createElement('button');
-    closeBtn.textContent = '×';
+    closeBtn.innerHTML = '&times;'; // Changed from '×' to '&times;'
     closeBtn.style.cssText = `
         background: #ff4444;
         color: white;
         border: none;
         border-radius: 50%;
-        width: 24px;
-        height: 24px;
+        width: 30px;
+        height: 30px;
         cursor: pointer;
-        font-size: 16px;
+        font-size: 20px;
         line-height: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
     `;
     closeBtn.onclick = function() {
         if (controlPanel) {
@@ -354,6 +424,7 @@ function createControlPanel() {
     var sliderLabel = document.createElement('label');
     sliderLabel.textContent = 'Troops to send: ';
     sliderLabel.style.marginRight = '10px';
+    sliderLabel.style.fontWeight = 'bold';
     
     var sliderValue = document.createElement('span');
     sliderValue.textContent = percentageToUse + '%';
@@ -369,6 +440,7 @@ function createControlPanel() {
         width: 200px;
         margin: 0 10px;
         vertical-align: middle;
+        cursor: pointer;
     `;
     
     slider.oninput = function() {
@@ -380,6 +452,9 @@ function createControlPanel() {
     sliderContainer.appendChild(sliderLabel);
     sliderContainer.appendChild(slider);
     sliderContainer.appendChild(sliderValue);
+    
+    // Create troop checkboxes
+    var troopCheckboxes = createTroopCheckboxes();
     
     // Create table
     var table = document.createElement('table');
@@ -437,8 +512,15 @@ function createControlPanel() {
                 troopCell.style.color = '#999';
             } else {
                 troopCell.textContent = troopCount > 0 ? troopCount : '0';
-                troopCell.style.color = troopCount > 0 ? '#2196F3' : '#999';
-                troopCell.style.fontWeight = troopCount > 0 ? 'bold' : 'normal';
+                // Color based on whether troop type is enabled
+                if (troopSettings[troopType]) {
+                    troopCell.style.color = troopCount > 0 ? '#2196F3' : '#999';
+                    troopCell.style.fontWeight = troopCount > 0 ? 'bold' : 'normal';
+                } else {
+                    troopCell.textContent = '✗'; // Show X if troop type is disabled
+                    troopCell.style.color = '#ff4444';
+                    troopCell.style.fontWeight = 'bold';
+                }
             }
             
             troopCell.style.padding = '8px';
@@ -561,6 +643,7 @@ function createControlPanel() {
     // Assemble the panel
     controlPanel.appendChild(header);
     controlPanel.appendChild(sliderContainer);
+    controlPanel.appendChild(troopCheckboxes);
     controlPanel.appendChild(table);
     controlPanel.appendChild(buttonsContainer);
     
@@ -671,9 +754,11 @@ function calculateAndFillSequentially() {
         
         // Wait a bit for UI to update
         setTimeout(function() {
-            // Fill troops for this mode
+            // Fill troops for this mode (only enabled troop types)
             Object.keys(mode.troops).forEach(function(unitType) {
-                fillTroopInput(unitType, mode.troops[unitType]);
+                if (troopSettings[unitType]) {
+                    fillTroopInput(unitType, mode.troops[unitType]);
+                }
             });
             
             // Wait longer for UI to update with duration (Tribal Wars needs time)
@@ -689,7 +774,10 @@ function calculateAndFillSequentially() {
                 console.log('Stored duration for mode ' + mode.modeIndex + ': ' + actualDuration);
                 
                 console.log('Mode ' + mode.modeName + ': ' + 
-                          Object.keys(mode.troops).map(t => t + ':' + mode.troops[t]).join(', ') + 
+                          Object.keys(mode.troops)
+                            .filter(t => troopSettings[t]) // Only show enabled troops
+                            .map(t => t + ':' + mode.troops[t])
+                            .join(', ') + 
                           ' | Time: ' + actualDuration);
                 
                 // Clear inputs for next mode
@@ -744,10 +832,12 @@ function sendAllAvailableModes() {
         // Clear previous inputs
         clearAllTroopInputs();
         
-        // Wait a bit and fill troops for this mode
+        // Wait a bit and fill troops for this mode (only enabled troop types)
         setTimeout(function() {
             Object.keys(mode.troops).forEach(function(unitType) {
-                fillTroopInput(unitType, mode.troops[unitType]);
+                if (troopSettings[unitType]) {
+                    fillTroopInput(unitType, mode.troops[unitType]);
+                }
             });
             
             // Wait a bit more and send
