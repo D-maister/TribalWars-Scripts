@@ -115,8 +115,24 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
 function getActualDurationForMode(modeIndex) {
     var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
     if (modeElement) {
+        // Try different selectors for the duration element
         var durationElement = modeElement.querySelector('.duration');
-        return durationElement ? durationElement.textContent : 'Unknown';
+        
+        // If not found with .duration, try other possible selectors
+        if (!durationElement) {
+            // Look in duration-section
+            var durationSection = modeElement.querySelector('.duration-section');
+            if (durationSection) {
+                durationElement = durationSection.querySelector('.duration');
+            }
+        }
+        
+        // Also try looking for any span with class duration
+        if (!durationElement) {
+            durationElement = modeElement.querySelector('span.duration');
+        }
+        
+        return durationElement ? durationElement.textContent.trim() : 'Unknown';
     }
     return 'Unknown';
 }
@@ -470,7 +486,7 @@ function createControlPanel() {
         margin-top: 15px;
     `;
     
-    // Calculate button - NEW: sequential calculation
+    // Calculate button - sequential calculation
     var calculateBtn = document.createElement('button');
     calculateBtn.textContent = '📊 Calculate All Modes';
     calculateBtn.style.cssText = `
@@ -560,13 +576,29 @@ function calculateAndFillSequentially() {
         return;
     }
     
+    // Disable the calculate button during processing
+    var calculateBtn = controlPanel.querySelector('button:nth-child(1)');
+    if (calculateBtn) {
+        calculateBtn.disabled = true;
+        calculateBtn.textContent = '⏳ Calculating...';
+        calculateBtn.style.backgroundColor = '#9e9e9e';
+    }
+    
     alert('Starting sequential calculation for ' + availableModes.length + ' mode(s).\n' +
-          'Each mode will be calculated one by one with 1-second intervals.');
+          'Each mode will be calculated one by one with 1-second intervals.\n' +
+          'Please wait for completion...');
     
     var currentIndex = 0;
     
     function processNextMode() {
         if (currentIndex >= availableModes.length) {
+            // Re-enable the calculate button
+            if (calculateBtn) {
+                calculateBtn.disabled = false;
+                calculateBtn.textContent = '📊 Calculate All Modes';
+                calculateBtn.style.backgroundColor = '#2196F3';
+            }
+            
             alert('Sequential calculation completed!');
             updateControlPanel(); // Refresh the panel with all times
             return;
@@ -585,10 +617,22 @@ function calculateAndFillSequentially() {
                 fillTroopInput(unitType, mode.troops[unitType]);
             });
             
-            // Wait for UI to update with duration
+            // Wait longer for UI to update with duration (Tribal Wars needs time)
             setTimeout(function() {
                 // Get the actual duration (now that troops are filled)
                 var actualDuration = getActualDurationForMode(mode.modeIndex);
+                
+                // Debug: Log what we found
+                console.log('Duration search for mode ' + mode.modeIndex + ':');
+                var modeElement = document.querySelectorAll('.scavenge-option')[mode.modeIndex];
+                if (modeElement) {
+                    console.log('Mode element found:', modeElement);
+                    var allDurationSpans = modeElement.querySelectorAll('span.duration');
+                    console.log('All duration spans found:', allDurationSpans.length);
+                    allDurationSpans.forEach(function(span, idx) {
+                        console.log('Span ' + idx + ' text:', span.textContent);
+                    });
+                }
                 
                 // Update the mode data with actual duration
                 mode.durationText = actualDuration;
@@ -604,34 +648,13 @@ function calculateAndFillSequentially() {
                 currentIndex++;
                 setTimeout(processNextMode, 1000);
                 
-            }, 500); // Wait for duration to update
+            }, 1500); // Wait longer for Tribal Wars to update duration (1.5 seconds)
             
         }, 500); // Wait after clearing
     }
     
     // Start processing
     processNextMode();
-}
-
-/**
- * Fill troops for a single mode (for testing)
- */
-function fillTroopsForSingleMode(modeIndex) {
-    clearAllTroopInputs();
-    
-    var data = calculateAllModes();
-    var mode = data.modes[modeIndex];
-    
-    if (!mode || !mode.isAvailable) {
-        alert('Mode not available!');
-        return;
-    }
-    
-    Object.keys(mode.troops).forEach(function(unitType) {
-        fillTroopInput(unitType, mode.troops[unitType]);
-    });
-    
-    console.log('Filled troops for mode: ' + mode.modeName);
 }
 
 /**
