@@ -565,6 +565,36 @@ function updateControlPanel() {
 }
 
 /**
+ * Update control panel with durations (without recalculating everything)
+ */
+function updateControlPanelWithDurations() {
+    if (!controlPanel || !isPanelVisible) return;
+    
+    // Update the time cells in the existing table
+    var timeCells = controlPanel.querySelectorAll('tbody tr td:nth-child(7)');
+    
+    calculatedData.modes.forEach(function(mode, index) {
+        if (index < timeCells.length) {
+            var timeCell = timeCells[index];
+            if (mode.isLocked) {
+                timeCell.textContent = 'Locked';
+                timeCell.style.color = '#f44336';
+            } else if (mode.isActive) {
+                timeCell.textContent = 'Active';
+                timeCell.style.color = '#ff9800';
+            } else {
+                timeCell.textContent = mode.durationText;
+                timeCell.style.color = '#4CAF50';
+            }
+        }
+    });
+    
+    // Also update the table creation function to use updated durations
+    // by triggering a panel refresh
+    updateControlPanel();
+}
+
+/**
  * Calculate and fill troops sequentially for all available modes
  */
 function calculateAndFillSequentially() {
@@ -600,7 +630,7 @@ function calculateAndFillSequentially() {
             }
             
             alert('Sequential calculation completed!');
-            updateControlPanel(); // Refresh the panel with all times
+            updateControlPanelWithDurations(); // NEW: Refresh panel with updated durations
             return;
         }
         
@@ -623,19 +653,10 @@ function calculateAndFillSequentially() {
                 var actualDuration = getActualDurationForMode(mode.modeIndex);
                 
                 // Debug: Log what we found
-                console.log('Duration search for mode ' + mode.modeIndex + ':');
-                var modeElement = document.querySelectorAll('.scavenge-option')[mode.modeIndex];
-                if (modeElement) {
-                    console.log('Mode element found:', modeElement);
-                    var allDurationSpans = modeElement.querySelectorAll('span.duration');
-                    console.log('All duration spans found:', allDurationSpans.length);
-                    allDurationSpans.forEach(function(span, idx) {
-                        console.log('Span ' + idx + ' text:', span.textContent);
-                    });
-                }
+                console.log('Found duration for mode ' + mode.modeIndex + ': ' + actualDuration);
                 
-                // Update the mode data with actual duration
-                mode.durationText = actualDuration;
+                // CRITICAL: Update the duration in the global calculatedData
+                calculatedData.modes[mode.modeIndex].durationText = actualDuration;
                 
                 console.log('Mode ' + mode.modeName + ': ' + 
                           Object.keys(mode.troops).map(t => t + ':' + mode.troops[t]).join(', ') + 
