@@ -18,6 +18,9 @@ var calculatedData = {
     actualTotalRatio: 0
 };
 
+// Store durations persistently
+var modeDurations = {};
+
 // UI Elements
 var controlPanel = null;
 var isPanelVisible = false;
@@ -248,10 +251,16 @@ function calculateAllModes() {
         }
     });
     
-    // Calculate data for each mode (without durations initially)
+    // Calculate data for each mode
     var modesData = [];
     for (var i = 0; i < parsedRatios.length; i++) {
         var modeData = calculateTroopsForMode(i, parsedRatios[i], actualTotalRatio);
+        
+        // Preserve existing duration if we have it
+        if (modeDurations[i]) {
+            modeData.durationText = modeDurations[i];
+        }
+        
         modesData.push(modeData);
     }
     
@@ -447,7 +456,12 @@ function createControlPanel() {
             timeCell.textContent = 'Active';
             timeCell.style.color = '#ff9800';
         } else {
-            timeCell.textContent = mode.durationText;
+            // Check for stored duration first
+            if (modeDurations[mode.modeIndex]) {
+                timeCell.textContent = modeDurations[mode.modeIndex];
+            } else {
+                timeCell.textContent = mode.durationText;
+            }
             timeCell.style.color = '#4CAF50';
         }
         timeCell.style.padding = '8px';
@@ -570,28 +584,43 @@ function updateControlPanel() {
 function updateControlPanelWithDurations() {
     if (!controlPanel || !isPanelVisible) return;
     
-    // Update the time cells in the existing table
+    console.log('Updating panel with durations:', modeDurations);
+    
+    // Get all time cells from the table
     var timeCells = controlPanel.querySelectorAll('tbody tr td:nth-child(7)');
     
-    calculatedData.modes.forEach(function(mode, index) {
-        if (index < timeCells.length) {
-            var timeCell = timeCells[index];
-            if (mode.isLocked) {
-                timeCell.textContent = 'Locked';
-                timeCell.style.color = '#f44336';
-            } else if (mode.isActive) {
-                timeCell.textContent = 'Active';
-                timeCell.style.color = '#ff9800';
-            } else {
-                timeCell.textContent = mode.durationText;
-                timeCell.style.color = '#4CAF50';
-            }
+    // Update each time cell
+    for (var i = 0; i < timeCells.length; i++) {
+        var timeCell = timeCells[i];
+        var modeIndex = i; // Row index matches mode index
+        
+        // Skip summary row (last row)
+        if (i >= calculatedData.modes.length) break;
+        
+        var mode = calculatedData.modes[modeIndex];
+        
+        if (mode.isLocked) {
+            timeCell.textContent = 'Locked';
+            timeCell.style.color = '#f44336';
+        } else if (mode.isActive) {
+            timeCell.textContent = 'Active';
+            timeCell.style.color = '#ff9800';
+        } else if (modeDurations[modeIndex]) {
+            // Use stored duration if available
+            timeCell.textContent = modeDurations[modeIndex];
+            timeCell.style.color = '#4CAF50';
+            console.log('Updated mode ' + modeIndex + ' with duration: ' + modeDurations[modeIndex]);
+        } else {
+            // Use placeholder
+            timeCell.textContent = '-';
+            timeCell.style.color = '#4CAF50';
         }
-    });
+    }
     
-    // Also update the table creation function to use updated durations
-    // by triggering a panel refresh
-    updateControlPanel();
+    // Also force a full panel refresh to ensure everything is updated
+    setTimeout(function() {
+        updateControlPanel();
+    }, 100);
 }
 
 /**
@@ -630,7 +659,7 @@ function calculateAndFillSequentially() {
             }
             
             alert('Sequential calculation completed!');
-            updateControlPanelWithDurations(); // NEW: Refresh panel with updated durations
+            updateControlPanelWithDurations(); // Refresh panel with updated durations
             return;
         }
         
@@ -655,8 +684,9 @@ function calculateAndFillSequentially() {
                 // Debug: Log what we found
                 console.log('Found duration for mode ' + mode.modeIndex + ': ' + actualDuration);
                 
-                // CRITICAL: Update the duration in the global calculatedData
-                calculatedData.modes[mode.modeIndex].durationText = actualDuration;
+                // CRITICAL: Update the duration in persistent storage
+                modeDurations[mode.modeIndex] = actualDuration;
+                console.log('Stored duration for mode ' + mode.modeIndex + ': ' + actualDuration);
                 
                 console.log('Mode ' + mode.modeName + ': ' + 
                           Object.keys(mode.troops).map(t => t + ':' + mode.troops[t]).join(', ') + 
@@ -810,6 +840,9 @@ function executeScavengeScript() {
             alert('Please navigate to the scavenge page first!');
             return;
         }
+        
+        // Initialize mode durations storage
+        modeDurations = {};
         
         // Add toggle button
         addToggleButton();
