@@ -21,6 +21,14 @@ var calculatedData = {
 // Store durations persistently
 var modeDurations = {};
 
+// Store which modes are enabled by user (by default all are enabled)
+var enabledModes = [true, true, true, true];
+
+// Store custom ratios (by default use the global modeRatios)
+var customRatios = modeRatios.split('/').map(function(ratio) {
+    return parseInt(ratio);
+});
+
 // UI Elements
 var controlPanel = null;
 var isPanelVisible = false;
@@ -106,7 +114,8 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
         durationText: durationText,
         isAvailable: isModeAvailable(modeIndex),
         isLocked: isModeLocked(modeIndex),
-        isActive: isModeActive(modeIndex)
+        isActive: isModeActive(modeIndex),
+        isEnabledByUser: enabledModes[modeIndex]
     };
 }
 
@@ -219,24 +228,22 @@ function isModeLocked(modeIndex) {
  * Calculate all modes data
  */
 function calculateAllModes() {
-    // Parse mode ratios
-    var parsedRatios = modeRatios.split('/').map(function(ratio) {
-        return parseInt(ratio);
-    });
+    // Use custom ratios if available
+    var currentRatios = customRatios;
     
     // Get locked modes
     var lockedModes = [];
-    for (var i = 0; i < parsedRatios.length; i++) {
+    for (var i = 0; i < currentRatios.length; i++) {
         if (isModeLocked(i)) {
             lockedModes.push(i);
         }
     }
     
-    // Recalculate total ratio EXCLUDING locked modes
+    // Recalculate total ratio EXCLUDING locked modes AND disabled modes
     var actualTotalRatio = 0;
-    for (var i = 0; i < parsedRatios.length; i++) {
-        if (!lockedModes.includes(i)) {
-            actualTotalRatio += parsedRatios[i];
+    for (var i = 0; i < currentRatios.length; i++) {
+        if (!lockedModes.includes(i) && enabledModes[i]) {
+            actualTotalRatio += currentRatios[i];
         }
     }
     
@@ -253,8 +260,8 @@ function calculateAllModes() {
     
     // Calculate data for each mode
     var modesData = [];
-    for (var i = 0; i < parsedRatios.length; i++) {
-        var modeData = calculateTroopsForMode(i, parsedRatios[i], actualTotalRatio);
+    for (var i = 0; i < currentRatios.length; i++) {
+        var modeData = calculateTroopsForMode(i, currentRatios[i], actualTotalRatio);
         
         // Preserve existing duration if we have it
         if (modeDurations[i]) {
@@ -341,6 +348,107 @@ function createTroopCheckboxes() {
 }
 
 /**
+ * Create mode controls (checkboxes and ratio inputs)
+ */
+function createModeControls() {
+    var container = document.createElement('div');
+    container.style.cssText = `
+        margin-bottom: 15px;
+        padding: 10px;
+        background: #e8f5e8;
+        border-radius: 4px;
+        border: 1px solid #4CAF50;
+    `;
+    
+    var title = document.createElement('div');
+    title.textContent = 'Mode Configuration:';
+    title.style.fontWeight = 'bold';
+    title.style.marginBottom = '10px';
+    title.style.color = '#2E7D32';
+    container.appendChild(title);
+    
+    var modeNames = ['Lazy', 'Modest', 'Skillful', 'Great'];
+    var modeColors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
+    
+    var controlsContainer = document.createElement('div');
+    controlsContainer.style.cssText = `
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+    `;
+    
+    for (var i = 0; i < 4; i++) {
+        var modeControl = document.createElement('div');
+        modeControl.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        `;
+        
+        // Mode checkbox
+        var modeCheckbox = document.createElement('input');
+        modeCheckbox.type = 'checkbox';
+        modeCheckbox.id = 'mode_' + i;
+        modeCheckbox.checked = enabledModes[i];
+        modeCheckbox.style.cssText = `
+            cursor: pointer;
+        `;
+        
+        modeCheckbox.onchange = function() {
+            var modeIndex = parseInt(this.id.split('_')[1]);
+            enabledModes[modeIndex] = this.checked;
+            updateControlPanel();
+        };
+        
+        // Mode label
+        var modeLabel = document.createElement('label');
+        modeLabel.htmlFor = 'mode_' + i;
+        modeLabel.textContent = modeNames[i];
+        modeLabel.style.cssText = `
+            cursor: pointer;
+            color: ${modeColors[i]};
+            font-weight: bold;
+            min-width: 60px;
+        `;
+        
+        // Ratio input
+        var ratioInput = document.createElement('input');
+        ratioInput.type = 'number';
+        ratioInput.min = '0';
+        ratioInput.max = '100';
+        ratioInput.value = customRatios[i];
+        ratioInput.style.cssText = `
+            width: 50px;
+            padding: 3px 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            text-align: center;
+        `;
+        
+        ratioInput.onchange = function() {
+            var modeIndex = parseInt(this.parentElement.querySelector('input[type="checkbox"]').id.split('_')[1]);
+            var value = parseInt(this.value) || 0;
+            customRatios[modeIndex] = value;
+            updateControlPanel();
+        };
+        
+        modeControl.appendChild(modeCheckbox);
+        modeControl.appendChild(modeLabel);
+        modeControl.appendChild(ratioInput);
+        
+        controlsContainer.appendChild(modeControl);
+    }
+    
+    container.appendChild(controlsContainer);
+    
+    return container;
+}
+
+/**
  * Create control panel HTML
  */
 function createControlPanel() {
@@ -385,7 +493,7 @@ function createControlPanel() {
     title.style.margin = '0';
     
     var closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '&times;'; // Changed from '×' to '&times;'
+    closeBtn.innerHTML = '&times;';
     closeBtn.style.cssText = `
         background: #ff4444;
         color: white;
@@ -456,6 +564,9 @@ function createControlPanel() {
     // Create troop checkboxes
     var troopCheckboxes = createTroopCheckboxes();
     
+    // Create mode controls (checkboxes and ratio inputs)
+    var modeControls = createModeControls();
+    
     // Create table
     var table = document.createElement('table');
     table.style.cssText = `
@@ -487,18 +598,52 @@ function createControlPanel() {
     
     data.modes.forEach(function(mode) {
         var row = document.createElement('tr');
-        row.style.backgroundColor = mode.isLocked ? '#ffebee' : 
-                                   mode.isActive ? '#fff3e0' : 
-                                   mode.isAvailable ? '#e8f5e8' : '#f5f5f5';
         
-        // Mode cell
+        // Determine row background color based on multiple conditions
+        if (mode.isLocked) {
+            row.style.backgroundColor = '#ffebee'; // Red for locked
+        } else if (mode.isActive) {
+            row.style.backgroundColor = '#fff3e0'; // Orange for active
+        } else if (!mode.isEnabledByUser) {
+            row.style.backgroundColor = '#f5f5f5'; // Gray for disabled by user
+            row.style.opacity = '0.6';
+        } else if (mode.isAvailable) {
+            row.style.backgroundColor = '#e8f5e8'; // Green for available
+        } else {
+            row.style.backgroundColor = '#f5f5f5'; // Gray for other
+        }
+        
+        // Mode cell with checkbox
         var modeCell = document.createElement('td');
-        modeCell.textContent = mode.modeName;
-        modeCell.style.padding = '8px';
-        modeCell.style.border = '1px solid #ddd';
-        modeCell.style.fontWeight = mode.isLocked ? 'normal' : 'bold';
-        modeCell.style.color = mode.isLocked ? '#999' : 
-                              mode.isActive ? '#ff9800' : '#333';
+        modeCell.style.cssText = `
+            padding: 8px;
+            border: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+        
+        // Add checkbox only if not locked and not active
+        if (!mode.isLocked && !mode.isActive) {
+            var modeCheckbox = document.createElement('input');
+            modeCheckbox.type = 'checkbox';
+            modeCheckbox.checked = mode.isEnabledByUser;
+            modeCheckbox.style.cursor = 'pointer';
+            modeCheckbox.onchange = function() {
+                enabledModes[mode.modeIndex] = this.checked;
+                updateControlPanel();
+            };
+            modeCell.appendChild(modeCheckbox);
+        }
+        
+        var modeNameSpan = document.createElement('span');
+        modeNameSpan.textContent = mode.modeName;
+        modeNameSpan.style.fontWeight = 'bold';
+        modeNameSpan.style.color = mode.isLocked ? '#999' : 
+                                  mode.isActive ? '#ff9800' : 
+                                  !mode.isEnabledByUser ? '#999' : '#333';
+        modeCell.appendChild(modeNameSpan);
+        
         row.appendChild(modeCell);
         
         // Troop cells
@@ -507,7 +652,7 @@ function createControlPanel() {
             var troopCell = document.createElement('td');
             var troopCount = mode.troops[troopType] || 0;
             
-            if (mode.isLocked || mode.isActive) {
+            if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
                 troopCell.textContent = '-';
                 troopCell.style.color = '#999';
             } else {
@@ -517,7 +662,7 @@ function createControlPanel() {
                     troopCell.style.color = troopCount > 0 ? '#2196F3' : '#999';
                     troopCell.style.fontWeight = troopCount > 0 ? 'bold' : 'normal';
                 } else {
-                    troopCell.textContent = '✗'; // Show X if troop type is disabled
+                    troopCell.textContent = '✗';
                     troopCell.style.color = '#ff4444';
                     troopCell.style.fontWeight = 'bold';
                 }
@@ -537,6 +682,9 @@ function createControlPanel() {
         } else if (mode.isActive) {
             timeCell.textContent = 'Active';
             timeCell.style.color = '#ff9800';
+        } else if (!mode.isEnabledByUser) {
+            timeCell.textContent = 'Disabled';
+            timeCell.style.color = '#999';
         } else {
             // Check for stored duration first
             if (modeDurations[mode.modeIndex]) {
@@ -560,9 +708,16 @@ function createControlPanel() {
     
     var summaryCell = document.createElement('td');
     summaryCell.colSpan = 7;
-    summaryCell.textContent = 'Total troops to send: ' + data.totalTroopsAvailable + 
-                             ' | Available modes: ' + data.modes.filter(m => m.isAvailable).length +
-                             ' | Locked: ' + data.lockedModes.length;
+    
+    var enabledCount = data.modes.filter(m => m.isEnabledByUser && !m.isLocked && !m.isActive).length;
+    var usedRatios = customRatios.filter((ratio, index) => enabledModes[index]).join('/');
+    
+    summaryCell.textContent = 'Total troops: ' + data.totalTroopsAvailable + 
+                             ' | Available: ' + data.modes.filter(m => m.isAvailable && m.isEnabledByUser).length +
+                             ' | Enabled: ' + enabledCount +
+                             ' | Locked: ' + data.lockedModes.length +
+                             ' | Ratios: ' + usedRatios;
+    
     summaryCell.style.padding = '8px';
     summaryCell.style.textAlign = 'center';
     summaryCell.style.fontWeight = 'bold';
@@ -644,6 +799,7 @@ function createControlPanel() {
     controlPanel.appendChild(header);
     controlPanel.appendChild(sliderContainer);
     controlPanel.appendChild(troopCheckboxes);
+    controlPanel.appendChild(modeControls);
     controlPanel.appendChild(table);
     controlPanel.appendChild(buttonsContainer);
     
@@ -688,6 +844,9 @@ function updateControlPanelWithDurations() {
         } else if (mode.isActive) {
             timeCell.textContent = 'Active';
             timeCell.style.color = '#ff9800';
+        } else if (!mode.isEnabledByUser) {
+            timeCell.textContent = 'Disabled';
+            timeCell.style.color = '#999';
         } else if (modeDurations[modeIndex]) {
             // Use stored duration if available
             timeCell.textContent = modeDurations[modeIndex];
@@ -711,7 +870,8 @@ function updateControlPanelWithDurations() {
  */
 function calculateAndFillSequentially() {
     var data = calculateAllModes();
-    var availableModes = data.modes.filter(mode => mode.isAvailable);
+    // Only calculate modes that are enabled by user
+    var availableModes = data.modes.filter(mode => mode.isAvailable && mode.isEnabledByUser);
     
     if (availableModes.length === 0) {
         alert('No available modes to calculate!');
@@ -801,7 +961,8 @@ function calculateAndFillSequentially() {
  */
 function sendAllAvailableModes() {
     var data = calculateAllModes();
-    var availableModes = data.modes.filter(mode => mode.isAvailable);
+    // Only send modes that are enabled by user
+    var availableModes = data.modes.filter(mode => mode.isAvailable && mode.isEnabledByUser);
     
     if (availableModes.length === 0) {
         alert('No available modes to send!');
@@ -933,6 +1094,14 @@ function executeScavengeScript() {
         
         // Initialize mode durations storage
         modeDurations = {};
+        
+        // Initialize enabled modes (all enabled by default)
+        enabledModes = [true, true, true, true];
+        
+        // Initialize custom ratios
+        customRatios = modeRatios.split('/').map(function(ratio) {
+            return parseInt(ratio);
+        });
         
         // Add toggle button
         addToggleButton();
