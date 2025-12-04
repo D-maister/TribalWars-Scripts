@@ -627,7 +627,7 @@
         uiContainer.style.cssText = `
             position: fixed;
             top: 50px;
-            right: 10px;
+            left: 10px;
             background: white;
             border: 2px solid #333;
             border-radius: 8px;
