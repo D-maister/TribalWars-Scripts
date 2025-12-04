@@ -50,6 +50,268 @@
         return farmReports;
     }
     
+    // Function to load Highcharts library
+    function loadHighcharts(callback) {
+        if (window.Highcharts) {
+            callback();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://code.highcharts.com/highcharts.js';
+        script.onload = callback;
+        document.head.appendChild(script);
+    }
+    
+    // Function to process data for charts
+    function prepareChartData(reports) {
+        const dailyData = {};
+        
+        // Group reports by day
+        reports.forEach(report => {
+            if (report.created) {
+                const date = new Date(report.created);
+                const dayKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                
+                if (!dailyData[dayKey]) {
+                    dailyData[dayKey] = {
+                        date: dayKey,
+                        timestamp: date.getTime(),
+                        attacks: 0,
+                        totalResources: 0,
+                        villages: new Set(),
+                        resourcesPerAttack: 0
+                    };
+                }
+                
+                dailyData[dayKey].attacks++;
+                dailyData[dayKey].totalResources += report.totalResources;
+                
+                if (report.coordinates) {
+                    dailyData[dayKey].villages.add(report.coordinates);
+                }
+            }
+        });
+        
+        // Calculate derived metrics
+        Object.values(dailyData).forEach(day => {
+            if (day.attacks > 0) {
+                day.resourcesPerAttack = Math.round(day.totalResources / day.attacks);
+            }
+            day.villageCount = day.villages.size;
+        });
+        
+        // Convert to arrays and sort by date
+        const sortedDays = Object.values(dailyData).sort((a, b) => a.timestamp - b.timestamp);
+        
+        return {
+            categories: sortedDays.map(day => day.date),
+            attacksData: sortedDays.map(day => day.attacks),
+            resourcesPerAttackData: sortedDays.map(day => day.resourcesPerAttack),
+            villagesData: sortedDays.map(day => day.villageCount)
+        };
+    }
+    
+    // Function to create charts
+    function createCharts(chartData, containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        // Clear previous charts
+        container.innerHTML = '';
+        
+        // Chart 1: Number of attacks per day
+        const attacksChartId = containerId + '-attacks';
+        const attacksChartDiv = document.createElement('div');
+        attacksChartDiv.id = attacksChartId;
+        attacksChartDiv.style.height = '250px';
+        attacksChartDiv.style.marginBottom = '20px';
+        container.appendChild(attacksChartDiv);
+        
+        Highcharts.chart(attacksChartId, {
+            chart: {
+                type: 'column',
+                backgroundColor: 'transparent'
+            },
+            title: {
+                text: 'Attacks per Day',
+                style: {
+                    color: '#333333',
+                    fontSize: '14px'
+                }
+            },
+            xAxis: {
+                categories: chartData.categories,
+                labels: {
+                    rotation: -45,
+                    style: {
+                        fontSize: '10px',
+                        color: '#666666'
+                    }
+                }
+            },
+            yAxis: {
+                min: 0,
+                title: {
+                    text: 'Number of Attacks',
+                    style: {
+                        color: '#666666'
+                    }
+                },
+                gridLineColor: '#eeeeee'
+            },
+            legend: {
+                enabled: false
+            },
+            tooltip: {
+                headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
+                pointFormat: '<b>{point.y}</b> attacks'
+            },
+            plotOptions: {
+                column: {
+                    color: '#4CAF50',
+                    borderRadius: 3,
+                    pointPadding: 0.1,
+                    groupPadding: 0.1
+                }
+            },
+            series: [{
+                name: 'Attacks',
+                data: chartData.attacksData
+            }],
+            credits: {
+                enabled: false
+            }
+        });
+        
+        // Chart 2: Average resources per attack per day
+        const resourcesChartId = containerId + '-resources';
+        const resourcesChartDiv = document.createElement('div');
+        resourcesChartDiv.id = resourcesChartId;
+        resourcesChartDiv.style.height = '250px';
+        resourcesChartDiv.style.marginBottom = '20px';
+        container.appendChild(resourcesChartDiv);
+        
+        Highcharts.chart(resourcesChartId, {
+            chart: {
+                type: 'column',
+                backgroundColor: 'transparent'
+            },
+            title: {
+                text: 'Average Resources per Attack',
+                style: {
+                    color: '#333333',
+                    fontSize: '14px'
+                }
+            },
+            xAxis: {
+                categories: chartData.categories,
+                labels: {
+                    rotation: -45,
+                    style: {
+                        fontSize: '10px',
+                        color: '#666666'
+                    }
+                }
+            },
+            yAxis: {
+                min: 0,
+                title: {
+                    text: 'Resources',
+                    style: {
+                        color: '#666666'
+                    }
+                },
+                gridLineColor: '#eeeeee'
+            },
+            legend: {
+                enabled: false
+            },
+            tooltip: {
+                headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
+                pointFormat: '<b>{point.y}</b> resources per attack'
+            },
+            plotOptions: {
+                column: {
+                    color: '#2196F3',
+                    borderRadius: 3,
+                    pointPadding: 0.1,
+                    groupPadding: 0.1
+                }
+            },
+            series: [{
+                name: 'Resources per Attack',
+                data: chartData.resourcesPerAttackData
+            }],
+            credits: {
+                enabled: false
+            }
+        });
+        
+        // Chart 3: Distinct villages attacked per day
+        const villagesChartId = containerId + '-villages';
+        const villagesChartDiv = document.createElement('div');
+        villagesChartDiv.id = villagesChartId;
+        villagesChartDiv.style.height = '250px';
+        container.appendChild(villagesChartDiv);
+        
+        Highcharts.chart(villagesChartId, {
+            chart: {
+                type: 'column',
+                backgroundColor: 'transparent'
+            },
+            title: {
+                text: 'Unique Villages Attacked per Day',
+                style: {
+                    color: '#333333',
+                    fontSize: '14px'
+                }
+            },
+            xAxis: {
+                categories: chartData.categories,
+                labels: {
+                    rotation: -45,
+                    style: {
+                        fontSize: '10px',
+                        color: '#666666'
+                    }
+                }
+            },
+            yAxis: {
+                min: 0,
+                title: {
+                    text: 'Number of Villages',
+                    style: {
+                        color: '#666666'
+                    }
+                },
+                gridLineColor: '#eeeeee'
+            },
+            legend: {
+                enabled: false
+            },
+            tooltip: {
+                headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
+                pointFormat: '<b>{point.y}</b> unique villages'
+            },
+            plotOptions: {
+                column: {
+                    color: '#FF9800',
+                    borderRadius: 3,
+                    pointPadding: 0.1,
+                    groupPadding: 0.1
+                }
+            },
+            series: [{
+                name: 'Unique Villages',
+                data: chartData.villagesData
+            }],
+            credits: {
+                enabled: false
+            }
+        });
+    }
+    
     // Function to show statistics
     function showStats(reportLimit = 100) {
         const storedData = JSON.parse(localStorage.getItem('tribalwars-farm'));
@@ -182,6 +444,9 @@
         // Sort villages by distance
         villageData.sort((a, b) => a.distance - b.distance);
         
+        // Prepare data for charts
+        const chartData = prepareChartData(reports);
+        
         // Build HTML
         let html = `
         <div style="background:white;padding:10px;border:2px solid #000;max-height:80vh;overflow:auto;">
@@ -192,6 +457,11 @@
                     <input type="number" id="reportLimit" value="${reportLimit}" style="width:60px" 
                            onchange="updateReportLimit(this.value)"> reports
                 </label>
+            </div>
+            
+            <div id="chartsContainer" style="margin-bottom:20px;background:#f9f9f9;padding:10px;border-radius:5px;border:1px solid #ddd;">
+                <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#333;">Farming Statistics Charts</div>
+                <div id="highchartsContainer"></div>
             </div>
             
             <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;margin-bottom:20px;">
@@ -370,6 +640,18 @@
         popup.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
         
         document.body.appendChild(popup);
+        
+        // Load Highcharts and create charts
+        loadHighcharts(() => {
+            setTimeout(() => {
+                if (chartData.categories.length > 0) {
+                    createCharts(chartData, 'highchartsContainer');
+                } else {
+                    document.getElementById('highchartsContainer').innerHTML = 
+                        '<div style="text-align:center;padding:20px;color:#666;">No data available for charts</div>';
+                }
+            }, 100);
+        });
         
         // Global function to update report limit
         window.updateReportLimit = function(limit) {
