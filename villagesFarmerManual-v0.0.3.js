@@ -90,23 +90,31 @@
     }
     
     /**
-     * Check if target is on cooldown
+     * Check if target is on cooldown and get remaining time
      * @param {string} target - Target coordinates "X|Y"
      * @param {number} minutes - Cooldown time in minutes
-     * @return {boolean} True if target should be skipped
+     * @return {Object} {onCooldown: boolean, minutesLeft: number, lastAttack: Date|null}
      */
-    function isOnCooldown(target, minutes) {
+    function getCooldownInfo(target, minutes) {
         var history = getAttackHistory();
         var currentTime = (new Date()).getTime();
         
         if (history[target]) {
             var minutesSinceAttack = (currentTime - history[target]) / 60000;
-            if (minutesSinceAttack < minutes) {
-                console.log("Skip " + target + " - attacked " + minutesSinceAttack.toFixed(1) + " minutes ago");
-                return true;
-            }
+            var minutesLeft = minutes - minutesSinceAttack;
+            
+            return {
+                onCooldown: minutesSinceAttack < minutes,
+                minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
+                lastAttack: new Date(history[target])
+            };
         }
-        return false;
+        
+        return {
+            onCooldown: false,
+            minutesLeft: 0,
+            lastAttack: null
+        };
     }
     
     /**
@@ -284,6 +292,136 @@
     }
     
     /**
+     * Format time since last attack
+     * @param {Date} lastAttack - Last attack date
+     * @return {string} Formatted time string
+     */
+    function formatTimeSince(lastAttack) {
+        if (!lastAttack) return "Never";
+        
+        var now = new Date();
+        var diffMs = now - lastAttack;
+        var diffMins = Math.floor(diffMs / 60000);
+        
+        if (diffMins < 60) {
+            return diffMins + "m ago";
+        } else if (diffMins < 1440) {
+            var hours = Math.floor(diffMins / 60);
+            return hours + "h ago";
+        } else {
+            var days = Math.floor(diffMins / 1440);
+            return days + "d ago";
+        }
+    }
+    
+    /**
+     * Attack a specific target
+     * @param {string} target - Target coordinates
+     */
+    function attackTarget(target) {
+        var currentUrl = location.href;
+        var doc = document;
+        
+        // Check if we're on the rally point "place" screen
+        if (currentUrl.indexOf("screen=place") > -1 && 
+            currentUrl.indexOf("try=confirm") < 0 && 
+            doc.forms[0]) {
+            
+            // Handle iframe for Tribal Wars interface
+            if (window.frames.length > 0) {
+                doc = window.main.document;
+            }
+            
+            // Parse coordinates
+            var coords = target.split("|");
+            
+            // Fill coordinates in form
+            doc.forms[0].x.value = coords[0];
+            doc.forms[0].y.value = coords[1];
+            
+            // Fill unit counts
+            setUnitCount(doc.forms[0].spear, spear);
+            setUnitCount(doc.forms[0].sword, sword);
+            setUnitCount(doc.forms[0].axe, axe);
+            setUnitCount(doc.forms[0].spy, spy);
+            setUnitCount(doc.forms[0].light, light);
+            setUnitCount(doc.forms[0].heavy, heavy);
+            setUnitCount(doc.forms[0].ram, ram);
+            setUnitCount(doc.forms[0].catapult, catapult);
+            setUnitCount(doc.forms[0].knight, knight);
+            
+            // Record this attack in history
+            recordAttack(target);
+            
+            // Show success message
+            showStatus('Target ' + target + ' prepared for attack! Click "Place" button to send.', 'success');
+            
+            // Update the target list UI to show new cooldown
+            updateTargetsListUI();
+            
+            // Find and highlight the submit button
+            var submitButton = doc.querySelector('input[type="submit"], button[type="submit"]');
+            if (submitButton) {
+                submitButton.style.border = '2px solid #4CAF50';
+                submitButton.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
+                
+                // Remove highlight after 5 seconds
+                setTimeout(function() {
+                    submitButton.style.border = '';
+                    submitButton.style.boxShadow = '';
+                }, 5000);
+            }
+            
+        } else {
+            showStatus('Please go to Rally Point > Place tab to attack', 'error');
+        }
+    }
+    
+    /**
+     * Auto-attack next available target
+     */
+    function autoAttackNext() {
+        cleanupOldHistory();
+        
+        var targets = targetList.split(" ").filter(Boolean);
+        if (targets.length === 0) {
+            showStatus('No targets in list for auto-attack', 'error');
+            return;
+        }
+        
+        var targetIndex = 0;
+        var savedIndex = getCookie(cookieName);
+        if (null !== savedIndex) {
+            targetIndex = parseInt(savedIndex);
+        }
+        
+        var startIndex = targetIndex;
+        var selectedTarget = null;
+        var attempts = 0;
+        
+        // Find next available target (not on cooldown)
+        do {
+            var currentTarget = targets[targetIndex];
+            var cooldownInfo = getCooldownInfo(currentTarget, cooldown);
+            
+            if (!cooldownInfo.onCooldown) {
+                selectedTarget = currentTarget;
+                break;
+            }
+            targetIndex = (targetIndex + 1) % targets.length;
+            attempts++;
+        } while (attempts < targets.length && targetIndex != startIndex);
+        
+        if (selectedTarget) {
+            var nextIndex = (targetIndex + 1) % targets.length;
+            setCookie(cookieName, nextIndex.toString(), 365);
+            attackTarget(selectedTarget);
+        } else {
+            showStatus('All targets are on cooldown', 'error');
+        }
+    }
+    
+    /**
      * Create and show the configuration UI
      */
     function createConfigUI() {
@@ -313,7 +451,7 @@
             padding: 15px;
             z-index: 10000;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            min-width: 350px;
+            min-width: 400px;
             max-height: 80vh;
             overflow-y: auto;
             font-family: Arial, sans-serif;
@@ -344,6 +482,23 @@
         title.style.marginTop = '0';
         title.style.marginBottom = '15px';
         title.style.color = '#333';
+        
+        // Create auto-attack button
+        var autoAttackBtn = document.createElement('button');
+        autoAttackBtn.textContent = '⚔️ Auto-Attack Next';
+        autoAttackBtn.style.cssText = `
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            width: 100%;
+            font-weight: bold;
+            font-size: 14px;
+        `;
+        autoAttackBtn.onclick = autoAttackNext;
         
         // Create world selector
         var worlds = getWorldsWithTargets();
@@ -424,6 +579,12 @@
         villageInfo.textContent = 'Current Village: ' + (homeCoords || 'Not found');
         villageInfo.style.marginBottom = '5px';
         
+        var cooldownInfo = document.createElement('div');
+        cooldownInfo.textContent = 'Cooldown: ' + cooldown + ' minutes';
+        cooldownInfo.style.marginBottom = '5px';
+        cooldownInfo.style.fontSize = '12px';
+        cooldownInfo.style.color = '#666';
+        
         var villageUrl = document.createElement('div');
         villageUrl.style.marginTop = '10px';
         
@@ -450,6 +611,7 @@
         
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
+        infoSection.appendChild(cooldownInfo);
         infoSection.appendChild(villageUrl);
         
         // Create paste area section
@@ -541,6 +703,20 @@
             parseVillageText(text, maxDistance);
         };
         
+        // Assemble UI
+        uiContainer.appendChild(closeBtn);
+        uiContainer.appendChild(title);
+        uiContainer.appendChild(autoAttackBtn);
+        
+        if (worlds.length > 0) {
+            var worldSelectorDiv = uiContainer.querySelector('#world-info');
+            if (worldSelectorDiv) {
+                uiContainer.insertBefore(worldSelectorDiv, autoAttackBtn.nextSibling);
+            }
+        }
+        
+        uiContainer.appendChild(infoSection);
+        uiContainer.appendChild(pasteSection);
         pasteSection.appendChild(pasteLabel);
         pasteSection.appendChild(pasteTextarea);
         pasteSection.appendChild(distanceContainer);
@@ -564,11 +740,6 @@
         targetsContainer.appendChild(targetsTitle);
         targetsContainer.appendChild(targetsList);
         
-        // Assemble UI
-        uiContainer.appendChild(closeBtn);
-        uiContainer.appendChild(title);
-        uiContainer.appendChild(infoSection);
-        uiContainer.appendChild(pasteSection);
         uiContainer.appendChild(targetsContainer);
         
         document.body.appendChild(uiContainer);
@@ -625,12 +796,12 @@
         
         // Create clear all button
         var clearAllBtn = document.createElement('button');
-        clearAllBtn.textContent = 'Clear All Targets for ' + currentWorld;
+        clearAllBtn.textContent = '🗑️ Clear All Targets for ' + currentWorld;
         clearAllBtn.style.cssText = `
             background: #ff4444;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 8px 12px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
@@ -650,19 +821,34 @@
             var targetItem = document.createElement('div');
             targetItem.style.cssText = `
                 display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 8px;
-                margin: 4px 0;
+                flex-direction: column;
+                padding: 10px;
+                margin: 8px 0;
                 background: ${index % 2 === 0 ? '#f8f9fa' : '#fff'};
-                border-radius: 4px;
+                border-radius: 6px;
                 border: 1px solid #e9ecef;
             `;
             
-            var targetText = document.createElement('span');
+            // First row: Target info and remove button
+            var infoRow = document.createElement('div');
+            infoRow.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+            `;
+            
+            var targetInfo = document.createElement('div');
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
-            targetText.textContent = target + (distance ? ' (dist: ' + distance.toFixed(2) + ')' : '');
-            targetText.style.fontFamily = 'monospace';
+            var cooldownInfo = getCooldownInfo(target, cooldown);
+            
+            targetInfo.innerHTML = `
+                <div style="font-family: monospace; font-weight: bold; font-size: 14px;">${target}</div>
+                <div style="font-size: 12px; color: #666;">
+                    Distance: ${distance.toFixed(2)} | 
+                    Last attack: ${formatTimeSince(cooldownInfo.lastAttack)}
+                </div>
+            `;
             
             var removeBtn = document.createElement('button');
             removeBtn.textContent = '✕';
@@ -681,6 +867,7 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                flex-shrink: 0;
             `;
             
             removeBtn.onclick = (function(targetToRemove) {
@@ -692,8 +879,65 @@
                 };
             })(target);
             
-            targetItem.appendChild(targetText);
-            targetItem.appendChild(removeBtn);
+            infoRow.appendChild(targetInfo);
+            infoRow.appendChild(removeBtn);
+            
+            // Second row: Cooldown status and attack button
+            var actionRow = document.createElement('div');
+            actionRow.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding-top: 8px;
+                border-top: 1px dashed #ddd;
+            `;
+            
+            var cooldownStatus = document.createElement('div');
+            cooldownStatus.style.fontSize = '12px';
+            
+            if (cooldownInfo.onCooldown) {
+                cooldownStatus.innerHTML = `
+                    <span style="color: #ff6b6b; font-weight: bold;">
+                        ⏳ Cooldown: ${cooldownInfo.minutesLeft} min left
+                    </span>
+                `;
+                cooldownStatus.title = 'Attacked ' + formatTimeSince(cooldownInfo.lastAttack);
+            } else {
+                cooldownStatus.innerHTML = `
+                    <span style="color: #4CAF50; font-weight: bold;">
+                        ✅ Ready to attack
+                    </span>
+                `;
+            }
+            
+            var attackBtn = document.createElement('button');
+            attackBtn.textContent = cooldownInfo.onCooldown ? '⏳ On Cooldown' : '⚔️ Attack';
+            attackBtn.disabled = cooldownInfo.onCooldown;
+            attackBtn.style.cssText = `
+                background: ${cooldownInfo.onCooldown ? '#cccccc' : '#4CAF50'};
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
+                font-size: 12px;
+                font-weight: bold;
+                min-width: 80px;
+            `;
+            
+            if (!cooldownInfo.onCooldown) {
+                attackBtn.onclick = (function(targetToAttack) {
+                    return function() {
+                        attackTarget(targetToAttack);
+                    };
+                })(target);
+            }
+            
+            actionRow.appendChild(cooldownStatus);
+            actionRow.appendChild(attackBtn);
+            
+            targetItem.appendChild(infoRow);
+            targetItem.appendChild(actionRow);
             targetsList.appendChild(targetItem);
         });
     }
@@ -1055,100 +1299,4 @@
     
     // First show the configuration UI
     createConfigUI();
-    
-    // The original attack functionality is still available
-    // but now works with the updated coordinates
-    
-    var currentUrl = location.href;
-    var doc = document;
-    
-    // Check if we're on the rally point "place" screen without confirmation
-    if (currentUrl.indexOf("screen=place") > -1 && 
-        currentUrl.indexOf("try=confirm") < 0 && 
-        doc.forms[0] && 
-        "" == doc.forms[0].x.value && 
-        "" == doc.forms[0].y.value) {
-        
-        // Handle iframe for Tribal Wars interface
-        if (window.frames.length > 0) {
-            doc = window.main.document;
-        }
-        
-        // Double-check we're on the right screen
-        if (currentUrl.indexOf("screen=place") < 0) {
-            return; // UI already shown
-        }
-        
-        // Get current coordinates if not already set
-        if (!homeCoords) {
-            homeCoords = getCurrentVillageCoords();
-        }
-        
-        // Clean up old history entries
-        cleanupOldHistory();
-        
-        // Parse target list
-        var targets = targetList.split(" ").filter(Boolean);
-        var targetIndex = 0;
-        
-        // Get saved target index from cookie
-        var savedIndex = getCookie(cookieName);
-        if (null !== savedIndex) {
-            targetIndex = parseInt(savedIndex);
-        }
-        
-        var startIndex = targetIndex;
-        var selectedTarget = null;
-        var attempts = 0;
-        
-        // Find next available target (not on cooldown)
-        do {
-            var currentTarget = targets[targetIndex];
-            if (!isOnCooldown(currentTarget, cooldown)) {
-                selectedTarget = currentTarget;
-                break;
-            }
-            targetIndex = (targetIndex + 1) % targets.length;
-            attempts++;
-        } while (attempts < targets.length && targetIndex != startIndex);
-        
-        // If targets available, prepare attack
-        if (selectedTarget) {
-            // Parse coordinates
-            var coords = selectedTarget.split("|");
-            var nextIndex = (targetIndex + 1) % targets.length;
-            
-            // Save next target index for future use
-            setCookie(cookieName, nextIndex.toString(), 365);
-            
-            // Fill coordinates in form
-            doc.forms[0].x.value = coords[0];
-            doc.forms[0].y.value = coords[1];
-            
-            // Fill unit counts
-            setUnitCount(doc.forms[0].spear, spear);
-            setUnitCount(doc.forms[0].sword, sword);
-            setUnitCount(doc.forms[0].axe, axe);
-            setUnitCount(doc.forms[0].spy, spy);
-            setUnitCount(doc.forms[0].light, light);
-            setUnitCount(doc.forms[0].heavy, heavy);
-            setUnitCount(doc.forms[0].ram, ram);
-            setUnitCount(doc.forms[0].catapult, catapult);
-            setUnitCount(doc.forms[0].knight, knight);
-            
-            // Log target information
-            var distance = calculateDistance(homeCoords, selectedTarget);
-            console.log("Target: " + selectedTarget + " (Index: " + targetIndex + "), distance: " + distance);
-            
-            // Record this attack in history
-            recordAttack(selectedTarget);
-            
-            // Note: Form submission is not automatic anymore
-            // User needs to click the "Place" or "Attack" button manually
-        }
-        
-    } else {
-        // Show the config UI even if not on attack page
-        // UI already shown at beginning
-    }
 })();
