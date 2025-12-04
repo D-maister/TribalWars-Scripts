@@ -72,13 +72,16 @@
                             timestamp: date.getTime(),
                             attacks: 0,
                             totalResources: 0,
+                            totalHours: 0,
                             villages: new Set(),
-                            resourcesPerAttack: 0
+                            resourcesPerAttack: 0,
+                            resourcesPerHour: 0
                         };
                     }
                     
                     dailyData[dayKey].attacks++;
                     dailyData[dayKey].totalResources += report.totalResources;
+                    dailyData[dayKey].totalHours += report.duration / 60;
                     
                     if (report.coordinates) {
                         dailyData[dayKey].villages.add(report.coordinates);
@@ -95,6 +98,9 @@
         Object.values(dailyData).forEach(day => {
             if (day.attacks > 0) {
                 day.resourcesPerAttack = Math.round(day.totalResources / day.attacks);
+            }
+            if (day.totalHours > 0) {
+                day.resourcesPerHour = Math.round(day.totalResources / day.totalHours);
             }
             day.villageCount = day.villages.size;
         });
@@ -113,6 +119,7 @@
             dates: sortedDays.map(day => day.date),
             attacksData: sortedDays.map(day => day.attacks),
             resourcesPerAttackData: sortedDays.map(day => day.resourcesPerAttack),
+            resourcesPerHourData: sortedDays.map(day => day.resourcesPerHour),
             villagesData: sortedDays.map(day => day.villageCount)
         };
     }
@@ -151,6 +158,13 @@
                 formatValue: (val) => val.toLocaleString()
             },
             { 
+                title: 'Resources per Hour', 
+                data: chartData.resourcesPerHourData, 
+                color: '#9C27B0',
+                tooltipPrefix: 'Resources/hour: ',
+                formatValue: (val) => val.toLocaleString()
+            },
+            { 
                 title: 'Unique Villages', 
                 data: chartData.villagesData, 
                 color: '#FF9800',
@@ -167,7 +181,7 @@
         chartTypes.forEach((chartType, chartIndex) => {
             const chartContainer = document.createElement('div');
             chartContainer.style.flex = '1';
-            chartContainer.style.minWidth = '300px';
+            chartContainer.style.minWidth = '280px';
             chartContainer.style.backgroundColor = 'white';
             chartContainer.style.borderRadius = '5px';
             chartContainer.style.padding = '15px';
@@ -198,15 +212,16 @@
             yAxisLabels.style.left = '0';
             yAxisLabels.style.top = '0';
             yAxisLabels.style.bottom = '0';
-            yAxisLabels.style.width = '30px';
+            yAxisLabels.style.width = '35px';
             yAxisLabels.style.display = 'flex';
             yAxisLabels.style.flexDirection = 'column';
             yAxisLabels.style.justifyContent = 'space-between';
             yAxisLabels.style.padding = '5px 0';
             
-            // Add y-axis grid lines and labels
+            // Add y-axis grid lines and labels - FIXED: labels from 0 to max
             if (maxValue > 0) {
-                for (let i = 0; i <= 4; i++) {
+                // Create 5 evenly spaced values from 0 to max
+                for (let i = 4; i >= 0; i--) {
                     const value = Math.round((maxValue * i) / 4);
                     const label = document.createElement('div');
                     label.textContent = chartType.formatValue ? chartType.formatValue(value) : value;
@@ -214,6 +229,19 @@
                     label.style.color = '#666';
                     label.style.textAlign = 'right';
                     label.style.paddingRight = '5px';
+                    
+                    // Add grid line
+                    const gridLine = document.createElement('div');
+                    gridLine.style.position = 'absolute';
+                    gridLine.style.left = '35px';
+                    gridLine.style.right = '0';
+                    const position = (i / 4) * 100;
+                    gridLine.style.top = position + '%';
+                    gridLine.style.height = '1px';
+                    gridLine.style.backgroundColor = '#eee';
+                    gridLine.style.zIndex = '0';
+                    chartBars.appendChild(gridLine);
+                    
                     yAxisLabels.appendChild(label);
                 }
             }
@@ -221,7 +249,7 @@
             chartBars.appendChild(yAxisLabels);
             
             const barsContainer = document.createElement('div');
-            barsContainer.style.marginLeft = '35px';
+            barsContainer.style.marginLeft = '40px';
             barsContainer.style.flex = '1';
             barsContainer.style.display = 'flex';
             barsContainer.style.gap = '8px';
@@ -241,14 +269,16 @@
                 const barHeight = maxValue > 0 ? (value / maxValue) * chartHeight : 0;
                 
                 const bar = document.createElement('div');
-                bar.style.width = '100%';
+                bar.style.width = '80%';
                 bar.style.height = barHeight + 'px';
                 bar.style.backgroundColor = chartType.color;
                 bar.style.borderRadius = '3px 3px 0 0';
                 bar.style.position = 'absolute';
                 bar.style.bottom = '0';
+                bar.style.left = '10%';
                 bar.style.transition = 'all 0.3s ease';
                 bar.style.cursor = 'pointer';
+                bar.style.zIndex = '1';
                 
                 const valueText = chartType.formatValue ? chartType.formatValue(value) : value;
                 bar.title = `${chartData.dates[index]}: ${chartType.tooltipPrefix}${valueText}`;
@@ -298,6 +328,8 @@
                 labelElement.style.transform = 'rotate(-45deg)';
                 labelElement.style.transformOrigin = 'center';
                 labelElement.style.whiteSpace = 'nowrap';
+                labelElement.style.overflow = 'hidden';
+                labelElement.style.textOverflow = 'ellipsis';
                 
                 barContainer.appendChild(bar);
                 barContainer.appendChild(labelElement);
@@ -310,7 +342,7 @@
             xAxis.style.height = '1px';
             xAxis.style.backgroundColor = '#ddd';
             xAxis.style.marginTop = '30px';
-            xAxis.style.marginLeft = '35px';
+            xAxis.style.marginLeft = '40px';
             
             chartContainer.appendChild(chartBars);
             chartContainer.appendChild(xAxis);
@@ -326,17 +358,7 @@
         
         const now = new Date();
         
-        // Define time periods
-        const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const last3days = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
-        const last7days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        const last30days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        
-        // Initialize counters for each period
-        let stats24h = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
-        let stats3days = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
-        let stats7days = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
-        let stats30days = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
+        // Initialize counters
         let statsAll = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
         
         // Collect all reports
@@ -355,42 +377,7 @@
         // Limit reports for display
         const limitedReports = reports.slice(0, reportLimit);
         
-        // Calculate statistics for each period
-        for (const report of reports) {
-            if (report.created) {
-                const reportDate = new Date(report.created);
-                
-                if (reportDate >= last24h) {
-                    stats24h.attacks++;
-                    stats24h.resources += report.totalResources;
-                    stats24h.hours += report.duration / 60;
-                    stats24h.capacity += report.capacity;
-                }
-                
-                if (reportDate >= last3days) {
-                    stats3days.attacks++;
-                    stats3days.resources += report.totalResources;
-                    stats3days.hours += report.duration / 60;
-                    stats3days.capacity += report.capacity;
-                }
-                
-                if (reportDate >= last7days) {
-                    stats7days.attacks++;
-                    stats7days.resources += report.totalResources;
-                    stats7days.hours += report.duration / 60;
-                    stats7days.capacity += report.capacity;
-                }
-                
-                if (reportDate >= last30days) {
-                    stats30days.attacks++;
-                    stats30days.resources += report.totalResources;
-                    stats30days.hours += report.duration / 60;
-                    stats30days.capacity += report.capacity;
-                }
-            }
-        }
-        
-        // Calculate derived metrics
+        // Calculate derived metrics for all time
         const calculateMetrics = (stats) => {
             return {
                 resourcesPerHour: stats.hours > 0 ? Math.round(stats.resources / stats.hours) : 0,
@@ -399,10 +386,6 @@
             };
         };
         
-        const metrics24h = calculateMetrics(stats24h);
-        const metrics3days = calculateMetrics(stats3days);
-        const metrics7days = calculateMetrics(stats7days);
-        const metrics30days = calculateMetrics(stats30days);
         const metricsAll = calculateMetrics(statsAll);
         
         // Group reports by village coordinates
@@ -473,62 +456,27 @@
                 <div id="highchartsContainer"></div>
             </div>
             
-            <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;margin-bottom:20px;">
-                <tr>
-                    <th>Period</th>
-                    <th>Attacks</th>
-                    <th>Resources/Hour</th>
-                    <th>Fill Rate</th>
-                    <th>Resources/Attack</th>
-                    <th>Total Resources</th>
-                    <th>Total Hours</th>
-                </tr>
-                <tr>
-                    <td>Last 24h</td>
-                    <td>${stats24h.attacks}</td>
-                    <td>${metrics24h.resourcesPerHour}</td>
-                    <td>${metrics24h.fillRate}%</td>
-                    <td>${metrics24h.resourcesPerAttack}</td>
-                    <td>${stats24h.resources}</td>
-                    <td>${Math.round(stats24h.hours * 10) / 10}</td>
-                </tr>
-                <tr>
-                    <td>Last 3 days</td>
-                    <td>${stats3days.attacks}</td>
-                    <td>${metrics3days.resourcesPerHour}</td>
-                    <td>${metrics3days.fillRate}%</td>
-                    <td>${metrics3days.resourcesPerAttack}</td>
-                    <td>${stats3days.resources}</td>
-                    <td>${Math.round(stats3days.hours * 10) / 10}</td>
-                </tr>
-                <tr>
-                    <td>Last 7 days</td>
-                    <td>${stats7days.attacks}</td>
-                    <td>${metrics7days.resourcesPerHour}</td>
-                    <td>${metrics7days.fillRate}%</td>
-                    <td>${metrics7days.resourcesPerAttack}</td>
-                    <td>${stats7days.resources}</td>
-                    <td>${Math.round(stats7days.hours * 10) / 10}</td>
-                </tr>
-                <tr>
-                    <td>Last 30 days</td>
-                    <td>${stats30days.attacks}</td>
-                    <td>${metrics30days.resourcesPerHour}</td>
-                    <td>${metrics30days.fillRate}%</td>
-                    <td>${metrics30days.resourcesPerAttack}</td>
-                    <td>${stats30days.resources}</td>
-                    <td>${Math.round(stats30days.hours * 10) / 10}</td>
-                </tr>
-                <tr>
-                    <td><b>All Time</b></td>
-                    <td>${statsAll.attacks}</td>
-                    <td>${metricsAll.resourcesPerHour}</td>
-                    <td>${metricsAll.fillRate}%</td>
-                    <td>${metricsAll.resourcesPerAttack}</td>
-                    <td>${statsAll.resources}</td>
-                    <td>${Math.round(statsAll.hours * 10) / 10}</td>
-                </tr>
-            </table>`;
+            <div style="margin-bottom:20px;background:#f0f8ff;padding:10px;border-radius:5px;border:1px solid #ddd;">
+                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Summary Statistics (All Time)</div>
+                <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
+                    <tr>
+                        <th>Total Attacks</th>
+                        <th>Total Resources</th>
+                        <th>Resources/Hour</th>
+                        <th>Avg Fill Rate</th>
+                        <th>Resources/Attack</th>
+                        <th>Total Hours</th>
+                    </tr>
+                    <tr>
+                        <td>${statsAll.attacks}</td>
+                        <td>${statsAll.resources.toLocaleString()}</td>
+                        <td>${metricsAll.resourcesPerHour.toLocaleString()}</td>
+                        <td>${metricsAll.fillRate}%</td>
+                        <td>${metricsAll.resourcesPerAttack.toLocaleString()}</td>
+                        <td>${Math.round(statsAll.hours * 10) / 10}</td>
+                    </tr>
+                </table>
+            </div>`;
         
         // Village statistics table
         html += `
@@ -538,7 +486,7 @@
                     <th>Distance</th>
                     <th>Avg Time (min)</th>
                     <th>Attacks</th>
-                    <th>Total</th>
+                    <th>Total Resources</th>
                     <th>Resources/Attack</th>
                     <th>Avg Fill Rate</th>
                     <th>SC</th>
@@ -556,8 +504,8 @@
                     <td>${village.distance}</td>
                     <td>${village.avgTime} min</td>
                     <td>${village.attackCount}</td>
-                    <td>${village.totalResources}</td>
-                    <td>${village.resourcesPerAttack}</td>
+                    <td>${village.totalResources.toLocaleString()}</td>
+                    <td>${village.resourcesPerAttack.toLocaleString()}</td>
                     <td>${village.avgFillRate}%</td>
                     <td>${village.avgTroops.sc || 0}</td>
                     <td>${village.avgTroops.sw || 0}</td>
@@ -612,13 +560,13 @@
                     <td>${report.coordinates}</td>
                     <td>${report.distance}</td>
                     <td>${durationDisplay}</td>
-                    <td>${report.resources.wood}</td>
-                    <td>${report.resources.stone}</td>
-                    <td>${report.resources.iron}</td>
-                    <td>${report.totalResources}</td>
-                    <td>${report.capacity}</td>
+                    <td>${report.resources.wood.toLocaleString()}</td>
+                    <td>${report.resources.stone.toLocaleString()}</td>
+                    <td>${report.resources.iron.toLocaleString()}</td>
+                    <td>${report.totalResources.toLocaleString()}</td>
+                    <td>${report.capacity.toLocaleString()}</td>
                     <td>${report.fillRate}%</td>
-                    <td>${report.resourcesPerHour}</td>
+                    <td>${report.resourcesPerHour.toLocaleString()}</td>
                     <td>${report.troops.sc || 0}</td>
                     <td>${report.troops.sw || 0}</td>
                     <td>${report.troops.ax || 0}</td>
