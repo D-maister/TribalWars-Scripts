@@ -50,31 +50,6 @@
         return farmReports;
     }
     
-    // Function to load Highcharts library
-    function loadHighcharts() {
-        return new Promise((resolve, reject) => {
-            if (window.Highcharts) {
-                resolve();
-                return;
-            }
-            
-            const script = document.createElement('script');
-            script.src = 'https://code.highcharts.com/highcharts.js';
-            
-            script.onload = () => {
-                console.log('Highcharts loaded successfully');
-                resolve();
-            };
-            
-            script.onerror = () => {
-                console.error('Failed to load Highcharts');
-                reject(new Error('Failed to load Highcharts'));
-            };
-            
-            document.head.appendChild(script);
-        });
-    }
-    
     // Function to process data for charts
     function prepareChartData(reports) {
         console.log('Preparing chart data from', reports.length, 'reports');
@@ -127,34 +102,32 @@
         // Convert to arrays and sort by date
         const sortedDays = Object.values(dailyData).sort((a, b) => a.timestamp - b.timestamp);
         
-        console.log('Sorted days:', sortedDays.map(d => ({date: d.date, attacks: d.attacks})));
+        // Format dates for display (short format)
+        const formattedDates = sortedDays.map(day => {
+            const date = new Date(day.date);
+            return `${date.getDate()}/${date.getMonth() + 1}`;
+        });
         
         return {
-            categories: sortedDays.map(day => day.date),
+            labels: formattedDates,
+            dates: sortedDays.map(day => day.date),
             attacksData: sortedDays.map(day => day.attacks),
             resourcesPerAttackData: sortedDays.map(day => day.resourcesPerAttack),
             villagesData: sortedDays.map(day => day.villageCount)
         };
     }
     
-    // Function to create charts
-    function createCharts(chartData, containerId) {
-        console.log('Creating charts with data:', chartData);
-        
+    // Function to create simple HTML charts (no external dependencies)
+    function createSimpleCharts(chartData, containerId) {
         const container = document.getElementById(containerId);
-        if (!container) {
-            console.error('Container not found:', containerId);
-            return;
-        }
+        if (!container) return;
         
-        // Clear previous content
         container.innerHTML = '';
         
-        // Check if we have data
-        if (!chartData.categories || chartData.categories.length === 0) {
+        if (!chartData.labels || chartData.labels.length === 0) {
             container.innerHTML = `
                 <div style="text-align:center;padding:20px;color:#666;background:#f0f0f0;border-radius:5px;">
-                    <div style="margin-bottom:10px;">⚠️</div>
+                    <div style="margin-bottom:10px;">📊</div>
                     <div>No chart data available</div>
                     <div style="font-size:11px;margin-top:5px;">Try collecting some farm reports first</div>
                 </div>
@@ -162,219 +135,194 @@
             return;
         }
         
-        // Create container for all charts
-        const chartsWrapper = document.createElement('div');
-        chartsWrapper.id = 'chartsWrapper';
-        container.appendChild(chartsWrapper);
+        // Create simple bar charts using HTML/CSS
+        const chartTypes = [
+            { 
+                title: 'Attacks per Day', 
+                data: chartData.attacksData, 
+                color: '#4CAF50',
+                tooltipPrefix: 'Attacks: '
+            },
+            { 
+                title: 'Avg Resources per Attack', 
+                data: chartData.resourcesPerAttackData, 
+                color: '#2196F3',
+                tooltipPrefix: 'Resources: ',
+                formatValue: (val) => val.toLocaleString()
+            },
+            { 
+                title: 'Unique Villages', 
+                data: chartData.villagesData, 
+                color: '#FF9800',
+                tooltipPrefix: 'Villages: '
+            }
+        ];
         
-        // Create individual chart containers
-        const chartIds = ['attacks-chart', 'resources-chart', 'villages-chart'];
-        const chartTitles = ['Attacks per Day', 'Average Resources per Attack', 'Unique Villages Attacked'];
-        const chartColors = ['#4CAF50', '#2196F3', '#FF9800'];
+        const wrapper = document.createElement('div');
+        wrapper.style.display = 'flex';
+        wrapper.style.flexWrap = 'wrap';
+        wrapper.style.gap = '20px';
+        wrapper.style.justifyContent = 'space-between';
         
-        chartIds.forEach((chartId, index) => {
-            const chartDiv = document.createElement('div');
-            chartDiv.id = chartId;
-            chartDiv.style.height = '250px';
-            chartDiv.style.marginBottom = index < 2 ? '20px' : '0';
-            chartDiv.style.border = '1px solid #eee';
-            chartDiv.style.borderRadius = '5px';
-            chartDiv.style.backgroundColor = 'white';
-            chartDiv.style.padding = '10px';
-            chartsWrapper.appendChild(chartDiv);
+        chartTypes.forEach((chartType, chartIndex) => {
+            const chartContainer = document.createElement('div');
+            chartContainer.style.flex = '1';
+            chartContainer.style.minWidth = '300px';
+            chartContainer.style.backgroundColor = 'white';
+            chartContainer.style.borderRadius = '5px';
+            chartContainer.style.padding = '15px';
+            chartContainer.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+            
+            const title = document.createElement('div');
+            title.textContent = chartType.title;
+            title.style.fontWeight = 'bold';
+            title.style.marginBottom = '15px';
+            title.style.color = '#333';
+            title.style.fontSize = '14px';
+            chartContainer.appendChild(title);
+            
+            const maxValue = Math.max(...chartType.data);
+            const chartHeight = 150;
+            
+            const chartBars = document.createElement('div');
+            chartBars.style.display = 'flex';
+            chartBars.style.alignItems = 'flex-end';
+            chartBars.style.height = chartHeight + 'px';
+            chartBars.style.gap = '8px';
+            chartBars.style.padding = '10px 0';
+            chartBars.style.position = 'relative';
+            
+            // Create y-axis labels
+            const yAxisLabels = document.createElement('div');
+            yAxisLabels.style.position = 'absolute';
+            yAxisLabels.style.left = '0';
+            yAxisLabels.style.top = '0';
+            yAxisLabels.style.bottom = '0';
+            yAxisLabels.style.width = '30px';
+            yAxisLabels.style.display = 'flex';
+            yAxisLabels.style.flexDirection = 'column';
+            yAxisLabels.style.justifyContent = 'space-between';
+            yAxisLabels.style.padding = '5px 0';
+            
+            // Add y-axis grid lines and labels
+            if (maxValue > 0) {
+                for (let i = 0; i <= 4; i++) {
+                    const value = Math.round((maxValue * i) / 4);
+                    const label = document.createElement('div');
+                    label.textContent = chartType.formatValue ? chartType.formatValue(value) : value;
+                    label.style.fontSize = '9px';
+                    label.style.color = '#666';
+                    label.style.textAlign = 'right';
+                    label.style.paddingRight = '5px';
+                    yAxisLabels.appendChild(label);
+                }
+            }
+            
+            chartBars.appendChild(yAxisLabels);
+            
+            const barsContainer = document.createElement('div');
+            barsContainer.style.marginLeft = '35px';
+            barsContainer.style.flex = '1';
+            barsContainer.style.display = 'flex';
+            barsContainer.style.gap = '8px';
+            barsContainer.style.alignItems = 'flex-end';
+            barsContainer.style.height = '100%';
+            
+            chartData.labels.forEach((label, index) => {
+                const barContainer = document.createElement('div');
+                barContainer.style.display = 'flex';
+                barContainer.style.flexDirection = 'column';
+                barContainer.style.alignItems = 'center';
+                barContainer.style.flex = '1';
+                barContainer.style.height = '100%';
+                barContainer.style.position = 'relative';
+                
+                const value = chartType.data[index];
+                const barHeight = maxValue > 0 ? (value / maxValue) * chartHeight : 0;
+                
+                const bar = document.createElement('div');
+                bar.style.width = '100%';
+                bar.style.height = barHeight + 'px';
+                bar.style.backgroundColor = chartType.color;
+                bar.style.borderRadius = '3px 3px 0 0';
+                bar.style.position = 'absolute';
+                bar.style.bottom = '0';
+                bar.style.transition = 'all 0.3s ease';
+                bar.style.cursor = 'pointer';
+                
+                const valueText = chartType.formatValue ? chartType.formatValue(value) : value;
+                bar.title = `${chartData.dates[index]}: ${chartType.tooltipPrefix}${valueText}`;
+                
+                // Add hover effect
+                bar.onmouseover = function() {
+                    this.style.opacity = '0.8';
+                    this.style.transform = 'scale(1.05)';
+                    
+                    // Show tooltip
+                    const tooltip = document.createElement('div');
+                    tooltip.textContent = `${chartData.dates[index]}: ${chartType.tooltipPrefix}${valueText}`;
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.top = '-35px';
+                    tooltip.style.left = '50%';
+                    tooltip.style.transform = 'translateX(-50%)';
+                    tooltip.style.backgroundColor = 'rgba(0,0,0,0.8)';
+                    tooltip.style.color = 'white';
+                    tooltip.style.padding = '5px 10px';
+                    tooltip.style.borderRadius = '4px';
+                    tooltip.style.fontSize = '11px';
+                    tooltip.style.whiteSpace = 'nowrap';
+                    tooltip.style.zIndex = '1000';
+                    tooltip.style.pointerEvents = 'none';
+                    this.parentElement.appendChild(tooltip);
+                };
+                
+                bar.onmouseout = function() {
+                    this.style.opacity = '1';
+                    this.style.transform = 'scale(1)';
+                    
+                    // Remove tooltip
+                    const tooltip = this.parentElement.querySelector('div[style*="position: absolute"][style*="top: -35px"]');
+                    if (tooltip) tooltip.remove();
+                };
+                
+                const labelElement = document.createElement('div');
+                labelElement.textContent = label;
+                labelElement.style.fontSize = '10px';
+                labelElement.style.marginTop = '5px';
+                labelElement.style.color = '#666';
+                labelElement.style.textAlign = 'center';
+                labelElement.style.position = 'absolute';
+                labelElement.style.bottom = '-25px';
+                labelElement.style.left = '0';
+                labelElement.style.right = '0';
+                labelElement.style.transform = 'rotate(-45deg)';
+                labelElement.style.transformOrigin = 'center';
+                labelElement.style.whiteSpace = 'nowrap';
+                
+                barContainer.appendChild(bar);
+                barContainer.appendChild(labelElement);
+                barsContainer.appendChild(barContainer);
+            });
+            
+            chartBars.appendChild(barsContainer);
+            
+            const xAxis = document.createElement('div');
+            xAxis.style.height = '1px';
+            xAxis.style.backgroundColor = '#ddd';
+            xAxis.style.marginTop = '30px';
+            xAxis.style.marginLeft = '35px';
+            
+            chartContainer.appendChild(chartBars);
+            chartContainer.appendChild(xAxis);
+            wrapper.appendChild(chartContainer);
         });
         
-        // Create chart 1: Attacks per day
-        try {
-            Highcharts.chart('attacks-chart', {
-                chart: {
-                    type: 'column',
-                    backgroundColor: 'transparent'
-                },
-                title: {
-                    text: chartTitles[0],
-                    style: {
-                        color: '#333333',
-                        fontSize: '14px'
-                    }
-                },
-                xAxis: {
-                    categories: chartData.categories,
-                    labels: {
-                        rotation: -45,
-                        style: {
-                            fontSize: '10px',
-                            color: '#666666'
-                        }
-                    }
-                },
-                yAxis: {
-                    min: 0,
-                    title: {
-                        text: 'Number of Attacks',
-                        style: {
-                            color: '#666666'
-                        }
-                    },
-                    gridLineColor: '#f0f0f0'
-                },
-                legend: {
-                    enabled: false
-                },
-                tooltip: {
-                    headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
-                    pointFormat: '<b>{point.y}</b> attacks'
-                },
-                plotOptions: {
-                    column: {
-                        color: chartColors[0],
-                        borderRadius: 3,
-                        pointPadding: 0.1,
-                        groupPadding: 0.1
-                    }
-                },
-                series: [{
-                    name: 'Attacks',
-                    data: chartData.attacksData
-                }],
-                credits: {
-                    enabled: false
-                }
-            });
-            console.log('Attacks chart created successfully');
-        } catch (e) {
-            console.error('Error creating attacks chart:', e);
-        }
-        
-        // Create chart 2: Resources per attack
-        try {
-            Highcharts.chart('resources-chart', {
-                chart: {
-                    type: 'column',
-                    backgroundColor: 'transparent'
-                },
-                title: {
-                    text: chartTitles[1],
-                    style: {
-                        color: '#333333',
-                        fontSize: '14px'
-                    }
-                },
-                xAxis: {
-                    categories: chartData.categories,
-                    labels: {
-                        rotation: -45,
-                        style: {
-                            fontSize: '10px',
-                            color: '#666666'
-                        }
-                    }
-                },
-                yAxis: {
-                    min: 0,
-                    title: {
-                        text: 'Resources',
-                        style: {
-                            color: '#666666'
-                        }
-                    },
-                    gridLineColor: '#f0f0f0'
-                },
-                legend: {
-                    enabled: false
-                },
-                tooltip: {
-                    headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
-                    pointFormat: '<b>{point.y}</b> resources per attack'
-                },
-                plotOptions: {
-                    column: {
-                        color: chartColors[1],
-                        borderRadius: 3,
-                        pointPadding: 0.1,
-                        groupPadding: 0.1
-                    }
-                },
-                series: [{
-                    name: 'Resources per Attack',
-                    data: chartData.resourcesPerAttackData
-                }],
-                credits: {
-                    enabled: false
-                }
-            });
-            console.log('Resources chart created successfully');
-        } catch (e) {
-            console.error('Error creating resources chart:', e);
-        }
-        
-        // Create chart 3: Unique villages
-        try {
-            Highcharts.chart('villages-chart', {
-                chart: {
-                    type: 'column',
-                    backgroundColor: 'transparent'
-                },
-                title: {
-                    text: chartTitles[2],
-                    style: {
-                        color: '#333333',
-                        fontSize: '14px'
-                    }
-                },
-                xAxis: {
-                    categories: chartData.categories,
-                    labels: {
-                        rotation: -45,
-                        style: {
-                            fontSize: '10px',
-                            color: '#666666'
-                        }
-                    }
-                },
-                yAxis: {
-                    min: 0,
-                    title: {
-                        text: 'Number of Villages',
-                        style: {
-                            color: '#666666'
-                        }
-                    },
-                    gridLineColor: '#f0f0f0'
-                },
-                legend: {
-                    enabled: false
-                },
-                tooltip: {
-                    headerFormat: '<span style="font-size: 10px">{point.key}</span><br/>',
-                    pointFormat: '<b>{point.y}</b> unique villages'
-                },
-                plotOptions: {
-                    column: {
-                        color: chartColors[2],
-                        borderRadius: 3,
-                        pointPadding: 0.1,
-                        groupPadding: 0.1
-                    }
-                },
-                series: [{
-                    name: 'Unique Villages',
-                    data: chartData.villagesData
-                }],
-                credits: {
-                    enabled: false
-                }
-            });
-            console.log('Villages chart created successfully');
-        } catch (e) {
-            console.error('Error creating villages chart:', e);
-        }
+        container.appendChild(wrapper);
     }
     
     // Function to show statistics
     function showStats(reportLimit = 100) {
         const storedData = JSON.parse(localStorage.getItem('tribalwars-farm'));
-        console.log('Showing stats for', Object.keys(storedData).length, 'reports');
         
         const now = new Date();
         
@@ -417,13 +365,6 @@
                     stats24h.resources += report.totalResources;
                     stats24h.hours += report.duration / 60;
                     stats24h.capacity += report.capacity;
-                }
-                
-                if (reportDate >= last3days) {
-                    stats3days.attacks++;
-                    stats3days.resources += report.totalResources;
-                    stats3days.hours += report.duration / 60;
-                    stats3days.capacity += report.capacity;
                 }
                 
                 if (reportDate >= last3days) {
@@ -709,31 +650,10 @@
         
         document.body.appendChild(popup);
         
-        // Load Highcharts and create charts with retry logic
-        function initCharts() {
-            loadHighcharts()
-                .then(() => {
-                    console.log('Highcharts loaded, creating charts...');
-                    // Small delay to ensure DOM is ready
-                    setTimeout(() => {
-                        createCharts(chartData, 'highchartsContainer');
-                    }, 100);
-                })
-                .catch(error => {
-                    console.error('Failed to load Highcharts:', error);
-                    document.getElementById('highchartsContainer').innerHTML = `
-                        <div style="text-align:center;padding:20px;color:#666;background:#f0f0f0;border-radius:5px;">
-                            <div style="margin-bottom:10px;">⚠️</div>
-                            <div>Failed to load charts</div>
-                            <div style="font-size:11px;margin-top:5px;">${error.message}</div>
-                            <div style="font-size:11px;margin-top:10px;">Check console for details</div>
-                        </div>
-                    `;
-                });
-        }
-        
-        // Initialize charts
-        setTimeout(initCharts, 0);
+        // Create simple charts immediately (no external dependencies)
+        setTimeout(() => {
+            createSimpleCharts(chartData, 'highchartsContainer');
+        }, 100);
         
         // Global function to update report limit
         window.updateReportLimit = function(limit) {
