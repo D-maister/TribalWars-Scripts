@@ -3,16 +3,8 @@
     var cookieName = "akk";           // Cookie name for storing target index
     var historyCookie = "attackHistory"; // Cookie name for attack history
     var targetsStorageKey = "twAttackTargets"; // localStorage key for target list
+    var buildsStorageKey = "twAttackBuilds"; // localStorage key for troop builds
     var cooldown = 30;                // Cooldown time in minutes
-    var spear = 0;                    // Number of spears to send
-    var sword = 0;                    // Number of swordsmen to send
-    var axe = 0;                      // Number of axes to send
-    var spy = 0;                      // Number of spies to send
-    var light = 2;                    // Number of light cavalry to send
-    var heavy = 0;                    // Number of heavy cavalry to send
-    var ram = 0;                      // Number of rams to send
-    var catapult = 0;                 // Number of catapults to send
-    var knight = 0;                   // Number of paladins to send
     
     // Home village coordinates (format: "X|Y") - will be updated from page
     var homeCoords = "";
@@ -23,6 +15,15 @@
     
     // Current world name
     var currentWorld = "";
+    
+    // Default troop builds
+    var defaultBuilds = {
+        "A": { spear: 0, sword: 0, axe: 0, spy: 0, light: 2, heavy: 0, ram: 0, catapult: 0, knight: 0 },
+        "B": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 }
+    };
+    
+    // Current troop builds
+    var troopBuilds = {};
     
     // ===== UTILITY FUNCTIONS =====
     
@@ -225,6 +226,49 @@
     }
     
     /**
+     * Load troop builds from localStorage
+     */
+    function loadBuildsFromStorage() {
+        try {
+            var storedData = localStorage.getItem(buildsStorageKey);
+            if (storedData) {
+                var allBuilds = JSON.parse(storedData);
+                // Get builds for current world
+                if (allBuilds[currentWorld]) {
+                    troopBuilds = allBuilds[currentWorld];
+                } else {
+                    // Use defaults for this world
+                    troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
+                }
+            } else {
+                // Use defaults
+                troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
+            }
+        } catch (e) {
+            console.error("Error loading builds from localStorage:", e);
+            troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
+        }
+    }
+    
+    /**
+     * Save troop builds to localStorage
+     */
+    function saveBuildsToStorage() {
+        try {
+            var storedData = localStorage.getItem(buildsStorageKey);
+            var allBuilds = storedData ? JSON.parse(storedData) : {};
+            
+            // Update builds for current world
+            allBuilds[currentWorld] = troopBuilds;
+            
+            // Save back to localStorage
+            localStorage.setItem(buildsStorageKey, JSON.stringify(allBuilds));
+        } catch (e) {
+            console.error("Error saving builds to localStorage:", e);
+        }
+    }
+    
+    /**
      * Get all worlds with stored targets
      * @return {Array} Array of world names
      */
@@ -315,10 +359,11 @@
     }
     
     /**
-     * Attack a specific target
+     * Attack a specific target with specific build
      * @param {string} target - Target coordinates
+     * @param {string} buildKey - Build key ('A' or 'B')
      */
-    function attackTarget(target) {
+    function attackTarget(target, buildKey) {
         var currentUrl = location.href;
         var doc = document;
         
@@ -339,22 +384,25 @@
             doc.forms[0].x.value = coords[0];
             doc.forms[0].y.value = coords[1];
             
+            // Get build troops
+            var build = troopBuilds[buildKey] || defaultBuilds[buildKey] || defaultBuilds["A"];
+            
             // Fill unit counts
-            setUnitCount(doc.forms[0].spear, spear);
-            setUnitCount(doc.forms[0].sword, sword);
-            setUnitCount(doc.forms[0].axe, axe);
-            setUnitCount(doc.forms[0].spy, spy);
-            setUnitCount(doc.forms[0].light, light);
-            setUnitCount(doc.forms[0].heavy, heavy);
-            setUnitCount(doc.forms[0].ram, ram);
-            setUnitCount(doc.forms[0].catapult, catapult);
-            setUnitCount(doc.forms[0].knight, knight);
+            setUnitCount(doc.forms[0].spear, build.spear);
+            setUnitCount(doc.forms[0].sword, build.sword);
+            setUnitCount(doc.forms[0].axe, build.axe);
+            setUnitCount(doc.forms[0].spy, build.spy);
+            setUnitCount(doc.forms[0].light, build.light);
+            setUnitCount(doc.forms[0].heavy, build.heavy);
+            setUnitCount(doc.forms[0].ram, build.ram);
+            setUnitCount(doc.forms[0].catapult, build.catapult);
+            setUnitCount(doc.forms[0].knight, build.knight);
             
             // Record this attack in history
             recordAttack(target);
             
             // Show success message
-            showStatus('Target ' + target + ' prepared for attack! Click "Place" button to send.', 'success');
+            showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
             
             // Update the target list UI to show new cooldown
             updateTargetsListUI();
@@ -364,11 +412,27 @@
             if (submitButton) {
                 submitButton.style.border = '2px solid #4CAF50';
                 submitButton.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
+                submitButton.style.animation = 'pulse 1s infinite';
+                
+                // Add CSS for pulse animation
+                if (!document.querySelector('#pulse-animation')) {
+                    var style = document.createElement('style');
+                    style.id = 'pulse-animation';
+                    style.textContent = `
+                        @keyframes pulse {
+                            0% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
+                            50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+                            100% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
                 
                 // Remove highlight after 5 seconds
                 setTimeout(function() {
                     submitButton.style.border = '';
                     submitButton.style.boxShadow = '';
+                    submitButton.style.animation = '';
                 }, 5000);
             }
             
@@ -378,7 +442,7 @@
     }
     
     /**
-     * Auto-attack next available target
+     * Auto-attack next available target with Build A
      */
     function autoAttackNext() {
         cleanupOldHistory();
@@ -415,7 +479,7 @@
         if (selectedTarget) {
             var nextIndex = (targetIndex + 1) % targets.length;
             setCookie(cookieName, nextIndex.toString(), 365);
-            attackTarget(selectedTarget);
+            attackTarget(selectedTarget, 'A');
         } else {
             showStatus('All targets are on cooldown', 'error');
         }
@@ -435,8 +499,9 @@
         currentWorld = getWorldName();
         homeCoords = getCurrentVillageCoords();
         
-        // Load targets for current world
+        // Load data for current world
         loadTargetsFromStorage();
+        loadBuildsFromStorage();
         
         // Create UI container
         var uiContainer = document.createElement('div');
@@ -448,11 +513,11 @@
             background: white;
             border: 2px solid #333;
             border-radius: 8px;
-            padding: 15px;
+            padding: 20px;
             z-index: 10000;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            min-width: 400px;
-            max-height: 80vh;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 600px;
+            max-height: 85vh;
             overflow-y: auto;
             font-family: Arial, sans-serif;
         `;
@@ -462,15 +527,16 @@
         closeBtn.textContent = '×';
         closeBtn.style.cssText = `
             position: absolute;
-            top: 5px;
-            right: 5px;
+            top: 10px;
+            right: 10px;
             background: #ff4444;
             color: white;
             border: none;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            width: 24px;
+            height: 24px;
             cursor: pointer;
+            font-size: 16px;
         `;
         closeBtn.onclick = function() {
             uiContainer.remove();
@@ -478,46 +544,65 @@
         
         // Create title
         var title = document.createElement('h3');
-        title.textContent = 'TW Attack Config - ' + currentWorld;
+        title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
         title.style.marginTop = '0';
-        title.style.marginBottom = '15px';
+        title.style.marginBottom = '20px';
         title.style.color = '#333';
+        title.style.borderBottom = '2px solid #4CAF50';
+        title.style.paddingBottom = '10px';
         
         // Create auto-attack button
         var autoAttackBtn = document.createElement('button');
-        autoAttackBtn.textContent = '⚔️ Auto-Attack Next';
+        autoAttackBtn.textContent = '⚡ Auto-Attack Next (Build A)';
         autoAttackBtn.style.cssText = `
             background: linear-gradient(to right, #ff416c, #ff4b2b);
             color: white;
             border: none;
-            padding: 10px 16px;
-            border-radius: 4px;
+            padding: 12px 20px;
+            border-radius: 6px;
             cursor: pointer;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             width: 100%;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 15px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
         `;
+        autoAttackBtn.onmouseover = function() {
+            this.style.transform = 'translateY(-2px)';
+            this.style.boxShadow = '0 5px 10px rgba(0,0,0,0.15)';
+        };
+        autoAttackBtn.onmouseout = function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.1)';
+        };
         autoAttackBtn.onclick = autoAttackNext;
         
         // Create world selector
         var worlds = getWorldsWithTargets();
         if (worlds.length > 0) {
             var worldSelector = document.createElement('div');
-            worldSelector.style.marginBottom = '15px';
-            worldSelector.style.padding = '10px';
+            worldSelector.style.marginBottom = '20px';
+            worldSelector.style.padding = '12px';
             worldSelector.style.backgroundColor = '#f0f8ff';
-            worldSelector.style.borderRadius = '4px';
-            worldSelector.style.border = '1px solid #ddd';
+            worldSelector.style.borderRadius = '6px';
+            worldSelector.style.border = '1px solid #b8d4ff';
+            worldSelector.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
             
             var worldLabel = document.createElement('label');
             worldLabel.textContent = 'Switch World: ';
             worldLabel.style.marginRight = '10px';
+            worldLabel.style.fontWeight = 'bold';
             
             var worldSelect = document.createElement('select');
-            worldSelect.style.padding = '4px';
-            worldSelect.style.borderRadius = '4px';
-            worldSelect.style.border = '1px solid #ddd';
+            worldSelect.style.cssText = `
+                padding: 6px 10px;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+                background: white;
+                font-size: 14px;
+                min-width: 150px;
+            `;
             
             // Add current world if not in list
             if (worlds.indexOf(currentWorld) === -1) {
@@ -535,65 +620,83 @@
             });
             
             worldSelect.onchange = function() {
-                // Save current targets before switching
+                // Save current data before switching
                 saveTargetsToStorage();
+                saveBuildsToStorage();
                 
                 // Switch to selected world
                 var selectedWorld = this.value;
                 currentWorld = selectedWorld;
                 
                 // Update title
-                title.textContent = 'TW Attack Config - ' + selectedWorld;
+                title.textContent = '⚔️ TW Attack Config - ' + selectedWorld;
                 
-                // Load targets for selected world
+                // Load data for selected world
                 loadTargetsFromStorage();
+                loadBuildsFromStorage();
                 
                 // Update URL info
                 var urlLink = worldInfo.querySelector('a');
                 urlLink.href = 'https://' + selectedWorld + '.voynaplemyon.com/map/village.txt';
                 urlLink.textContent = 'Download village.txt for ' + selectedWorld;
                 
-                // Update targets list display
+                // Update all UI sections
+                updateBuildsUI();
                 updateTargetsListUI();
             };
             
             worldSelector.appendChild(worldLabel);
             worldSelector.appendChild(worldSelect);
-            uiContainer.appendChild(worldSelector);
         }
         
         // Create info section
         var infoSection = document.createElement('div');
         infoSection.id = 'world-info';
-        infoSection.style.marginBottom = '15px';
-        infoSection.style.padding = '10px';
-        infoSection.style.backgroundColor = '#f0f8ff';
-        infoSection.style.borderRadius = '4px';
-        infoSection.style.border = '1px solid #ddd';
+        infoSection.style.marginBottom = '20px';
+        infoSection.style.padding = '15px';
+        infoSection.style.backgroundColor = '#f8f9fa';
+        infoSection.style.borderRadius = '6px';
+        infoSection.style.border = '1px solid #e9ecef';
         
         var worldInfo = document.createElement('div');
-        worldInfo.textContent = 'Current World: ' + currentWorld;
-        worldInfo.style.marginBottom = '5px';
+        worldInfo.innerHTML = '<strong>🌍 World:</strong> ' + currentWorld;
+        worldInfo.style.marginBottom = '8px';
         
         var villageInfo = document.createElement('div');
-        villageInfo.textContent = 'Current Village: ' + (homeCoords || 'Not found');
-        villageInfo.style.marginBottom = '5px';
+        villageInfo.innerHTML = '<strong>🏠 Current Village:</strong> ' + (homeCoords || 'Not found');
+        villageInfo.style.marginBottom = '8px';
         
         var cooldownInfo = document.createElement('div');
-        cooldownInfo.textContent = 'Cooldown: ' + cooldown + ' minutes';
-        cooldownInfo.style.marginBottom = '5px';
-        cooldownInfo.style.fontSize = '12px';
+        cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + cooldown + ' minutes';
+        cooldownInfo.style.marginBottom = '12px';
         cooldownInfo.style.color = '#666';
         
         var villageUrl = document.createElement('div');
-        villageUrl.style.marginTop = '10px';
+        villageUrl.style.marginTop = '12px';
+        villageUrl.style.paddingTop = '12px';
+        villageUrl.style.borderTop = '1px dashed #ddd';
         
         var urlLink = document.createElement('a');
         urlLink.href = getVillageTxtUrl();
-        urlLink.textContent = 'Download village.txt for ' + currentWorld;
+        urlLink.textContent = '📥 Download village.txt for ' + currentWorld;
         urlLink.target = '_blank';
-        urlLink.style.color = '#2196F3';
-        urlLink.style.textDecoration = 'none';
+        urlLink.style.cssText = `
+            color: #2196F3;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-block;
+            padding: 6px 12px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            border: 1px solid #bbdefb;
+            transition: background 0.2s;
+        `;
+        urlLink.onmouseover = function() {
+            this.style.background = '#bbdefb';
+        };
+        urlLink.onmouseout = function() {
+            this.style.background = '#e3f2fd';
+        };
         
         urlLink.onclick = function(e) {
             e.preventDefault();
@@ -604,7 +707,7 @@
         urlHelp.textContent = 'Open this link, copy all text, and paste below:';
         urlHelp.style.fontSize = '12px';
         urlHelp.style.color = '#666';
-        urlHelp.style.marginTop = '5px';
+        urlHelp.style.marginTop = '8px';
         
         villageUrl.appendChild(urlLink);
         villageUrl.appendChild(urlHelp);
@@ -614,28 +717,192 @@
         infoSection.appendChild(cooldownInfo);
         infoSection.appendChild(villageUrl);
         
+        // Create troop builds section
+        var buildsSection = document.createElement('div');
+        buildsSection.id = 'troop-builds';
+        buildsSection.style.marginBottom = '20px';
+        buildsSection.style.padding = '15px';
+        buildsSection.style.backgroundColor = '#fff8e1';
+        buildsSection.style.borderRadius = '6px';
+        buildsSection.style.border = '1px solid #ffecb3';
+        
+        var buildsTitle = document.createElement('h4');
+        buildsTitle.textContent = '👥 Troop Builds';
+        buildsTitle.style.marginTop = '0';
+        buildsTitle.style.marginBottom = '15px';
+        buildsTitle.style.color = '#333';
+        
+        buildsSection.appendChild(buildsTitle);
+        
+        // Function to update builds UI
+        function updateBuildsUI() {
+            var buildsContainer = buildsSection.querySelector('#builds-container');
+            if (buildsContainer) {
+                buildsContainer.remove();
+            }
+            
+            buildsContainer = document.createElement('div');
+            buildsContainer.id = 'builds-container';
+            
+            // Create builds A and B
+            ['A', 'B'].forEach(function(buildKey) {
+                var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
+                
+                var buildContainer = document.createElement('div');
+                buildContainer.style.marginBottom = '15px';
+                buildContainer.style.padding = '12px';
+                buildContainer.style.backgroundColor = '#fff';
+                buildContainer.style.borderRadius = '4px';
+                buildContainer.style.border = '1px solid #e0e0e0';
+                
+                var buildHeader = document.createElement('div');
+                buildHeader.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 10px;
+                    padding-bottom: 8px;
+                    border-bottom: 2px solid ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
+                `;
+                
+                var buildTitle = document.createElement('div');
+                buildTitle.style.cssText = `
+                    font-weight: bold;
+                    font-size: 16px;
+                    color: ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
+                `;
+                buildTitle.textContent = 'Build ' + buildKey;
+                
+                var saveBtn = document.createElement('button');
+                saveBtn.textContent = '💾 Save';
+                saveBtn.style.cssText = `
+                    background: ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    font-weight: bold;
+                `;
+                
+                saveBtn.onclick = (function(key) {
+                    return function() {
+                        saveBuild(key);
+                    };
+                })(buildKey);
+                
+                buildHeader.appendChild(buildTitle);
+                buildHeader.appendChild(saveBtn);
+                
+                var troopsContainer = document.createElement('div');
+                troopsContainer.style.cssText = `
+                    display: grid;
+                    grid-template-columns: repeat(5, 1fr);
+                    gap: 8px;
+                `;
+                
+                // Define troop types with abbreviations
+                var troopTypes = [
+                    { key: 'spear', abbr: 'sp', name: 'Spear' },
+                    { key: 'sword', abbr: 'sw', name: 'Sword' },
+                    { key: 'axe', abbr: 'ax', name: 'Axe' },
+                    { key: 'spy', abbr: 'spy', name: 'Spy' },
+                    { key: 'light', abbr: 'lc', name: 'Light Cav' },
+                    { key: 'heavy', abbr: 'hc', name: 'Heavy Cav' },
+                    { key: 'ram', abbr: 'ram', name: 'Ram' },
+                    { key: 'catapult', abbr: 'cat', name: 'Catapult' },
+                    { key: 'knight', abbr: 'kn', name: 'Knight' }
+                ];
+                
+                troopTypes.forEach(function(troop) {
+                    var troopInput = document.createElement('div');
+                    troopInput.style.cssText = `
+                        display: flex;
+                        flex-direction: column;
+                    `;
+                    
+                    var label = document.createElement('label');
+                    label.textContent = troop.abbr;
+                    label.title = troop.name;
+                    label.style.cssText = `
+                        font-size: 11px;
+                        font-weight: bold;
+                        color: #666;
+                        margin-bottom: 4px;
+                        text-align: center;
+                    `;
+                    
+                    var input = document.createElement('input');
+                    input.type = 'number';
+                    input.min = '0';
+                    input.value = build[troop.key] || 0;
+                    input.dataset.build = buildKey;
+                    input.dataset.troop = troop.key;
+                    input.style.cssText = `
+                        padding: 4px;
+                        border: 1px solid #ddd;
+                        border-radius: 3px;
+                        text-align: center;
+                        font-size: 12px;
+                        width: 100%;
+                        box-sizing: border-box;
+                    `;
+                    
+                    input.onchange = function() {
+                        var value = parseInt(this.value) || 0;
+                        if (!troopBuilds[buildKey]) {
+                            troopBuilds[buildKey] = JSON.parse(JSON.stringify(defaultBuilds[buildKey]));
+                        }
+                        troopBuilds[buildKey][troop.key] = value;
+                    };
+                    
+                    troopInput.appendChild(label);
+                    troopInput.appendChild(input);
+                    troopsContainer.appendChild(troopInput);
+                });
+                
+                buildContainer.appendChild(buildHeader);
+                buildContainer.appendChild(troopsContainer);
+                buildsContainer.appendChild(buildContainer);
+            });
+            
+            buildsSection.appendChild(buildsContainer);
+        }
+        
+        // Initialize builds UI
+        updateBuildsUI();
+        
+        // Function to save build
+        function saveBuild(buildKey) {
+            saveBuildsToStorage();
+            showStatus('Build ' + buildKey + ' saved for ' + currentWorld, 'success');
+        }
+        
         // Create paste area section
         var pasteSection = document.createElement('div');
-        pasteSection.style.marginBottom = '15px';
+        pasteSection.style.marginBottom = '20px';
         
         var pasteLabel = document.createElement('label');
-        pasteLabel.textContent = 'Paste village.txt content:';
+        pasteLabel.textContent = '📋 Paste village.txt content:';
         pasteLabel.style.display = 'block';
-        pasteLabel.style.marginBottom = '8px';
+        pasteLabel.style.marginBottom = '10px';
         pasteLabel.style.fontWeight = 'bold';
+        pasteLabel.style.fontSize = '14px';
         
         var pasteTextarea = document.createElement('textarea');
         pasteTextarea.id = 'village-textarea';
         pasteTextarea.style.cssText = `
             width: 100%;
-            height: 100px;
-            padding: 8px;
+            height: 120px;
+            padding: 12px;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 6px;
             font-family: monospace;
-            font-size: 12px;
+            font-size: 13px;
             resize: vertical;
             box-sizing: border-box;
+            margin-bottom: 12px;
         `;
         pasteTextarea.placeholder = 'Paste the content from village.txt here...';
         
@@ -648,45 +915,61 @@
         
         // Create max distance input
         var distanceContainer = document.createElement('div');
-        distanceContainer.style.marginTop = '10px';
-        distanceContainer.style.marginBottom = '10px';
+        distanceContainer.style.marginBottom = '15px';
+        distanceContainer.style.display = 'flex';
+        distanceContainer.style.alignItems = 'center';
         
         var distanceLabel = document.createElement('label');
         distanceLabel.textContent = 'Max Distance: ';
         distanceLabel.style.marginRight = '10px';
+        distanceLabel.style.fontWeight = 'bold';
         
         var distanceInput = document.createElement('input');
         distanceInput.type = 'number';
         distanceInput.value = '50';
         distanceInput.min = '1';
-        distanceInput.style.width = '60px';
-        distanceInput.style.padding = '4px';
+        distanceInput.style.cssText = `
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-right: 15px;
+        `;
         
         distanceContainer.appendChild(distanceLabel);
         distanceContainer.appendChild(distanceInput);
         
         // Create parse button
         var parseBtn = document.createElement('button');
-        parseBtn.textContent = 'Parse villages.txt';
+        parseBtn.textContent = '🔍 Parse villages.txt';
         parseBtn.style.cssText = `
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 6px;
             cursor: pointer;
-            margin-bottom: 15px;
             width: 100%;
             font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            transition: background 0.2s;
         `;
+        parseBtn.onmouseover = function() {
+            this.style.background = '#45a049';
+        };
+        parseBtn.onmouseout = function() {
+            this.style.background = '#4CAF50';
+        };
         
         // Create status message
         var statusMsg = document.createElement('div');
         statusMsg.id = 'parse-status';
-        statusMsg.style.fontSize = '12px';
+        statusMsg.style.fontSize = '13px';
         statusMsg.style.marginBottom = '15px';
-        statusMsg.style.padding = '8px';
-        statusMsg.style.borderRadius = '4px';
+        statusMsg.style.padding = '10px';
+        statusMsg.style.borderRadius = '6px';
         statusMsg.style.display = 'none';
         
         parseBtn.onclick = function() {
@@ -703,20 +986,6 @@
             parseVillageText(text, maxDistance);
         };
         
-        // Assemble UI
-        uiContainer.appendChild(closeBtn);
-        uiContainer.appendChild(title);
-        uiContainer.appendChild(autoAttackBtn);
-        
-        if (worlds.length > 0) {
-            var worldSelectorDiv = uiContainer.querySelector('#world-info');
-            if (worldSelectorDiv) {
-                uiContainer.insertBefore(worldSelectorDiv, autoAttackBtn.nextSibling);
-            }
-        }
-        
-        uiContainer.appendChild(infoSection);
-        uiContainer.appendChild(pasteSection);
         pasteSection.appendChild(pasteLabel);
         pasteSection.appendChild(pasteTextarea);
         pasteSection.appendChild(distanceContainer);
@@ -725,13 +994,13 @@
         
         // Create current targets list
         var targetsContainer = document.createElement('div');
-        targetsContainer.style.marginTop = '15px';
-        targetsContainer.style.paddingTop = '15px';
-        targetsContainer.style.borderTop = '1px solid #ddd';
+        targetsContainer.style.marginTop = '20px';
+        targetsContainer.style.paddingTop = '20px';
+        targetsContainer.style.borderTop = '2px solid #ddd';
         
         var targetsTitle = document.createElement('h4');
-        targetsTitle.textContent = 'Targets for ' + currentWorld + ':';
-        targetsTitle.style.marginBottom = '10px';
+        targetsTitle.textContent = '🎯 Targets for ' + currentWorld + ':';
+        targetsTitle.style.marginBottom = '15px';
         targetsTitle.style.color = '#333';
         
         var targetsList = document.createElement('div');
@@ -740,6 +1009,18 @@
         targetsContainer.appendChild(targetsTitle);
         targetsContainer.appendChild(targetsList);
         
+        // Assemble UI
+        uiContainer.appendChild(closeBtn);
+        uiContainer.appendChild(title);
+        uiContainer.appendChild(autoAttackBtn);
+        
+        if (worlds.length > 0) {
+            uiContainer.appendChild(worldSelector);
+        }
+        
+        uiContainer.appendChild(infoSection);
+        uiContainer.appendChild(buildsSection);
+        uiContainer.appendChild(pasteSection);
         uiContainer.appendChild(targetsContainer);
         
         document.body.appendChild(uiContainer);
@@ -790,7 +1071,7 @@
         var targets = targetList.split(' ').filter(Boolean);
         
         if (targets.length === 0) {
-            targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 10px; text-align: center;">No targets in list for ' + currentWorld + '</div>';
+            targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd;">No targets in list for ' + currentWorld + '</div>';
             return;
         }
         
@@ -801,13 +1082,22 @@
             background: #ff4444;
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 10px 15px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
-            margin-bottom: 10px;
+            font-size: 13px;
+            margin-bottom: 15px;
             width: 100%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
         `;
+        clearAllBtn.onmouseover = function() {
+            this.style.background = '#ff2222';
+        };
+        clearAllBtn.onmouseout = function() {
+            this.style.background = '#ff4444';
+        };
         clearAllBtn.onclick = function() {
             if (confirm('Clear all targets for ' + currentWorld + '?')) {
                 clearAllTargets();
@@ -821,35 +1111,154 @@
             var targetItem = document.createElement('div');
             targetItem.style.cssText = `
                 display: flex;
-                flex-direction: column;
-                padding: 10px;
-                margin: 8px 0;
-                background: ${index % 2 === 0 ? '#f8f9fa' : '#fff'};
-                border-radius: 6px;
-                border: 1px solid #e9ecef;
-            `;
-            
-            // First row: Target info and remove button
-            var infoRow = document.createElement('div');
-            infoRow.style.cssText = `
-                display: flex;
                 justify-content: space-between;
                 align-items: center;
-                margin-bottom: 8px;
+                padding: 12px 15px;
+                margin: 8px 0;
+                background: ${index % 2 === 0 ? '#f8f9fa' : '#fff'};
+                border-radius: 8px;
+                border: 1px solid #e9ecef;
+                transition: transform 0.2s, box-shadow 0.2s;
             `;
+            targetItem.onmouseover = function() {
+                this.style.transform = 'translateY(-2px)';
+                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+            };
+            targetItem.onmouseout = function() {
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = 'none';
+            };
             
+            // Left side: Target info
             var targetInfo = document.createElement('div');
+            targetInfo.style.flex = '1';
+            
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
             var cooldownInfo = getCooldownInfo(target, cooldown);
             
-            targetInfo.innerHTML = `
-                <div style="font-family: monospace; font-weight: bold; font-size: 14px;">${target}</div>
-                <div style="font-size: 12px; color: #666;">
-                    Distance: ${distance.toFixed(2)} | 
-                    Last attack: ${formatTimeSince(cooldownInfo.lastAttack)}
-                </div>
+            var targetCoords = document.createElement('div');
+            targetCoords.style.cssText = `
+                font-family: monospace;
+                font-weight: bold;
+                font-size: 16px;
+                color: #333;
+                margin-bottom: 4px;
+            `;
+            targetCoords.textContent = target;
+            
+            var targetDetails = document.createElement('div');
+            targetDetails.style.cssText = `
+                font-size: 12px;
+                color: #666;
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                flex-wrap: wrap;
             `;
             
+            var distanceSpan = document.createElement('span');
+            distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
+            
+            var lastAttackSpan = document.createElement('span');
+            lastAttackSpan.innerHTML = `<strong>Last:</strong> ${formatTimeSince(cooldownInfo.lastAttack)}`;
+            
+            var cooldownSpan = document.createElement('span');
+            if (cooldownInfo.onCooldown) {
+                cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ Cooldown:</strong> ${cooldownInfo.minutesLeft}m left`;
+                cooldownSpan.title = 'Attacked ' + formatTimeSince(cooldownInfo.lastAttack);
+            } else {
+                cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
+            }
+            
+            targetDetails.appendChild(distanceSpan);
+            targetDetails.appendChild(lastAttackSpan);
+            targetDetails.appendChild(cooldownSpan);
+            
+            targetInfo.appendChild(targetCoords);
+            targetInfo.appendChild(targetDetails);
+            
+            // Middle: Attack buttons
+            var attackButtons = document.createElement('div');
+            attackButtons.style.cssText = `
+                display: flex;
+                gap: 8px;
+                margin: 0 15px;
+            `;
+            
+            // Build A button
+            var attackBtnA = document.createElement('button');
+            attackBtnA.textContent = 'A';
+            attackBtnA.disabled = cooldownInfo.onCooldown;
+            attackBtnA.title = 'Attack with Build A';
+            attackBtnA.style.cssText = `
+                background: ${cooldownInfo.onCooldown ? '#cccccc' : '#4CAF50'};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
+                font-size: 14px;
+                font-weight: bold;
+                min-width: 50px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: transform 0.2s, box-shadow 0.2s;
+            `;
+            
+            if (!cooldownInfo.onCooldown) {
+                attackBtnA.onmouseover = function() {
+                    this.style.transform = 'scale(1.05)';
+                    this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.15)';
+                };
+                attackBtnA.onmouseout = function() {
+                    this.style.transform = 'scale(1)';
+                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                };
+                attackBtnA.onclick = (function(targetToAttack) {
+                    return function() {
+                        attackTarget(targetToAttack, 'A');
+                    };
+                })(target);
+            }
+            
+            // Build B button
+            var attackBtnB = document.createElement('button');
+            attackBtnB.textContent = 'B';
+            attackBtnB.disabled = cooldownInfo.onCooldown;
+            attackBtnB.title = 'Attack with Build B';
+            attackBtnB.style.cssText = `
+                background: ${cooldownInfo.onCooldown ? '#cccccc' : '#2196F3'};
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
+                font-size: 14px;
+                font-weight: bold;
+                min-width: 50px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: transform 0.2s, box-shadow 0.2s;
+            `;
+            
+            if (!cooldownInfo.onCooldown) {
+                attackBtnB.onmouseover = function() {
+                    this.style.transform = 'scale(1.05)';
+                    this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.15)';
+                };
+                attackBtnB.onmouseout = function() {
+                    this.style.transform = 'scale(1)';
+                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                };
+                attackBtnB.onclick = (function(targetToAttack) {
+                    return function() {
+                        attackTarget(targetToAttack, 'B');
+                    };
+                })(target);
+            }
+            
+            attackButtons.appendChild(attackBtnA);
+            attackButtons.appendChild(attackBtnB);
+            
+            // Right side: Remove button
             var removeBtn = document.createElement('button');
             removeBtn.textContent = '✕';
             removeBtn.title = 'Remove target';
@@ -857,19 +1266,28 @@
                 background: #ff6b6b;
                 color: white;
                 border: none;
-                padding: 4px 8px;
-                border-radius: 3px;
+                padding: 8px 12px;
+                border-radius: 4px;
                 cursor: pointer;
-                font-size: 12px;
+                font-size: 14px;
                 font-weight: bold;
-                width: 24px;
-                height: 24px;
+                width: 36px;
+                height: 36px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: transform 0.2s, background 0.2s;
             `;
-            
+            removeBtn.onmouseover = function() {
+                this.style.transform = 'scale(1.1)';
+                this.style.background = '#ff4444';
+            };
+            removeBtn.onmouseout = function() {
+                this.style.transform = 'scale(1)';
+                this.style.background = '#ff6b6b';
+            };
             removeBtn.onclick = (function(targetToRemove) {
                 return function() {
                     if (removeFromTargetList(targetToRemove)) {
@@ -879,65 +1297,9 @@
                 };
             })(target);
             
-            infoRow.appendChild(targetInfo);
-            infoRow.appendChild(removeBtn);
-            
-            // Second row: Cooldown status and attack button
-            var actionRow = document.createElement('div');
-            actionRow.style.cssText = `
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding-top: 8px;
-                border-top: 1px dashed #ddd;
-            `;
-            
-            var cooldownStatus = document.createElement('div');
-            cooldownStatus.style.fontSize = '12px';
-            
-            if (cooldownInfo.onCooldown) {
-                cooldownStatus.innerHTML = `
-                    <span style="color: #ff6b6b; font-weight: bold;">
-                        ⏳ Cooldown: ${cooldownInfo.minutesLeft} min left
-                    </span>
-                `;
-                cooldownStatus.title = 'Attacked ' + formatTimeSince(cooldownInfo.lastAttack);
-            } else {
-                cooldownStatus.innerHTML = `
-                    <span style="color: #4CAF50; font-weight: bold;">
-                        ✅ Ready to attack
-                    </span>
-                `;
-            }
-            
-            var attackBtn = document.createElement('button');
-            attackBtn.textContent = cooldownInfo.onCooldown ? '⏳ On Cooldown' : '⚔️ Attack';
-            attackBtn.disabled = cooldownInfo.onCooldown;
-            attackBtn.style.cssText = `
-                background: ${cooldownInfo.onCooldown ? '#cccccc' : '#4CAF50'};
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
-                cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
-                font-size: 12px;
-                font-weight: bold;
-                min-width: 80px;
-            `;
-            
-            if (!cooldownInfo.onCooldown) {
-                attackBtn.onclick = (function(targetToAttack) {
-                    return function() {
-                        attackTarget(targetToAttack);
-                    };
-                })(target);
-            }
-            
-            actionRow.appendChild(cooldownStatus);
-            actionRow.appendChild(attackBtn);
-            
-            targetItem.appendChild(infoRow);
-            targetItem.appendChild(actionRow);
+            targetItem.appendChild(targetInfo);
+            targetItem.appendChild(attackButtons);
+            targetItem.appendChild(removeBtn);
             targetsList.appendChild(targetItem);
         });
     }
@@ -1035,14 +1397,15 @@
         selectionContainer.id = 'villages-selection';
         selectionContainer.style.cssText = `
             background: white;
-            border-radius: 8px;
-            padding: 20px;
-            width: 600px;
+            border-radius: 10px;
+            padding: 25px;
+            width: 700px;
             max-width: 90vw;
-            max-height: 80vh;
+            max-height: 85vh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         `;
         
         // Create header
@@ -1051,15 +1414,16 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #4CAF50;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #4CAF50;
         `;
         
         var title = document.createElement('h3');
-        title.textContent = 'Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
+        title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
         title.style.margin = '0';
         title.style.color = '#333';
+        title.style.fontSize = '18px';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
@@ -1068,10 +1432,10 @@
             color: white;
             border: none;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1085,17 +1449,18 @@
         
         // Create search input
         var searchContainer = document.createElement('div');
-        searchContainer.style.marginBottom = '15px';
+        searchContainer.style.marginBottom = '20px';
         
         var searchInput = document.createElement('input');
         searchInput.type = 'text';
-        searchInput.placeholder = 'Search villages...';
+        searchInput.placeholder = '🔍 Search villages...';
         searchInput.style.cssText = `
             width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
             box-sizing: border-box;
+            font-size: 14px;
         `;
         
         searchContainer.appendChild(searchInput);
@@ -1106,9 +1471,9 @@
         villagesContainer.style.cssText = `
             flex: 1;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
             background: #f8f9fa;
         `;
         
@@ -1118,26 +1483,29 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #ddd;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
         `;
         
         var selectedCount = document.createElement('span');
         selectedCount.id = 'selected-count';
-        selectedCount.textContent = 'Selected: 0';
+        selectedCount.textContent = '📌 Selected: 0';
         selectedCount.style.color = '#666';
+        selectedCount.style.fontSize = '14px';
         
         var addSelectedBtn = document.createElement('button');
-        addSelectedBtn.textContent = 'Add Selected to List';
+        addSelectedBtn.textContent = '✅ Add Selected to List';
         addSelectedBtn.style.cssText = `
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 12px 24px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
         `;
         
         var closeFooterBtn = document.createElement('button');
@@ -1146,9 +1514,10 @@
             background: #666;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 12px 24px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 14px;
         `;
         
         footer.appendChild(selectedCount);
@@ -1183,7 +1552,7 @@
             }
             
             if (filtered.length === 0) {
-                villagesContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No villages match your search</div>';
+                villagesContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #666; font-size: 14px;">No villages match your search</div>';
                 updateSelectedCount();
                 return;
             }
@@ -1194,33 +1563,36 @@
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 8px;
-                    margin: 4px 0;
+                    padding: 12px 15px;
+                    margin: 8px 0;
                     background: ${index % 2 === 0 ? '#fff' : '#f8f9fa'};
-                    border-radius: 4px;
+                    border-radius: 8px;
                     border: 1px solid #e9ecef;
                     cursor: pointer;
-                    transition: background-color 0.2s;
+                    transition: background-color 0.2s, transform 0.2s;
                 `;
                 
                 villageItem.onmouseover = function() {
                     this.style.backgroundColor = '#e9ecef';
+                    this.style.transform = 'translateX(5px)';
                 };
                 villageItem.onmouseout = function() {
                     if (!this.classList.contains('selected')) {
                         this.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa';
                     }
+                    this.style.transform = 'translateX(0)';
                 };
                 
                 var villageInfo = document.createElement('span');
                 villageInfo.textContent = village.name + ' - ' + village.coords + 
                                          (village.distance ? ' (dist: ' + village.distance.toFixed(2) + ')' : '');
                 villageInfo.style.fontFamily = 'monospace';
-                villageInfo.style.fontSize = '12px';
+                villageInfo.style.fontSize = '13px';
                 
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.style.marginLeft = '10px';
+                checkbox.style.marginLeft = '15px';
+                checkbox.style.transform = 'scale(1.2)';
                 
                 checkbox.onchange = function() {
                     if (this.checked) {
@@ -1258,7 +1630,7 @@
          * Update selected count display
          */
         function updateSelectedCount() {
-            selectedCount.textContent = 'Selected: ' + selectedVillages.length;
+            selectedCount.textContent = '📌 Selected: ' + selectedVillages.length;
         }
         
         // Search functionality
