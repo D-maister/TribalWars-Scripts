@@ -4,7 +4,8 @@
     var historyCookie = "attackHistory"; // Cookie name for attack history
     var targetsStorageKey = "twAttackTargets"; // localStorage key for target list
     var buildsStorageKey = "twAttackBuilds"; // localStorage key for troop builds
-    var cooldown = 30;                // Cooldown time in minutes
+    var settingsStorageKey = "twAttackSettings"; // localStorage key for settings
+    var defaultCooldown = 30;         // Default cooldown in minutes
     
     // Home village coordinates (format: "X|Y") - will be updated from page
     var homeCoords = "";
@@ -25,6 +26,15 @@
     // Current troop builds
     var troopBuilds = {};
     
+    // Settings
+    var settings = {
+        cooldown: defaultCooldown,
+        autoAttack: false
+    };
+    
+    // UI state
+    var configVisible = true;
+    
     // ===== UTILITY FUNCTIONS =====
     
     /**
@@ -33,7 +43,7 @@
      */
     function getWorldName() {
         var url = window.location.href;
-        var match = url.match(/https?:\/\/([^\/]+)\./);
+        var match = url.match(/https?:\/\/([^\/]+?)\.voynaplemyon\./);
         return match ? match[1] : "unknown";
     }
     
@@ -93,19 +103,18 @@
     /**
      * Check if target is on cooldown and get remaining time
      * @param {string} target - Target coordinates "X|Y"
-     * @param {number} minutes - Cooldown time in minutes
      * @return {Object} {onCooldown: boolean, minutesLeft: number, lastAttack: Date|null}
      */
-    function getCooldownInfo(target, minutes) {
+    function getCooldownInfo(target) {
         var history = getAttackHistory();
         var currentTime = (new Date()).getTime();
         
         if (history[target]) {
             var minutesSinceAttack = (currentTime - history[target]) / 60000;
-            var minutesLeft = minutes - minutesSinceAttack;
+            var minutesLeft = settings.cooldown - minutesSinceAttack;
             
             return {
-                onCooldown: minutesSinceAttack < minutes,
+                onCooldown: minutesSinceAttack < settings.cooldown,
                 minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
                 lastAttack: new Date(history[target])
             };
@@ -269,6 +278,58 @@
     }
     
     /**
+     * Load settings from localStorage
+     */
+    function loadSettingsFromStorage() {
+        try {
+            var storedData = localStorage.getItem(settingsStorageKey);
+            if (storedData) {
+                var allSettings = JSON.parse(storedData);
+                // Get settings for current world
+                if (allSettings[currentWorld]) {
+                    settings = allSettings[currentWorld];
+                } else {
+                    // Use defaults for this world
+                    settings = {
+                        cooldown: defaultCooldown,
+                        autoAttack: false
+                    };
+                }
+            } else {
+                // Use defaults
+                settings = {
+                    cooldown: defaultCooldown,
+                    autoAttack: false
+                };
+            }
+        } catch (e) {
+            console.error("Error loading settings from localStorage:", e);
+            settings = {
+                cooldown: defaultCooldown,
+                autoAttack: false
+            };
+        }
+    }
+    
+    /**
+     * Save settings to localStorage
+     */
+    function saveSettingsToStorage() {
+        try {
+            var storedData = localStorage.getItem(settingsStorageKey);
+            var allSettings = storedData ? JSON.parse(storedData) : {};
+            
+            // Update settings for current world
+            allSettings[currentWorld] = settings;
+            
+            // Save back to localStorage
+            localStorage.setItem(settingsStorageKey, JSON.stringify(allSettings));
+        } catch (e) {
+            console.error("Error saving settings to localStorage:", e);
+        }
+    }
+    
+    /**
      * Get all worlds with stored targets
      * @return {Array} Array of world names
      */
@@ -359,6 +420,34 @@
     }
     
     /**
+     * Find and click the attack submit button
+     */
+    function clickAttackButton() {
+        var currentUrl = location.href;
+        var doc = document;
+        
+        // Handle iframe for Tribal Wars interface
+        if (window.frames.length > 0) {
+            doc = window.main.document;
+        }
+        
+        // Try different selectors for the attack button
+        var submitButton = doc.querySelector('input[type="submit"], button[type="submit"], input[name="target_attack"]');
+        if (submitButton) {
+            console.log("Auto-attack: Clicking submit button");
+            submitButton.click();
+            return true;
+        } else {
+            console.log("Auto-attack: Submit button not found, trying form submit");
+            if (doc.forms[0]) {
+                doc.forms[0].submit();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
      * Attack a specific target with specific build
      * @param {string} target - Target coordinates
      * @param {string} buildKey - Build key ('A' or 'B')
@@ -407,33 +496,44 @@
             // Update the target list UI to show new cooldown
             updateTargetsListUI();
             
-            // Find and highlight the submit button
-            var submitButton = doc.querySelector('input[type="submit"], button[type="submit"]');
-            if (submitButton) {
-                submitButton.style.border = '2px solid #4CAF50';
-                submitButton.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
-                submitButton.style.animation = 'pulse 1s infinite';
-                
-                // Add CSS for pulse animation
-                if (!document.querySelector('#pulse-animation')) {
-                    var style = document.createElement('style');
-                    style.id = 'pulse-animation';
-                    style.textContent = `
-                        @keyframes pulse {
-                            0% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
-                            50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
-                            100% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-                
-                // Remove highlight after 5 seconds
+            // Auto-attack if enabled
+            if (settings.autoAttack) {
                 setTimeout(function() {
-                    submitButton.style.border = '';
-                    submitButton.style.boxShadow = '';
-                    submitButton.style.animation = '';
-                }, 5000);
+                    if (clickAttackButton()) {
+                        showStatus('Auto-attack: Attack sent to ' + target, 'success');
+                    } else {
+                        showStatus('Auto-attack: Could not find submit button', 'error');
+                    }
+                }, 500);
+            } else {
+                // Find and highlight the submit button
+                var submitButton = doc.querySelector('input[type="submit"], button[type="submit"], input[name="target_attack"]');
+                if (submitButton) {
+                    submitButton.style.border = '2px solid #4CAF50';
+                    submitButton.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
+                    submitButton.style.animation = 'pulse 1s infinite';
+                    
+                    // Add CSS for pulse animation
+                    if (!document.querySelector('#pulse-animation')) {
+                        var style = document.createElement('style');
+                        style.id = 'pulse-animation';
+                        style.textContent = `
+                            @keyframes pulse {
+                                0% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
+                                50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
+                                100% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    // Remove highlight after 5 seconds
+                    setTimeout(function() {
+                        submitButton.style.border = '';
+                        submitButton.style.boxShadow = '';
+                        submitButton.style.animation = '';
+                    }, 5000);
+                }
             }
             
         } else {
@@ -466,7 +566,7 @@
         // Find next available target (not on cooldown)
         do {
             var currentTarget = targets[targetIndex];
-            var cooldownInfo = getCooldownInfo(currentTarget, cooldown);
+            var cooldownInfo = getCooldownInfo(currentTarget);
             
             if (!cooldownInfo.onCooldown) {
                 selectedTarget = currentTarget;
@@ -502,6 +602,7 @@
         // Load data for current world
         loadTargetsFromStorage();
         loadBuildsFromStorage();
+        loadSettingsFromStorage();
         
         // Create UI container
         var uiContainer = document.createElement('div');
@@ -551,6 +652,34 @@
         title.style.borderBottom = '2px solid #4CAF50';
         title.style.paddingBottom = '10px';
         
+        // Create toggle config button
+        var toggleConfigBtn = document.createElement('button');
+        toggleConfigBtn.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
+        toggleConfigBtn.style.cssText = `
+            background: #666;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            font-size: 13px;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        `;
+        toggleConfigBtn.onmouseover = function() {
+            this.style.background = '#555';
+        };
+        toggleConfigBtn.onmouseout = function() {
+            this.style.background = '#666';
+        };
+        toggleConfigBtn.onclick = function() {
+            configVisible = !configVisible;
+            this.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
+            toggleConfigVisibility();
+        };
+        
         // Create auto-attack button
         var autoAttackBtn = document.createElement('button');
         autoAttackBtn.textContent = '⚡ Auto-Attack Next (Build A)';
@@ -580,8 +709,9 @@
         
         // Create world selector
         var worlds = getWorldsWithTargets();
+        var worldSelector;
         if (worlds.length > 0) {
-            var worldSelector = document.createElement('div');
+            worldSelector = document.createElement('div');
             worldSelector.style.marginBottom = '20px';
             worldSelector.style.padding = '12px';
             worldSelector.style.backgroundColor = '#f0f8ff';
@@ -623,6 +753,7 @@
                 // Save current data before switching
                 saveTargetsToStorage();
                 saveBuildsToStorage();
+                saveSettingsToStorage();
                 
                 // Switch to selected world
                 var selectedWorld = this.value;
@@ -634,6 +765,7 @@
                 // Load data for selected world
                 loadTargetsFromStorage();
                 loadBuildsFromStorage();
+                loadSettingsFromStorage();
                 
                 // Update URL info
                 var urlLink = worldInfo.querySelector('a');
@@ -642,6 +774,7 @@
                 
                 // Update all UI sections
                 updateBuildsUI();
+                updateSettingsUI();
                 updateTargetsListUI();
             };
             
@@ -667,7 +800,7 @@
         villageInfo.style.marginBottom = '8px';
         
         var cooldownInfo = document.createElement('div');
-        cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + cooldown + ' minutes';
+        cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
         cooldownInfo.style.marginBottom = '12px';
         cooldownInfo.style.color = '#666';
         
@@ -716,6 +849,150 @@
         infoSection.appendChild(villageInfo);
         infoSection.appendChild(cooldownInfo);
         infoSection.appendChild(villageUrl);
+        
+        // Create settings section
+        var settingsSection = document.createElement('div');
+        settingsSection.id = 'settings-section';
+        settingsSection.style.marginBottom = '20px';
+        settingsSection.style.padding = '15px';
+        settingsSection.style.backgroundColor = '#fff8e1';
+        settingsSection.style.borderRadius = '6px';
+        settingsSection.style.border = '1px solid #ffecb3';
+        
+        var settingsTitle = document.createElement('h4');
+        settingsTitle.textContent = '⚙️ Settings';
+        settingsTitle.style.marginTop = '0';
+        settingsTitle.style.marginBottom = '15px';
+        settingsTitle.style.color = '#333';
+        
+        settingsSection.appendChild(settingsTitle);
+        
+        // Function to update settings UI
+        function updateSettingsUI() {
+            var settingsContainer = settingsSection.querySelector('#settings-container');
+            if (settingsContainer) {
+                settingsContainer.remove();
+            }
+            
+            settingsContainer = document.createElement('div');
+            settingsContainer.id = 'settings-container';
+            
+            // Cooldown setting
+            var cooldownSetting = document.createElement('div');
+            cooldownSetting.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-bottom: 12px;
+                padding: 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            var cooldownLabel = document.createElement('label');
+            cooldownLabel.textContent = 'Cooldown (minutes): ';
+            cooldownLabel.style.marginRight = '10px';
+            cooldownLabel.style.fontWeight = 'bold';
+            cooldownLabel.style.minWidth = '150px';
+            
+            var cooldownInput = document.createElement('input');
+            cooldownInput.type = 'number';
+            cooldownInput.min = '1';
+            cooldownInput.max = '1440';
+            cooldownInput.value = settings.cooldown;
+            cooldownInput.style.cssText = `
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                width: 80px;
+                font-size: 14px;
+                margin-right: 10px;
+            `;
+            
+            var saveCooldownBtn = document.createElement('button');
+            saveCooldownBtn.textContent = '💾 Save';
+            saveCooldownBtn.style.cssText = `
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: bold;
+            `;
+            
+            saveCooldownBtn.onclick = function() {
+                var newCooldown = parseInt(cooldownInput.value);
+                if (newCooldown >= 1 && newCooldown <= 1440) {
+                    settings.cooldown = newCooldown;
+                    saveSettingsToStorage();
+                    cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
+                    showStatus('Cooldown updated to ' + newCooldown + ' minutes', 'success');
+                } else {
+                    showStatus('Please enter a valid cooldown (1-1440 minutes)', 'error');
+                }
+            };
+            
+            cooldownSetting.appendChild(cooldownLabel);
+            cooldownSetting.appendChild(cooldownInput);
+            cooldownSetting.appendChild(saveCooldownBtn);
+            
+            // Auto-attack setting
+            var autoAttackSetting = document.createElement('div');
+            autoAttackSetting.style.cssText = `
+                display: flex;
+                align-items: center;
+                padding: 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            var autoAttackLabel = document.createElement('label');
+            autoAttackLabel.textContent = 'Auto-attack (after 500ms): ';
+            autoAttackLabel.style.marginRight = '10px';
+            autoAttackLabel.style.fontWeight = 'bold';
+            autoAttackLabel.style.minWidth = '150px';
+            
+            var autoAttackCheckbox = document.createElement('input');
+            autoAttackCheckbox.type = 'checkbox';
+            autoAttackCheckbox.checked = settings.autoAttack;
+            autoAttackCheckbox.style.cssText = `
+                transform: scale(1.3);
+                margin-right: 10px;
+            `;
+            
+            var saveAutoAttackBtn = document.createElement('button');
+            saveAutoAttackBtn.textContent = '💾 Save';
+            saveAutoAttackBtn.style.cssText = `
+                background: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                font-weight: bold;
+            `;
+            
+            autoAttackCheckbox.onchange = function() {
+                settings.autoAttack = this.checked;
+                saveSettingsToStorage();
+                showStatus('Auto-attack ' + (this.checked ? 'enabled' : 'disabled'), 'success');
+            };
+            
+            autoAttackSetting.appendChild(autoAttackLabel);
+            autoAttackSetting.appendChild(autoAttackCheckbox);
+            autoAttackSetting.appendChild(saveAutoAttackBtn);
+            
+            settingsContainer.appendChild(cooldownSetting);
+            settingsContainer.appendChild(autoAttackSetting);
+            settingsSection.appendChild(settingsContainer);
+        }
+        
+        // Initialize settings UI
+        updateSettingsUI();
         
         // Create troop builds section
         var buildsSection = document.createElement('div');
@@ -798,8 +1075,8 @@
                 var troopsContainer = document.createElement('div');
                 troopsContainer.style.cssText = `
                     display: grid;
-                    grid-template-columns: repeat(5, 1fr);
-                    gap: 8px;
+                    grid-template-columns: repeat(9, 1fr);
+                    gap: 6px;
                 `;
                 
                 // Define troop types with abbreviations
@@ -820,6 +1097,7 @@
                     troopInput.style.cssText = `
                         display: flex;
                         flex-direction: column;
+                        align-items: center;
                     `;
                     
                     var label = document.createElement('label');
@@ -831,6 +1109,7 @@
                         color: #666;
                         margin-bottom: 4px;
                         text-align: center;
+                        width: 100%;
                     `;
                     
                     var input = document.createElement('input');
@@ -845,7 +1124,7 @@
                         border-radius: 3px;
                         text-align: center;
                         font-size: 12px;
-                        width: 100%;
+                        width: 45px;
                         box-sizing: border-box;
                     `;
                     
@@ -1012,6 +1291,7 @@
         // Assemble UI
         uiContainer.appendChild(closeBtn);
         uiContainer.appendChild(title);
+        uiContainer.appendChild(toggleConfigBtn);
         uiContainer.appendChild(autoAttackBtn);
         
         if (worlds.length > 0) {
@@ -1019,6 +1299,7 @@
         }
         
         uiContainer.appendChild(infoSection);
+        uiContainer.appendChild(settingsSection);
         uiContainer.appendChild(buildsSection);
         uiContainer.appendChild(pasteSection);
         uiContainer.appendChild(targetsContainer);
@@ -1027,6 +1308,30 @@
         
         // Populate current targets list
         updateTargetsListUI();
+        
+        // Function to toggle config visibility
+        function toggleConfigVisibility() {
+            var sectionsToHide = [settingsSection, buildsSection, pasteSection];
+            var clearBtn = targetsList.querySelector('button');
+            
+            sectionsToHide.forEach(function(section) {
+                section.style.display = configVisible ? 'block' : 'none';
+            });
+            
+            if (clearBtn) {
+                clearBtn.style.display = configVisible ? 'block' : 'none';
+            }
+            
+            // Adjust UI container height
+            if (!configVisible) {
+                uiContainer.style.maxHeight = '70vh';
+            } else {
+                uiContainer.style.maxHeight = '85vh';
+            }
+        }
+        
+        // Initial toggle state
+        toggleConfigVisibility();
     }
     
     /**
@@ -1075,7 +1380,7 @@
             return;
         }
         
-        // Create clear all button
+        // Create clear all button (only show when config is visible)
         var clearAllBtn = document.createElement('button');
         clearAllBtn.textContent = '🗑️ Clear All Targets for ' + currentWorld;
         clearAllBtn.style.cssText = `
@@ -1091,6 +1396,7 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: background 0.2s;
+            display: ${configVisible ? 'block' : 'none'};
         `;
         clearAllBtn.onmouseover = function() {
             this.style.background = '#ff2222';
@@ -1134,7 +1440,7 @@
             targetInfo.style.flex = '1';
             
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
-            var cooldownInfo = getCooldownInfo(target, cooldown);
+            var cooldownInfo = getCooldownInfo(target);
             
             var targetCoords = document.createElement('div');
             targetCoords.style.cssText = `
