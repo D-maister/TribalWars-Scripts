@@ -72,16 +72,12 @@
                             timestamp: date.getTime(),
                             attacks: 0,
                             totalResources: 0,
-                            totalHours: 0,
-                            villages: new Set(),
-                            resourcesPerAttack: 0,
-                            resourcesPerHour: 0
+                            villages: new Set()
                         };
                     }
                     
                     dailyData[dayKey].attacks++;
                     dailyData[dayKey].totalResources += report.totalResources;
-                    dailyData[dayKey].totalHours += report.duration / 60;
                     
                     if (report.coordinates) {
                         dailyData[dayKey].villages.add(report.coordinates);
@@ -98,9 +94,8 @@
         Object.values(dailyData).forEach(day => {
             if (day.attacks > 0) {
                 day.resourcesPerAttack = Math.round(day.totalResources / day.attacks);
-            }
-            if (day.totalHours > 0) {
-                day.resourcesPerHour = Math.round(day.totalResources / day.totalHours);
+                // Resources per hour per day - based on 24 hours in a day
+                day.resourcesPerHour = Math.round(day.totalResources / 24);
             }
             day.villageCount = day.villages.size;
         });
@@ -147,27 +142,23 @@
             { 
                 title: 'Attacks per Day', 
                 data: chartData.attacksData, 
-                color: '#4CAF50',
                 tooltipPrefix: 'Attacks: '
             },
             { 
                 title: 'Avg Resources per Attack', 
                 data: chartData.resourcesPerAttackData, 
-                color: '#2196F3',
                 tooltipPrefix: 'Resources: ',
                 formatValue: (val) => val.toLocaleString()
             },
             { 
-                title: 'Resources per Hour', 
+                title: 'Resources per Hour per Day', 
                 data: chartData.resourcesPerHourData, 
-                color: '#9C27B0',
                 tooltipPrefix: 'Resources/hour: ',
                 formatValue: (val) => val.toLocaleString()
             },
             { 
                 title: 'Unique Villages', 
                 data: chartData.villagesData, 
-                color: '#FF9800',
                 tooltipPrefix: 'Villages: '
             }
         ];
@@ -218,7 +209,7 @@
             yAxisLabels.style.justifyContent = 'space-between';
             yAxisLabels.style.padding = '5px 0';
             
-            // Add y-axis grid lines and labels - FIXED: labels from 0 to max
+            // Add y-axis grid lines and labels
             if (maxValue > 0) {
                 // Create 5 evenly spaced values from 0 to max
                 for (let i = 4; i >= 0; i--) {
@@ -271,7 +262,7 @@
                 const bar = document.createElement('div');
                 bar.style.width = '80%';
                 bar.style.height = barHeight + 'px';
-                bar.style.backgroundColor = chartType.color;
+                bar.style.backgroundColor = 'rgb(204, 189, 53)'; // Gold color for all charts
                 bar.style.borderRadius = '3px 3px 0 0';
                 bar.style.position = 'absolute';
                 bar.style.bottom = '0';
@@ -492,8 +483,10 @@
                     <th>SC</th>
                     <th>SW</th>
                     <th>AX</th>
+                    <th>AR</th>
                     <th>LC</th>
                     <th>HV</th>
+                    <th>HR</th>
                     <th>KN</th>
                 </tr>`;
         
@@ -510,8 +503,10 @@
                     <td>${village.avgTroops.sc || 0}</td>
                     <td>${village.avgTroops.sw || 0}</td>
                     <td>${village.avgTroops.ax || 0}</td>
+                    <td>${village.avgTroops.ar || 0}</td>
                     <td>${village.avgTroops.lc || 0}</td>
                     <td>${village.avgTroops.hv || 0}</td>
+                    <td>${village.avgTroops.hr || 0}</td>
                     <td>${village.avgTroops.kn || 0}</td>
                 </tr>`;
         });
@@ -537,8 +532,10 @@
                     <th>SC</th>
                     <th>SW</th>
                     <th>AX</th>
+                    <th>AR</th>
                     <th>LC</th>
                     <th>HV</th>
+                    <th>HR</th>
                     <th>KN</th>
                 </tr>`;
         
@@ -570,8 +567,10 @@
                     <td>${report.troops.sc || 0}</td>
                     <td>${report.troops.sw || 0}</td>
                     <td>${report.troops.ax || 0}</td>
+                    <td>${report.troops.ar || 0}</td>
                     <td>${report.troops.lc || 0}</td>
                     <td>${report.troops.hv || 0}</td>
+                    <td>${report.troops.hr || 0}</td>
                     <td>${report.troops.kn || 0}</td>
                 </tr>`;
         });
@@ -691,17 +690,21 @@
             const count = parseInt(element.textContent) || 0;
             if (count > 0) {
                 if (element.classList.contains('unit-item-spear')) {
-                    troops.sc = count;
+                    troops.sc = count; // Spear (копейщик)
                 } else if (element.classList.contains('unit-item-sword')) {
-                    troops.sw = count;
+                    troops.sw = count; // Sword (мечник)
                 } else if (element.classList.contains('unit-item-axe')) {
-                    troops.ax = count;
+                    troops.ax = count; // Axe (топорщик)
+                } else if (element.classList.contains('unit-item-archer')) {
+                    troops.ar = count; // Archer (лучник)
                 } else if (element.classList.contains('unit-item-light')) {
-                    troops.lc = count;
+                    troops.lc = count; // Light cavalry (разведчик)
                 } else if (element.classList.contains('unit-item-heavy')) {
-                    troops.hv = count;
+                    troops.hv = count; // Heavy cavalry (тяжелая кавалерия)
+                } else if (element.classList.contains('unit-item-marcher')) {
+                    troops.hr = count; // Horse archer (конный лучник)
                 } else if (element.classList.contains('unit-item-knight')) {
-                    troops.kn = count;
+                    troops.kn = count; // Knight (рыцарь)
                 }
             }
         });
@@ -719,13 +722,26 @@
                 Math.pow(myCoords[1] - targetCoords[1], 2)
             );
             
-            // Troop speeds
-            const speeds = { sc: 18, sw: 22, ax: 18, lc: 10, hv: 11, kn: 18 };
+            // Troop speeds (updated with archers and horse archers)
+            const speeds = { 
+                sc: 18,   // Spear
+                sw: 22,   // Sword
+                ax: 18,   // Axe
+                ar: 18,   // Archer
+                lc: 10,   // Light cavalry
+                hv: 11,   // Heavy cavalry
+                hr: 10,   // Horse archer
+                kn: 18    // Knight
+            };
             
+            // Find the slowest troop type that has troops
+            let slowestSpeed = Infinity;
             for (const troop in troops) {
-                if (troops[troop] > 0) {
-                    troopSpeed = speeds[troop];
-                    break;
+                if (troops[troop] > 0 && speeds[troop]) {
+                    if (speeds[troop] < slowestSpeed) {
+                        slowestSpeed = speeds[troop];
+                        troopSpeed = slowestSpeed;
+                    }
                 }
             }
         }
@@ -734,12 +750,23 @@
         const totalResources = resources.wood + resources.stone + resources.iron;
         const resourcesPerHour = duration > 0 ? Math.round(totalResources / (duration / 60)) : 0;
         
-        // Calculate capacity
-        const capacities = { sc: 25, sw: 15, ax: 10, lc: 80, hv: 50, kn: 200 };
-        let capacity = 0;
+        // Calculate capacity (updated with archers and horse archers)
+        const capacities = { 
+            sc: 25,   // Spear
+            sw: 15,   // Sword
+            ax: 10,   // Axe
+            ar: 11,   // Archer
+            lc: 80,   // Light cavalry
+            hv: 50,   // Heavy cavalry
+            hr: 53,   // Horse archer
+            kn: 200   // Knight
+        };
         
+        let capacity = 0;
         for (const troop in troops) {
-            capacity += troops[troop] * capacities[troop];
+            if (capacities[troop]) {
+                capacity += troops[troop] * capacities[troop];
+            }
         }
         
         const fillRate = capacity > 0 ? Math.round(totalResources / capacity * 100) : 0;
