@@ -1933,6 +1933,21 @@
         searchInput.focus();
     }
     
-    // ===== MAIN EXECUTION =====
-    if (!checkForAntibot()) createConfigUI();
+// ===== MAIN EXECUTION =====
+    
+    // Load settings first to check autoAttackEnabled
+    currentWorld = getWorldName();
+    loadSettingsFromStorage();
+    
+    if (!checkForAntibot()) {
+        createConfigUI();
+        
+        // Check if autoAttackEnabled is true and start auto-attack after UI is created
+        if (settings.autoAttackEnabled) {
+            console.log("Auto-attack enabled on startup, starting in 2 seconds...");
+            setTimeout(function() {
+                autoAttackNext('A');
+            }, 2000);
+        }
+    }
 })();
