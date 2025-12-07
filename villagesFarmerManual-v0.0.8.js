@@ -29,11 +29,16 @@
     // Settings
     var settings = {
         cooldown: defaultCooldown,
-        autoAttack: false
+        autoAttack: false,
+        includePlayers: false,
+        maxPlayerPoints: 1000,
+        autoAttackEnabled: false,
+        autoAttackPosition: { x: 10, y: 100 }
     };
     
     // UI state
     var configVisible = false; // Settings hidden on start
+    var updateInterval = null; // For auto-updating cooldowns
     
     // ===== UTILITY FUNCTIONS =====
     
@@ -288,25 +293,42 @@
                 // Get settings for current world
                 if (allSettings[currentWorld]) {
                     settings = allSettings[currentWorld];
+                    // Ensure new settings have default values if missing
+                    if (settings.includePlayers === undefined) settings.includePlayers = false;
+                    if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
+                    if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
+                    if (settings.autoAttackPosition === undefined) settings.autoAttackPosition = { x: 10, y: 100 };
                 } else {
                     // Use defaults for this world
                     settings = {
                         cooldown: defaultCooldown,
-                        autoAttack: false
+                        autoAttack: false,
+                        includePlayers: false,
+                        maxPlayerPoints: 1000,
+                        autoAttackEnabled: false,
+                        autoAttackPosition: { x: 10, y: 100 }
                     };
                 }
             } else {
                 // Use defaults
                 settings = {
                     cooldown: defaultCooldown,
-                    autoAttack: false
+                    autoAttack: false,
+                    includePlayers: false,
+                    maxPlayerPoints: 1000,
+                    autoAttackEnabled: false,
+                    autoAttackPosition: { x: 10, y: 100 }
                 };
             }
         } catch (e) {
             console.error("Error loading settings from localStorage:", e);
             settings = {
                 cooldown: defaultCooldown,
-                autoAttack: false
+                autoAttack: false,
+                includePlayers: false,
+                maxPlayerPoints: 1000,
+                autoAttackEnabled: false,
+                autoAttackPosition: { x: 10, y: 100 }
             };
         }
     }
@@ -436,6 +458,211 @@
     }
     
     /**
+     * Start auto-updating cooldowns
+     */
+    function startAutoUpdate() {
+        // Clear existing interval if any
+        if (updateInterval) {
+            clearInterval(updateInterval);
+        }
+        
+        // Update every 30 seconds
+        updateInterval = setInterval(function() {
+            updateTargetsListUI();
+        }, 30000); // 30 seconds
+    }
+    
+    /**
+     * Stop auto-updating cooldowns
+     */
+    function stopAutoUpdate() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+        }
+    }
+    
+    /**
+     * Create external auto-attack checkbox
+     */
+    function createExternalAutoAttackCheckbox() {
+        // Remove existing checkbox if any
+        var existingCheckbox = document.getElementById('external-auto-attack');
+        if (existingCheckbox) {
+            existingCheckbox.remove();
+        }
+        
+        // Create checkbox container
+        var checkboxContainer = document.createElement('div');
+        checkboxContainer.id = 'external-auto-attack';
+        checkboxContainer.style.cssText = `
+            position: fixed;
+            top: ${settings.autoAttackPosition.y}px;
+            left: ${settings.autoAttackPosition.x}px;
+            z-index: 10002;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #4CAF50;
+            border-radius: 20px;
+            padding: 10px 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: move;
+            user-select: none;
+        `;
+        
+        // Make it draggable
+        var isDragging = false;
+        var offsetX, offsetY;
+        
+        checkboxContainer.onmousedown = function(e) {
+            if (e.target.type === 'checkbox') return; // Don't drag when clicking checkbox
+            
+            isDragging = true;
+            offsetX = e.clientX - checkboxContainer.offsetLeft;
+            offsetY = e.clientY - checkboxContainer.offsetTop;
+            e.preventDefault();
+        };
+        
+        document.onmousemove = function(e) {
+            if (!isDragging) return;
+            
+            var x = e.clientX - offsetX;
+            var y = e.clientY - offsetY;
+            
+            // Keep within viewport
+            x = Math.max(0, Math.min(x, window.innerWidth - checkboxContainer.offsetWidth));
+            y = Math.max(0, Math.min(y, window.innerHeight - checkboxContainer.offsetHeight));
+            
+            checkboxContainer.style.left = x + 'px';
+            checkboxContainer.style.top = y + 'px';
+            
+            // Update position in settings
+            settings.autoAttackPosition.x = x;
+            settings.autoAttackPosition.y = y;
+        };
+        
+        document.onmouseup = function() {
+            if (isDragging) {
+                isDragging = false;
+                saveSettingsToStorage(); // Save new position
+            }
+        };
+        
+        // Create label
+        var label = document.createElement('span');
+        label.textContent = 'Auto-Attack:';
+        label.style.fontWeight = 'bold';
+        label.style.fontSize = '14px';
+        
+        // Create slider container
+        var sliderContainer = document.createElement('label');
+        sliderContainer.style.cssText = `
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        `;
+        
+        // Create checkbox (hidden)
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = settings.autoAttackEnabled;
+        checkbox.style.cssText = `
+            opacity: 0;
+            width: 0;
+            height: 0;
+        `;
+        
+        // Create slider
+        var slider = document.createElement('span');
+        slider.style.cssText = `
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        `;
+        
+        // Create slider knob
+        var sliderKnob = document.createElement('span');
+        sliderKnob.style.cssText = `
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        `;
+        
+        // Update slider appearance based on checkbox state
+        function updateSlider() {
+            if (checkbox.checked) {
+                slider.style.backgroundColor = '#4CAF50';
+                sliderKnob.style.transform = 'translateX(24px)';
+            } else {
+                slider.style.backgroundColor = '#ccc';
+                sliderKnob.style.transform = 'translateX(0)';
+            }
+        }
+        
+        // Initial update
+        updateSlider();
+        
+        // Handle checkbox change
+        checkbox.onchange = function() {
+            settings.autoAttackEnabled = this.checked;
+            saveSettingsToStorage();
+            updateSlider();
+            
+            if (settings.autoAttackEnabled) {
+                showStatus('External auto-attack enabled', 'success');
+            } else {
+                showStatus('External auto-attack disabled', 'info');
+            }
+        };
+        
+        // Assemble slider
+        slider.appendChild(sliderKnob);
+        sliderContainer.appendChild(checkbox);
+        sliderContainer.appendChild(slider);
+        
+        // Add help text on hover
+        var helpText = document.createElement('div');
+        helpText.textContent = 'Drag to move';
+        helpText.style.cssText = `
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+            text-align: center;
+        `;
+        
+        // Assemble container
+        checkboxContainer.appendChild(label);
+        checkboxContainer.appendChild(sliderContainer);
+        
+        var innerContainer = document.createElement('div');
+        innerContainer.style.display = 'flex';
+        innerContainer.style.flexDirection = 'column';
+        innerContainer.style.alignItems = 'center';
+        innerContainer.appendChild(sliderContainer);
+        innerContainer.appendChild(helpText);
+        
+        checkboxContainer.appendChild(innerContainer);
+        
+        // Add to document
+        document.body.appendChild(checkboxContainer);
+    }
+    
+    /**
      * Find and click the attack submit button
      */
     function clickAttackButton() {
@@ -513,7 +740,7 @@
             updateTargetsListUI();
             
             // Auto-attack if enabled
-            if (settings.autoAttack) {
+            if (settings.autoAttack || settings.autoAttackEnabled) {
                 setTimeout(function() {
                     if (clickAttackButton()) {
                         showStatus('Auto-attack: Attack sent to ' + target, 'success');
@@ -627,7 +854,7 @@
         uiContainer.style.cssText = `
             position: fixed;
             top: 50px;
-            left: 10px;
+            right: 10px;
             background: white;
             border: 2px solid #333;
             border-radius: 8px;
@@ -658,6 +885,13 @@
         `;
         closeBtn.onclick = function() {
             uiContainer.remove();
+            stopAutoUpdate();
+            
+            // Also remove external checkbox when closing main UI
+            var externalCheckbox = document.getElementById('external-auto-attack');
+            if (externalCheckbox) {
+                externalCheckbox.remove();
+            }
         };
         
         // Create title
@@ -833,6 +1067,9 @@
                 updateBuildsUI();
                 updateSettingsUI();
                 updateTargetsListUI();
+                
+                // Recreate external checkbox for new world
+                createExternalAutoAttackCheckbox();
             };
             
             worldSelector.appendChild(worldLabel);
@@ -950,7 +1187,7 @@
             cooldownLabel.textContent = 'Cooldown (minutes): ';
             cooldownLabel.style.marginRight = '10px';
             cooldownLabel.style.fontWeight = 'bold';
-            cooldownLabel.style.minWidth = '150px';
+            cooldownLabel.style.minWidth = '200px';
             
             var cooldownInput = document.createElement('input');
             cooldownInput.type = 'number';
@@ -974,6 +1211,7 @@
             autoAttackSetting.style.cssText = `
                 display: flex;
                 align-items: center;
+                margin-bottom: 12px;
                 padding: 10px;
                 background: #fff;
                 border-radius: 4px;
@@ -984,7 +1222,7 @@
             autoAttackLabel.textContent = 'Auto-attack (after 500ms): ';
             autoAttackLabel.style.marginRight = '10px';
             autoAttackLabel.style.fontWeight = 'bold';
-            autoAttackLabel.style.minWidth = '150px';
+            autoAttackLabel.style.minWidth = '200px';
             
             var autoAttackCheckbox = document.createElement('input');
             autoAttackCheckbox.type = 'checkbox';
@@ -997,8 +1235,139 @@
             autoAttackSetting.appendChild(autoAttackLabel);
             autoAttackSetting.appendChild(autoAttackCheckbox);
             
+            // Include players villages setting
+            var includePlayersSetting = document.createElement('div');
+            includePlayersSetting.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-bottom: 12px;
+                padding: 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            var includePlayersLabel = document.createElement('label');
+            includePlayersLabel.textContent = 'Include players villages: ';
+            includePlayersLabel.style.marginRight = '10px';
+            includePlayersLabel.style.fontWeight = 'bold';
+            includePlayersLabel.style.minWidth = '200px';
+            
+            var includePlayersCheckbox = document.createElement('input');
+            includePlayersCheckbox.type = 'checkbox';
+            includePlayersCheckbox.checked = settings.includePlayers;
+            includePlayersCheckbox.style.cssText = `
+                transform: scale(1.3);
+                margin-right: 10px;
+            `;
+            
+            includePlayersSetting.appendChild(includePlayersLabel);
+            includePlayersSetting.appendChild(includePlayersCheckbox);
+            
+            // Max player points setting
+            var maxPointsSetting = document.createElement('div');
+            maxPointsSetting.style.cssText = `
+                display: flex;
+                align-items: center;
+                margin-bottom: 12px;
+                padding: 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            var maxPointsLabel = document.createElement('label');
+            maxPointsLabel.textContent = 'Max player points: ';
+            maxPointsLabel.style.marginRight = '10px';
+            maxPointsLabel.style.fontWeight = 'bold';
+            maxPointsLabel.style.minWidth = '200px';
+            
+            var maxPointsInput = document.createElement('input');
+            maxPointsInput.type = 'number';
+            maxPointsInput.min = '1';
+            maxPointsInput.value = settings.maxPlayerPoints;
+            maxPointsInput.style.cssText = `
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                width: 100px;
+                font-size: 14px;
+                margin-right: 10px;
+            `;
+            
+            maxPointsSetting.appendChild(maxPointsLabel);
+            maxPointsSetting.appendChild(maxPointsInput);
+            
+            // External auto-attack position settings
+            var positionSetting = document.createElement('div');
+            positionSetting.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                margin-bottom: 12px;
+                padding: 10px;
+                background: #fff;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            var positionLabel = document.createElement('label');
+            positionLabel.textContent = 'External auto-attack position:';
+            positionLabel.style.marginBottom = '8px';
+            positionLabel.style.fontWeight = 'bold';
+            
+            var positionControls = document.createElement('div');
+            positionControls.style.cssText = `
+                display: flex;
+                gap: 10px;
+                align-items: center;
+            `;
+            
+            var xLabel = document.createElement('span');
+            xLabel.textContent = 'X:';
+            xLabel.style.marginRight = '5px';
+            
+            var xInput = document.createElement('input');
+            xInput.type = 'number';
+            xInput.min = '0';
+            xInput.value = settings.autoAttackPosition.x;
+            xInput.style.cssText = `
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                width: 70px;
+                font-size: 14px;
+                margin-right: 15px;
+            `;
+            
+            var yLabel = document.createElement('span');
+            yLabel.textContent = 'Y:';
+            yLabel.style.marginRight = '5px';
+            
+            var yInput = document.createElement('input');
+            yInput.type = 'number';
+            yInput.min = '0';
+            yInput.value = settings.autoAttackPosition.y;
+            yInput.style.cssText = `
+                padding: 6px 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                width: 70px;
+                font-size: 14px;
+            `;
+            
+            positionControls.appendChild(xLabel);
+            positionControls.appendChild(xInput);
+            positionControls.appendChild(yLabel);
+            positionControls.appendChild(yInput);
+            
+            positionSetting.appendChild(positionLabel);
+            positionSetting.appendChild(positionControls);
+            
             settingsContainer.appendChild(cooldownSetting);
             settingsContainer.appendChild(autoAttackSetting);
+            settingsContainer.appendChild(includePlayersSetting);
+            settingsContainer.appendChild(maxPointsSetting);
+            settingsContainer.appendChild(positionSetting);
             
             // Add single save button for all settings
             var saveAllBtn = document.createElement('button');
@@ -1035,12 +1404,19 @@
                 }
                 
                 settings.autoAttack = autoAttackCheckbox.checked;
+                settings.includePlayers = includePlayersCheckbox.checked;
+                settings.maxPlayerPoints = parseInt(maxPointsInput.value) || 1000;
+                settings.autoAttackPosition.x = parseInt(xInput.value) || 10;
+                settings.autoAttackPosition.y = parseInt(yInput.value) || 100;
                 
                 // Save to storage
                 saveAllSettings();
                 
                 // Update cooldown info display
                 cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
+                
+                // Recreate external checkbox with new position
+                createExternalAutoAttackCheckbox();
             };
             
             settingsContainer.appendChild(saveAllBtn);
@@ -1365,6 +1741,12 @@
         // Populate current targets list
         updateTargetsListUI();
         
+        // Start auto-updating cooldowns
+        startAutoUpdate();
+        
+        // Create external auto-attack checkbox
+        createExternalAutoAttackCheckbox();
+        
         // Function to toggle config visibility
         function toggleConfigVisibility() {
             var sectionsToHide = [settingsSection, buildsSection, pasteSection];
@@ -1686,10 +2068,21 @@
                 var parts = line.split(',');
                 if (parts.length >= 7) {
                     var playerNumber = parseInt(parts[4]);
+                    var villagePoints = parseInt(parts[5]) || 0;
                     var isBonusVillage = parseInt(parts[6]);
                     
-                    // Only villages with player number = 0 and not bonus villages
+                    // Check if village should be included based on settings
+                    var shouldInclude = false;
+                    
                     if (playerNumber === 0 && isBonusVillage === 0) {
+                        // Barbarian village
+                        shouldInclude = true;
+                    } else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
+                        // Player village within points limit
+                        shouldInclude = true;
+                    }
+                    
+                    if (shouldInclude) {
                         var villageName = decodeURIComponent(parts[1]).replace(/\+/g, ' ');
                         var x = parts[2];
                         var y = parts[3];
@@ -1703,7 +2096,9 @@
                                 villages.push({
                                     name: villageName,
                                     coords: coords,
-                                    distance: distance
+                                    distance: distance,
+                                    playerNumber: playerNumber,
+                                    points: villagePoints
                                 });
                             }
                         }
@@ -1958,11 +2353,35 @@
                     this.style.transform = 'translateX(0)';
                 };
                 
-                var villageInfo = document.createElement('span');
-                villageInfo.textContent = village.name + ' - ' + village.coords + 
-                                         (village.distance ? ' (dist: ' + village.distance.toFixed(2) + ')' : '');
-                villageInfo.style.fontFamily = 'monospace';
-                villageInfo.style.fontSize = '13px';
+                var villageInfo = document.createElement('div');
+                villageInfo.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    font-family: monospace;
+                    font-size: 13px;
+                `;
+                
+                var villageName = document.createElement('span');
+                villageName.textContent = village.name + ' - ' + village.coords;
+                
+                var villageDetails = document.createElement('span');
+                villageDetails.style.cssText = `
+                    font-size: 11px;
+                    color: #666;
+                    margin-top: 2px;
+                `;
+                
+                var detailsText = 'Distance: ' + village.distance.toFixed(2);
+                if (village.playerNumber > 0) {
+                    detailsText += ' | Player village | Points: ' + village.points;
+                } else {
+                    detailsText += ' | Barbarian village';
+                }
+                
+                villageDetails.textContent = detailsText;
+                
+                villageInfo.appendChild(villageName);
+                villageInfo.appendChild(villageDetails);
                 
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
