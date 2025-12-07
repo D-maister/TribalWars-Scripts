@@ -602,7 +602,33 @@
             setCookie(cookieName, nextIndex.toString(), 365);
             attackTarget(selectedTarget, buildKey);
         } else {
-            showStatus('All targets are on cooldown', 'error');
+            // All targets are on cooldown - find the one with shortest cooldown left
+            var shortestCooldown = Infinity;
+            var shortestCooldownTarget = null;
+            var shortestCooldownMinutes = 0;
+            
+            targets.forEach(function(target) {
+                var cooldownInfo = getCooldownInfo(target);
+                if (cooldownInfo.onCooldown && cooldownInfo.minutesLeft < shortestCooldown) {
+                    shortestCooldown = cooldownInfo.minutesLeft;
+                    shortestCooldownTarget = target;
+                    shortestCooldownMinutes = cooldownInfo.minutesLeft;
+                }
+            });
+            
+            if (shortestCooldownTarget) {
+                showStatus('All targets on cooldown. Waiting for ' + shortestCooldownTarget + ' (' + shortestCooldownMinutes + 'm left)', 'info');
+                
+                // Schedule next check in 1 minute or when cooldown ends
+                var checkDelay = Math.max(60000, shortestCooldownMinutes * 60000);
+                
+                setTimeout(function() {
+                    console.log('Re-checking for available targets after cooldown...');
+                    autoAttackNext(buildKey);
+                }, checkDelay);
+            } else {
+                showStatus('All targets are on cooldown', 'error');
+            }
         }
     }
     
