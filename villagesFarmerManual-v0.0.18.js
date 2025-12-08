@@ -5,7 +5,7 @@
     var targetsStorageKey = "twAttackTargets";
     var buildsStorageKey = "twAttackBuilds";
     var settingsStorageKey = "twAttackSettings";
-    var ignoreStorageKey = "twAttackIgnoreList"; // Add this with other storage keys
+    var ignoreStorageKey = "twAttackIgnoreList";
     var defaultCooldown = 30;
     
     var homeCoords = "";
@@ -124,7 +124,6 @@
     
     function setUnitCount(field, count) {
         if (field && count > 0) {
-            // Get available troops for this unit type
             var unitType = field.name;
             var availableElement = field.parentNode.querySelector('.units-entry-all');
             var available = 0;
@@ -136,7 +135,6 @@
                 }
             }
             
-            // Set count to minimum of requested count and available troops
             var actualCount = Math.min(count, available);
             field.value = actualCount;
             
@@ -228,7 +226,7 @@
                 var allSettings = JSON.parse(storedData);
                 if (allSettings[currentWorld]) {
                     settings = allSettings[currentWorld];
-                    settings.autoAttack = true; // Always true now
+                    settings.autoAttack = true; // Always true now - checkbox removed
                     if (settings.includePlayers === undefined) settings.includePlayers = false;
                     if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
                     if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
@@ -319,10 +317,7 @@
         if (index !== -1) {
             targets.splice(index, 1);
             updateTargetList(targets.join(' '));
-            
-            // Reset the attack index cookie since array changed
             setCookie(cookieName, "0", 365);
-            
             return true;
         }
         return false;
@@ -531,11 +526,9 @@
             currentUrl.indexOf("try=confirm") < 0 && 
             doc.forms[0]) {
             
-            // Get available troops before proceeding
             var availableTroops = getAvailableTroops();
             var build = troopBuilds[buildKey] || defaultBuilds[buildKey] || defaultBuilds["A"];
             
-            // Check if we have enough troops for this build
             var hasEnoughTroops = true;
             var missingTroops = [];
             
@@ -557,22 +550,18 @@
                 console.log("Not enough troops for Build " + buildKey + ":", missingTroops);
                 showStatus('Not enough troops for Build ' + buildKey + '. Waiting...', 'error');
                 
-                // Don't record attack - we didn't actually attack
-                // Schedule next check in 30 seconds
                 setTimeout(function() {
                     console.log('Re-checking troop availability...');
                     autoAttackNext(buildKey);
                 }, 30000);
                 
-                return; // Stop the attack
+                return;
             }
             
-            // Proceed with attack since we have enough troops
             var coords = target.split("|");
             doc.forms[0].x.value = coords[0];
             doc.forms[0].y.value = coords[1];
             
-            // Fill unit counts
             setUnitCount(doc.forms[0].spear, build.spear);
             setUnitCount(doc.forms[0].sword, build.sword);
             setUnitCount(doc.forms[0].axe, build.axe);
@@ -587,41 +576,14 @@
             showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
             updateTargetsListUI();
             
-            if (settings.autoAttack || settings.autoAttackEnabled) {
-                setTimeout(function() {
-                    if (clickAttackButton()) {
-                        showStatus('Auto-attack: Attack sent to ' + target, 'success');
-                    } else {
-                        showStatus('Auto-attack: Could not find submit button', 'error');
-                    }
-                }, 500);
-            } else {
-                var submitButton = doc.querySelector('input[type="submit"], button[type="submit"], input[name="target_attack"]');
-                if (submitButton) {
-                    submitButton.style.border = '2px solid #4CAF50';
-                    submitButton.style.boxShadow = '0 0 10px rgba(76, 175, 80, 0.5)';
-                    submitButton.style.animation = 'pulse 1s infinite';
-                    
-                    if (!document.querySelector('#pulse-animation')) {
-                        var style = document.createElement('style');
-                        style.id = 'pulse-animation';
-                        style.textContent = `
-                            @keyframes pulse {
-                                0% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
-                                50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
-                                100% { box-shadow: 0 0 5px rgba(76, 175, 80, 0.5); }
-                            }
-                        `;
-                        document.head.appendChild(style);
-                    }
-                    
-                    setTimeout(function() {
-                        submitButton.style.border = '';
-                        submitButton.style.boxShadow = '';
-                        submitButton.style.animation = '';
-                    }, 5000);
+            // Auto-attack is always enabled now (checkbox removed)
+            setTimeout(function() {
+                if (clickAttackButton()) {
+                    showStatus('Auto-attack: Attack sent to ' + target, 'success');
+                } else {
+                    showStatus('Auto-attack: Could not find submit button', 'error');
                 }
-            }
+            }, 500);
         } else {
             showStatus('Please go to Rally Point > Place tab to attack', 'error');
         }
@@ -670,7 +632,6 @@
             setCookie(cookieName, nextIndex.toString(), 365);
             attackTarget(selectedTarget, buildKey);
         } else {
-            // All targets are on cooldown - find the one with shortest cooldown left
             var shortestCooldown = Infinity;
             var shortestCooldownTarget = null;
             var shortestCooldownMinutes = 0;
@@ -687,7 +648,6 @@
             if (shortestCooldownTarget) {
                 showStatus('All targets on cooldown. Waiting for ' + shortestCooldownTarget + ' (' + shortestCooldownMinutes + 'm left)', 'info');
                 
-                // Schedule next check in 1 minute or when cooldown ends
                 var checkDelay = Math.max(60000, shortestCooldownMinutes * 60000);
                 
                 setTimeout(function() {
@@ -1545,16 +1505,18 @@
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 12px 15px;
-                margin: 8px 0;
+                padding: 6px 10px;
+                margin: 3px 0;
                 background: ${index % 2 === 0 ? '#f8f9fa' : '#fff'};
-                border-radius: 8px;
+                border-radius: 4px;
                 border: 1px solid #e9ecef;
                 transition: transform 0.2s, box-shadow 0.2s;
+                font-size: 12px;
+                line-height: 1.2;
             `;
             targetItem.onmouseover = function() {
-                this.style.transform = 'translateY(-2px)';
-                this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                this.style.transform = 'translateY(-1px)';
+                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
             };
             targetItem.onmouseout = function() {
                 this.style.transform = 'translateY(0)';
@@ -1563,6 +1525,9 @@
             
             var targetInfo = document.createElement('div');
             targetInfo.style.flex = '1';
+            targetInfo.style.display = 'flex';
+            targetInfo.style.alignItems = 'center';
+            targetInfo.style.gap = '15px';
             
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
             var cooldownInfo = getCooldownInfo(target);
@@ -1571,20 +1536,20 @@
             targetCoords.style.cssText = `
                 font-family: monospace;
                 font-weight: bold;
-                font-size: 16px;
+                font-size: 14px;
                 color: #333;
-                margin-bottom: 4px;
+                min-width: 70px;
             `;
             targetCoords.textContent = target;
             
             var targetDetails = document.createElement('div');
             targetDetails.style.cssText = `
-                font-size: 12px;
+                font-size: 11px;
                 color: #666;
                 display: flex;
                 align-items: center;
-                gap: 15px;
-                flex-wrap: wrap;
+                gap: 10px;
+                flex-wrap: nowrap;
             `;
             
             var distanceSpan = document.createElement('span');
@@ -1595,7 +1560,7 @@
             
             var cooldownSpan = document.createElement('span');
             if (cooldownInfo.onCooldown) {
-                cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ Cooldown:</strong> ${cooldownInfo.minutesLeft}m left`;
+                cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${cooldownInfo.minutesLeft}m</strong>`;
                 cooldownSpan.title = 'Attacked ' + formatTimeSince(cooldownInfo.lastAttack);
             } else {
                 cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
@@ -1609,7 +1574,7 @@
             targetInfo.appendChild(targetDetails);
             
             var attackButtons = document.createElement('div');
-            attackButtons.style.cssText = `display: flex; gap: 8px; margin: 0 15px;`;
+            attackButtons.style.cssText = `display: flex; gap: 5px; margin: 0 10px;`;
             
             var attackBtnA = document.createElement('button');
             attackBtnA.textContent = 'A';
@@ -1619,24 +1584,25 @@
                 background: ${cooldownInfo.onCooldown ? '#cccccc' : '#4CAF50'};
                 color: white;
                 border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
+                padding: 4px 8px;
+                border-radius: 3px;
                 cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
-                font-size: 14px;
+                font-size: 11px;
                 font-weight: bold;
-                min-width: 50px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                min-width: 30px;
+                height: 24px;
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 transition: transform 0.2s, box-shadow 0.2s;
             `;
             
             if (!cooldownInfo.onCooldown) {
                 attackBtnA.onmouseover = function() {
                     this.style.transform = 'scale(1.05)';
-                    this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.15)';
+                    this.style.boxShadow = '0 2px 3px rgba(0,0,0,0.15)';
                 };
                 attackBtnA.onmouseout = function() {
                     this.style.transform = 'scale(1)';
-                    this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    this.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
                 };
                 attackBtnA.onclick = (function(targetToAttack) {
                     return function() { attackTarget(targetToAttack, 'A'); };
@@ -1661,7 +1627,6 @@
             attackButtons.appendChild(attackBtnA);
             attackButtons.appendChild(attackBtnB);
 
-            // Ignore button
             var ignoreBtn = document.createElement('button');
             ignoreBtn.textContent = '👁️';
             ignoreBtn.title = 'Add to ignore list (hide from future selections)';
@@ -1669,21 +1634,21 @@
                 background: #ff9800;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 4px;
+                padding: 4px 8px;
+                border-radius: 3px;
                 cursor: pointer;
-                font-size: 14px;
-                width: 36px;
-                height: 36px;
+                font-size: 11px;
+                width: 30px;
+                height: 24px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 transition: transform 0.2s, background 0.2s;
             `;
             ignoreBtn.onmouseover = function() {
-                this.style.transform = 'scale(1.1)';
+                this.style.transform = 'scale(1.05)';
                 this.style.background = '#f57c00';
             };
             ignoreBtn.onmouseout = function() {
@@ -1693,7 +1658,7 @@
             ignoreBtn.onclick = (function(targetCoords) {
                 return function() {
                     if (addToIgnoreList(targetCoords)) {
-                        removeFromTargetList(targetCoords); // Also remove from target list
+                        removeFromTargetList(targetCoords);
                         updateTargetsListUI();
                         showStatus('Village ' + targetCoords + ' added to ignore list', 'success');
                     }
@@ -1707,22 +1672,22 @@
                 background: #ff6b6b;
                 color: white;
                 border: none;
-                padding: 8px 12px;
-                border-radius: 4px;
+                padding: 4px 8px;
+                border-radius: 3px;
                 cursor: pointer;
-                font-size: 14px;
+                font-size: 11px;
                 font-weight: bold;
-                width: 36px;
-                height: 36px;
+                width: 30px;
+                height: 24px;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
                 transition: transform 0.2s, background 0.2s;
             `;
             removeBtn.onmouseover = function() {
-                this.style.transform = 'scale(1.1)';
+                this.style.transform = 'scale(1.05)';
                 this.style.background = '#ff4444';
             };
             removeBtn.onmouseout = function() {
@@ -1740,7 +1705,7 @@
         
             targetItem.appendChild(targetInfo);
             targetItem.appendChild(attackButtons);
-            targetItem.appendChild(ignoreBtn); // Add this line
+            targetItem.appendChild(ignoreBtn);
             targetItem.appendChild(removeBtn);
             targetsList.appendChild(targetItem);
         });
@@ -1859,7 +1824,7 @@
         `;
         
         var title = document.createElement('h3');
-        title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
+            title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
         title.style.margin = '0';
         title.style.color = '#333';
         title.style.fontSize = '18px';
@@ -2095,10 +2060,6 @@
         searchInput.focus();
     }
 
-    /**
-     * Get available troop counts from the page
-     * @return {Object} Object with troop type as key and available count as value
-     */
     function getAvailableTroops() {
         var doc = window.frames.length > 0 ? window.main.document : document;
         var availableTroops = {};
@@ -2123,9 +2084,6 @@
         return availableTroops;
     }
 
-    /**
-     * Load ignore list from localStorage for current world
-     */
     function loadIgnoreFromStorage() {
         try {
             var storedData = localStorage.getItem(ignoreStorageKey);
@@ -2141,9 +2099,6 @@
         return [];
     }
     
-    /**
-     * Save ignore list to localStorage for current world
-     */
     function saveIgnoreToStorage(ignoreList) {
         try {
             var storedData = localStorage.getItem(ignoreStorageKey);
@@ -2155,9 +2110,6 @@
         }
     }
     
-    /**
-     * Add village to ignore list
-     */
     function addToIgnoreList(coords) {
         var ignoreList = loadIgnoreFromStorage();
         if (ignoreList.indexOf(coords) === -1) {
@@ -2168,9 +2120,6 @@
         return false;
     }
     
-    /**
-     * Remove village from ignore list
-     */
     function removeFromIgnoreList(coords) {
         var ignoreList = loadIgnoreFromStorage();
         var index = ignoreList.indexOf(coords);
@@ -2182,32 +2131,21 @@
         return false;
     }
     
-    /**
-     * Check if village is in ignore list
-     */
     function isInIgnoreList(coords) {
         var ignoreList = loadIgnoreFromStorage();
         return ignoreList.indexOf(coords) !== -1;
     }
     
-    /**
-     * Clear all ignores for current world
-     */
     function clearAllIgnores() {
         saveIgnoreToStorage([]);
     }
 
-        /**
-     * Show ignore list management UI
-     */
     function showIgnoreListManagement() {
         var ignoreList = loadIgnoreFromStorage();
         
-        // Remove existing overlay if present
         var existingOverlay = document.getElementById('ignore-overlay');
         if (existingOverlay) existingOverlay.remove();
         
-        // Create overlay
         var overlay = document.createElement('div');
         overlay.id = 'ignore-overlay';
         overlay.style.cssText = `
@@ -2223,7 +2161,6 @@
             align-items: center;
         `;
         
-        // Create container
         var container = document.createElement('div');
         container.style.cssText = `
             background: white;
@@ -2238,7 +2175,6 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         `;
         
-        // Header
         var header = document.createElement('div');
         header.style.cssText = `
             display: flex;
@@ -2273,7 +2209,6 @@
         header.appendChild(title);
         header.appendChild(closeBtn);
         
-        // Content
         var content = document.createElement('div');
         content.style.cssText = `
             flex: 1;
@@ -2294,23 +2229,24 @@
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 12px 15px;
-                    margin: 8px 0;
+                    padding: 8px 12px;
+                    margin: 5px 0;
                     background: ${index % 2 === 0 ? '#fff' : '#f8f9fa'};
-                    border-radius: 8px;
+                    border-radius: 6px;
                     border: 1px solid #e9ecef;
+                    font-size: 12px;
                 `;
                 
                 var coordsSpan = document.createElement('span');
                 coordsSpan.style.cssText = `
                     font-family: monospace;
                     font-weight: bold;
-                    font-size: 16px;
+                    font-size: 14px;
                 `;
                 coordsSpan.textContent = coords;
                 
                 var distanceSpan = document.createElement('span');
-                distanceSpan.style.cssText = `font-size: 12px; color: #666; margin-left: 10px;`;
+                distanceSpan.style.cssText = `font-size: 11px; color: #666; margin-left: 10px;`;
                 var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
                 distanceSpan.textContent = 'Distance: ' + distance.toFixed(2);
                 
@@ -2320,15 +2256,15 @@
                     background: #4CAF50;
                     color: white;
                     border: none;
-                    padding: 6px 12px;
-                    border-radius: 4px;
+                    padding: 4px 8px;
+                    border-radius: 3px;
                     cursor: pointer;
-                    font-size: 12px;
+                    font-size: 11px;
                 `;
                 removeBtn.onclick = (function(coordsToRemove) {
                     return function() {
                         if (removeFromIgnoreList(coordsToRemove)) {
-                            showIgnoreListManagement(); // Refresh
+                            showIgnoreListManagement();
                             showStatus('Village ' + coordsToRemove + ' removed from ignore list', 'success');
                         }
                     };
@@ -2344,7 +2280,6 @@
             });
         }
         
-        // Footer
         var footer = document.createElement('div');
         footer.style.cssText = `
             display: flex;
@@ -2358,15 +2293,16 @@
             background: #ff4444;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
             flex: 1;
+            font-size: 12px;
         `;
         clearAllBtn.onclick = function() {
             if (confirm('Clear all ignored villages for ' + currentWorld + '?')) {
                 clearAllIgnores();
-                showIgnoreListManagement(); // Refresh
+                showIgnoreListManagement();
                 showStatus('All ignored villages cleared', 'success');
             }
         };
@@ -2377,9 +2313,10 @@
             background: #666;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
+            font-size: 12px;
         `;
         closeFooterBtn.onclick = function() {
             document.body.removeChild(overlay);
@@ -2388,7 +2325,6 @@
         footer.appendChild(clearAllBtn);
         footer.appendChild(closeFooterBtn);
         
-        // Assemble
         container.appendChild(header);
         container.appendChild(content);
         container.appendChild(footer);
@@ -2398,16 +2334,13 @@
     
     // ===== MAIN EXECUTION =====
     
-    // Get world name first
     currentWorld = getWorldName();
     console.log("Current world:", currentWorld);
     
-    // Load ALL data for this world
     loadSettingsFromStorage();
     loadTargetsFromStorage();
     loadBuildsFromStorage();
     
-    // Get home coordinates
     homeCoords = getCurrentVillageCoords();
     console.log("Home coords:", homeCoords);
     console.log("Auto-attack enabled:", settings.autoAttackEnabled);
@@ -2416,7 +2349,6 @@
     if (!checkForAntibot()) {
         createConfigUI();
         
-        // Check if autoAttackEnabled is true and start auto-attack after UI is created
         if (settings.autoAttackEnabled) {
             console.log("Auto-attack enabled on startup, starting in 2 seconds...");
             console.log("Available targets:", getCurrentTargets());
