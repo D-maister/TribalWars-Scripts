@@ -123,7 +123,25 @@
     
     function setUnitCount(field, count) {
         if (field && count > 0) {
-            field.value = count;
+            // Get available troops for this unit type
+            var unitType = field.name;
+            var availableElement = field.parentNode.querySelector('.units-entry-all');
+            var available = 0;
+            
+            if (availableElement) {
+                var match = availableElement.textContent.match(/\((\d+)\)/);
+                if (match) {
+                    available = parseInt(match[1]);
+                }
+            }
+            
+            // Set count to minimum of requested count and available troops
+            var actualCount = Math.min(count, available);
+            field.value = actualCount;
+            
+            if (actualCount < count) {
+                console.log("Warning: Only " + actualCount + " " + unitType + " available (requested " + count + ")");
+            }
         }
     }
     
@@ -512,12 +530,48 @@
             currentUrl.indexOf("try=confirm") < 0 && 
             doc.forms[0]) {
             
+            // Get available troops before proceeding
+            var availableTroops = getAvailableTroops();
+            var build = troopBuilds[buildKey] || defaultBuilds[buildKey] || defaultBuilds["A"];
+            
+            // Check if we have enough troops for this build
+            var hasEnoughTroops = true;
+            var missingTroops = [];
+            
+            for (var troopType in build) {
+                if (build[troopType] > 0) {
+                    var available = availableTroops[troopType] || 0;
+                    if (available < build[troopType]) {
+                        hasEnoughTroops = false;
+                        missingTroops.push({
+                            type: troopType,
+                            needed: build[troopType],
+                            available: available
+                        });
+                    }
+                }
+            }
+            
+            if (!hasEnoughTroops) {
+                console.log("Not enough troops for Build " + buildKey + ":", missingTroops);
+                showStatus('Not enough troops for Build ' + buildKey + '. Waiting...', 'error');
+                
+                // Don't record attack - we didn't actually attack
+                // Schedule next check in 30 seconds
+                setTimeout(function() {
+                    console.log('Re-checking troop availability...');
+                    autoAttackNext(buildKey);
+                }, 30000);
+                
+                return; // Stop the attack
+            }
+            
+            // Proceed with attack since we have enough troops
             var coords = target.split("|");
             doc.forms[0].x.value = coords[0];
             doc.forms[0].y.value = coords[1];
             
-            var build = troopBuilds[buildKey] || defaultBuilds[buildKey] || defaultBuilds["A"];
-            
+            // Fill unit counts
             setUnitCount(doc.forms[0].spear, build.spear);
             setUnitCount(doc.forms[0].sword, build.sword);
             setUnitCount(doc.forms[0].axe, build.axe);
@@ -1970,6 +2024,34 @@
         
         updateVillagesList();
         searchInput.focus();
+    }
+
+    /**
+     * Get available troop counts from the page
+     * @return {Object} Object with troop type as key and available count as value
+     */
+    function getAvailableTroops() {
+        var doc = window.frames.length > 0 ? window.main.document : document;
+        var availableTroops = {};
+        
+        var troopTypes = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
+        
+        troopTypes.forEach(function(troopType) {
+            var element = doc.querySelector('#units_entry_all_' + troopType);
+            if (element) {
+                var match = element.textContent.match(/\((\d+)\)/);
+                if (match) {
+                    availableTroops[troopType] = parseInt(match[1]);
+                } else {
+                    availableTroops[troopType] = 0;
+                }
+            } else {
+                availableTroops[troopType] = 0;
+            }
+        });
+        
+        console.log("Available troops:", availableTroops);
+        return availableTroops;
     }
     
     // ===== MAIN EXECUTION =====
