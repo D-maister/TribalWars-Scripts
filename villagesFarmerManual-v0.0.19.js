@@ -226,7 +226,16 @@
                 var allSettings = JSON.parse(storedData);
                 if (allSettings[currentWorld]) {
                     settings = allSettings[currentWorld];
-                    settings.autoAttack = true; // Always true now - checkbox removed
+                    settings.autoAttack = true;
+                    
+                    // Initialize autoAttackBuilds if not exists
+                    if (!settings.autoAttackBuilds) {
+                        settings.autoAttackBuilds = {
+                            A: true,
+                            B: false
+                        };
+                    }
+                    
                     if (settings.includePlayers === undefined) settings.includePlayers = false;
                     if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
                     if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
@@ -238,7 +247,11 @@
                         includePlayers: false,
                         maxPlayerPoints: 1000,
                         autoAttackEnabled: false,
-                        autoAttackPosition: { x: 10, y: 100 }
+                        autoAttackPosition: { x: 10, y: 100 },
+                        autoAttackBuilds: {
+                            A: true,
+                            B: false
+                        }
                     };
                 }
             } else {
@@ -248,7 +261,11 @@
                     includePlayers: false,
                     maxPlayerPoints: 1000,
                     autoAttackEnabled: false,
-                    autoAttackPosition: { x: 10, y: 100 }
+                    autoAttackPosition: { x: 10, y: 100 },
+                    autoAttackBuilds: {
+                        A: true,
+                        B: false
+                    }
                 };
             }
         } catch (e) {
@@ -259,7 +276,11 @@
                 includePlayers: false,
                 maxPlayerPoints: 1000,
                 autoAttackEnabled: false,
-                autoAttackPosition: { x: 10, y: 100 }
+                autoAttackPosition: { x: 10, y: 100 },
+                autoAttackBuilds: {
+                    A: true,
+                    B: false
+                }
             };
         }
     }
@@ -369,20 +390,21 @@
             background: rgba(255, 255, 255, 0.9);
             border: 2px solid #4CAF50;
             border-radius: 20px;
-            padding: 10px 15px;
+            padding: 12px 15px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             display: flex;
-            align-items: center;
+            flex-direction: column;
             gap: 10px;
             cursor: move;
             user-select: none;
+            min-width: 180px;
         `;
         
         var isDragging = false;
         var offsetX, offsetY;
         
         checkboxContainer.onmousedown = function(e) {
-            if (e.target.type === 'checkbox') return;
+            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') return;
             isDragging = true;
             offsetX = e.clientX - checkboxContainer.offsetLeft;
             offsetY = e.clientY - checkboxContainer.offsetTop;
@@ -407,6 +429,10 @@
                 saveSettingsToStorage();
             }
         };
+        
+        // Header
+        var header = document.createElement('div');
+        header.style.cssText = `display: flex; align-items: center; gap: 8px;`;
         
         var label = document.createElement('span');
         label.textContent = 'Auto-Attack:';
@@ -471,8 +497,9 @@
             
             if (settings.autoAttackEnabled) {
                 showStatus('External auto-attack enabled', 'success');
+                // Start auto-attack with the appropriate build selection logic
                 setTimeout(function() {
-                    autoAttackNext('A');
+                    startExternalAutoAttack();
                 }, 2000);
             } else {
                 showStatus('External auto-attack disabled', 'info');
@@ -483,20 +510,82 @@
         sliderContainer.appendChild(checkbox);
         sliderContainer.appendChild(slider);
         
+        header.appendChild(label);
+        header.appendChild(sliderContainer);
+        
+        // Build selection checkboxes
+        var buildSelection = document.createElement('div');
+        buildSelection.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 5px;
+        `;
+        
+        // Initialize settings.autoAttackBuilds if not exists
+        if (!settings.autoAttackBuilds) {
+            settings.autoAttackBuilds = {
+                A: true,
+                B: false
+            };
+        }
+        
+        var buildAContainer = document.createElement('div');
+        buildAContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
+        
+        var buildACheckbox = document.createElement('input');
+        buildACheckbox.type = 'checkbox';
+        buildACheckbox.id = 'external-build-a';
+        buildACheckbox.checked = settings.autoAttackBuilds.A;
+        buildACheckbox.style.cssText = `transform: scale(1.1);`;
+        
+        var buildALabel = document.createElement('label');
+        buildALabel.htmlFor = 'external-build-a';
+        buildALabel.textContent = 'Build A';
+        buildALabel.style.cssText = `font-size: 13px; color: #4CAF50; font-weight: bold; cursor: pointer;`;
+        
+        buildAContainer.appendChild(buildACheckbox);
+        buildAContainer.appendChild(buildALabel);
+        
+        var buildBContainer = document.createElement('div');
+        buildBContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
+        
+        var buildBCheckbox = document.createElement('input');
+        buildBCheckbox.type = 'checkbox';
+        buildBCheckbox.id = 'external-build-b';
+        buildBCheckbox.checked = settings.autoAttackBuilds.B;
+        buildBCheckbox.style.cssText = `transform: scale(1.1);`;
+        
+        var buildBLabel = document.createElement('label');
+        buildBLabel.htmlFor = 'external-build-b';
+        buildBLabel.textContent = 'Build B';
+        buildBLabel.style.cssText = `font-size: 13px; color: #2196F3; font-weight: bold; cursor: pointer;`;
+        
+        buildBContainer.appendChild(buildBCheckbox);
+        buildBContainer.appendChild(buildBLabel);
+        
+        buildSelection.appendChild(buildAContainer);
+        buildSelection.appendChild(buildBContainer);
+        
+        // Save build selections when changed
+        function saveBuildSelections() {
+            settings.autoAttackBuilds = {
+                A: buildACheckbox.checked,
+                B: buildBCheckbox.checked
+            };
+            saveSettingsToStorage();
+        }
+        
+        buildACheckbox.onchange = saveBuildSelections;
+        buildBCheckbox.onchange = saveBuildSelections;
+        
         var helpText = document.createElement('div');
         helpText.textContent = 'Drag to move';
         helpText.style.cssText = `font-size: 10px; color: #666; margin-top: 4px; text-align: center;`;
         
-        checkboxContainer.appendChild(label);
-        
-        var innerContainer = document.createElement('div');
-        innerContainer.style.display = 'flex';
-        innerContainer.style.flexDirection = 'column';
-        innerContainer.style.alignItems = 'center';
-        innerContainer.appendChild(sliderContainer);
-        innerContainer.appendChild(helpText);
-        
-        checkboxContainer.appendChild(innerContainer);
+        checkboxContainer.appendChild(header);
+        checkboxContainer.appendChild(buildSelection);
+        checkboxContainer.appendChild(helpText);
         document.body.appendChild(checkboxContainer);
     }
     
@@ -548,12 +637,21 @@
             
             if (!hasEnoughTroops) {
                 console.log("Not enough troops for Build " + buildKey + ":", missingTroops);
-                showStatus('Not enough troops for Build ' + buildKey + '. Waiting...', 'error');
+                showStatus('Not enough troops for Build ' + buildKey + '. Trying fallback...', 'error');
                 
-                setTimeout(function() {
-                    console.log('Re-checking troop availability...');
-                    autoAttackNext(buildKey);
-                }, 30000);
+                // Check if we should try Build B as fallback
+                if (buildKey === 'A' && settings.autoAttackEnabled && settings.autoAttackBuilds && settings.autoAttackBuilds.B) {
+                    console.log("Trying Build B as fallback...");
+                    setTimeout(function() {
+                        autoAttackNext('B');
+                    }, 1000);
+                } else {
+                    // Schedule next check in 30 seconds
+                    setTimeout(function() {
+                        console.log('Re-checking troop availability...');
+                        autoAttackNext(buildKey);
+                    }, 30000);
+                }
                 
                 return;
             }
@@ -591,7 +689,7 @@
     
     function autoAttackNext(buildKey) {
         console.log("=== autoAttackNext called ===");
-        console.log("Build key:", buildKey);
+        console.log("Requested build key:", buildKey);
         console.log("Target list:", targetList);
         console.log("Current targets array:", targetList.split(" ").filter(Boolean));
         
@@ -601,6 +699,13 @@
         var targets = targetList.split(" ").filter(Boolean);
         if (targets.length === 0) {
             showStatus('No targets in list for auto-attack', 'error');
+            
+            // If external auto-attack is running, retry after delay
+            if (settings.autoAttackEnabled) {
+                setTimeout(function() {
+                    startExternalAutoAttack();
+                }, 60000); // Retry in 1 minute
+            }
             return;
         }
         
@@ -2331,6 +2436,36 @@
         overlay.appendChild(container);
         document.body.appendChild(overlay);
     }
+
+    function startExternalAutoAttack() {
+        console.log("=== startExternalAutoAttack called ===");
+        
+        if (!settings.autoAttackEnabled) {
+            console.log("External auto-attack is disabled");
+            return;
+        }
+        
+        // Check which builds are selected
+        var useBuildA = settings.autoAttackBuilds && settings.autoAttackBuilds.A !== false; // Default to true
+        var useBuildB = settings.autoAttackBuilds && settings.autoAttackBuilds.B;
+        
+        console.log("Build A selected:", useBuildA);
+        console.log("Build B selected:", useBuildB);
+        
+        if (!useBuildA && !useBuildB) {
+            console.log("No builds selected for auto-attack");
+            showStatus('Please select at least one build for auto-attack', 'error');
+            return;
+        }
+        
+        if (useBuildA) {
+            console.log("Starting with Build A...");
+            autoAttackNext('A');
+        } else if (useBuildB) {
+            console.log("Starting with Build B...");
+            autoAttackNext('B');
+        }
+    }
     
     // ===== MAIN EXECUTION =====
     
@@ -2355,7 +2490,7 @@
             
             setTimeout(function() {
                 console.log("Now starting auto-attack...");
-                autoAttackNext('A');
+                startExternalAutoAttack(); // Changed from autoAttackNext('A')
             }, 2000);
         }
     }
