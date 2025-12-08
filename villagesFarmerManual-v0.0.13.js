@@ -592,9 +592,16 @@
         
         do {
             var currentTarget = targets[targetIndex];
-            var cooldownInfo = getCooldownInfo(currentTarget);
+            var history = getAttackHistory();
+            var currentTime = (new Date()).getTime();
             
-            if (!cooldownInfo.onCooldown) {
+            // Check if attacked within last 10 seconds (10000 milliseconds)
+            var isOnCooldown = history[currentTarget] && 
+                               (currentTime - history[currentTarget]) < 10000;
+            
+            console.log("Target:", currentTarget, "On cooldown (10s check):", isOnCooldown);
+            
+            if (!isOnCooldown) {
                 selectedTarget = currentTarget;
                 break;
             }
