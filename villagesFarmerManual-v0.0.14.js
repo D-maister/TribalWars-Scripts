@@ -296,9 +296,14 @@
     function removeFromTargetList(targetToRemove) {
         var targets = targetList.split(' ').filter(Boolean);
         var index = targets.indexOf(targetToRemove);
+        
         if (index !== -1) {
             targets.splice(index, 1);
             updateTargetList(targets.join(' '));
+            
+            // Reset the attack index cookie since array changed
+            setCookie(cookieName, "0", 365);
+            
             return true;
         }
         return false;
