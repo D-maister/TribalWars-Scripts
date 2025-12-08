@@ -5,6 +5,7 @@
     var targetsStorageKey = "twAttackTargets";
     var buildsStorageKey = "twAttackBuilds";
     var settingsStorageKey = "twAttackSettings";
+    var ignoreStorageKey = "twAttackIgnoreList"; // Add this with other storage keys
     var defaultCooldown = 30;
     
     var homeCoords = "";
@@ -1508,7 +1509,35 @@
                 showStatus('All targets cleared for ' + currentWorld, 'success');
             }
         };
+
+        var manageIgnoresBtn = document.createElement('button');
+        manageIgnoresBtn.textContent = '👁️ Manage Ignore List';
+        manageIgnoresBtn.style.cssText = `
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 15px;
+            width: 100%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        `;
+        manageIgnoresBtn.onmouseover = function() {
+            this.style.background = '#f57c00';
+        };
+        manageIgnoresBtn.onmouseout = function() {
+            this.style.background = '#ff9800';
+        };
+        manageIgnoresBtn.onclick = function() {
+            showIgnoreListManagement();
+        };
+        
         targetsList.appendChild(clearAllBtn);
+        targetsList.appendChild(manageIgnoresBtn);
         
         targets.forEach(function(target, index) {
             var targetItem = document.createElement('div');
@@ -1631,6 +1660,45 @@
             
             attackButtons.appendChild(attackBtnA);
             attackButtons.appendChild(attackBtnB);
+
+            // Ignore button
+            var ignoreBtn = document.createElement('button');
+            ignoreBtn.textContent = '👁️';
+            ignoreBtn.title = 'Add to ignore list (hide from future selections)';
+            ignoreBtn.style.cssText = `
+                background: #ff9800;
+                color: white;
+                border: none;
+                padding: 8px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                width: 36px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                transition: transform 0.2s, background 0.2s;
+            `;
+            ignoreBtn.onmouseover = function() {
+                this.style.transform = 'scale(1.1)';
+                this.style.background = '#f57c00';
+            };
+            ignoreBtn.onmouseout = function() {
+                this.style.transform = 'scale(1)';
+                this.style.background = '#ff9800';
+            };
+            ignoreBtn.onclick = (function(targetCoords) {
+                return function() {
+                    if (addToIgnoreList(targetCoords)) {
+                        removeFromTargetList(targetCoords); // Also remove from target list
+                        updateTargetsListUI();
+                        showStatus('Village ' + targetCoords + ' added to ignore list', 'success');
+                    }
+                };
+            })(target);
             
             var removeBtn = document.createElement('button');
             removeBtn.textContent = '✕';
@@ -1669,9 +1737,10 @@
                     }
                 };
             })(target);
-            
+        
             targetItem.appendChild(targetInfo);
             targetItem.appendChild(attackButtons);
+            targetItem.appendChild(ignoreBtn); // Add this line
             targetItem.appendChild(removeBtn);
             targetsList.appendChild(targetItem);
         });
@@ -1709,7 +1778,7 @@
                         var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
                         
                         if (!maxDistance || distance <= parseInt(maxDistance)) {
-                            if (currentTargets.indexOf(coords) === -1) {
+                            if (currentTargets.indexOf(coords) === -1 && !isInIgnoreList(coords)) {
                                 villages.push({
                                     name: villageName,
                                     coords: coords,
@@ -2052,6 +2121,279 @@
         
         console.log("Available troops:", availableTroops);
         return availableTroops;
+    }
+
+    /**
+     * Load ignore list from localStorage for current world
+     */
+    function loadIgnoreFromStorage() {
+        try {
+            var storedData = localStorage.getItem(ignoreStorageKey);
+            if (storedData) {
+                var allIgnores = JSON.parse(storedData);
+                if (allIgnores[currentWorld]) {
+                    return allIgnores[currentWorld];
+                }
+            }
+        } catch (e) {
+            console.error("Error loading ignore list:", e);
+        }
+        return [];
+    }
+    
+    /**
+     * Save ignore list to localStorage for current world
+     */
+    function saveIgnoreToStorage(ignoreList) {
+        try {
+            var storedData = localStorage.getItem(ignoreStorageKey);
+            var allIgnores = storedData ? JSON.parse(storedData) : {};
+            allIgnores[currentWorld] = ignoreList;
+            localStorage.setItem(ignoreStorageKey, JSON.stringify(allIgnores));
+        } catch (e) {
+            console.error("Error saving ignore list:", e);
+        }
+    }
+    
+    /**
+     * Add village to ignore list
+     */
+    function addToIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        if (ignoreList.indexOf(coords) === -1) {
+            ignoreList.push(coords);
+            saveIgnoreToStorage(ignoreList);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Remove village from ignore list
+     */
+    function removeFromIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        var index = ignoreList.indexOf(coords);
+        if (index !== -1) {
+            ignoreList.splice(index, 1);
+            saveIgnoreToStorage(ignoreList);
+            return true;
+        }
+        return false;
+    }
+    
+    /**
+     * Check if village is in ignore list
+     */
+    function isInIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        return ignoreList.indexOf(coords) !== -1;
+    }
+    
+    /**
+     * Clear all ignores for current world
+     */
+    function clearAllIgnores() {
+        saveIgnoreToStorage([]);
+    }
+
+        /**
+     * Show ignore list management UI
+     */
+    function showIgnoreListManagement() {
+        var ignoreList = loadIgnoreFromStorage();
+        
+        // Remove existing overlay if present
+        var existingOverlay = document.getElementById('ignore-overlay');
+        if (existingOverlay) existingOverlay.remove();
+        
+        // Create overlay
+        var overlay = document.createElement('div');
+        overlay.id = 'ignore-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10001;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+        
+        // Create container
+        var container = document.createElement('div');
+        container.style.cssText = `
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            width: 600px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        `;
+        
+        // Header
+        var header = document.createElement('div');
+        header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #ff9800;
+        `;
+        
+        var title = document.createElement('h3');
+        title.textContent = '👁️ Ignore List for ' + currentWorld + ' (' + ignoreList.length + ' villages)';
+        title.style.margin = '0';
+        title.style.color = '#333';
+        
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = `
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 18px;
+        `;
+        closeBtn.onclick = function() {
+            document.body.removeChild(overlay);
+        };
+        
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        
+        // Content
+        var content = document.createElement('div');
+        content.style.cssText = `
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #f8f9fa;
+        `;
+        
+        if (ignoreList.length === 0) {
+            content.innerHTML = '<div style="text-align: center; padding: 30px; color: #666; font-style: italic;">No villages in ignore list</div>';
+        } else {
+            ignoreList.forEach(function(coords, index) {
+                var item = document.createElement('div');
+                item.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 12px 15px;
+                    margin: 8px 0;
+                    background: ${index % 2 === 0 ? '#fff' : '#f8f9fa'};
+                    border-radius: 8px;
+                    border: 1px solid #e9ecef;
+                `;
+                
+                var coordsSpan = document.createElement('span');
+                coordsSpan.style.cssText = `
+                    font-family: monospace;
+                    font-weight: bold;
+                    font-size: 16px;
+                `;
+                coordsSpan.textContent = coords;
+                
+                var distanceSpan = document.createElement('span');
+                distanceSpan.style.cssText = `font-size: 12px; color: #666; margin-left: 10px;`;
+                var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
+                distanceSpan.textContent = 'Distance: ' + distance.toFixed(2);
+                
+                var removeBtn = document.createElement('button');
+                removeBtn.textContent = 'Remove';
+                removeBtn.style.cssText = `
+                    background: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                `;
+                removeBtn.onclick = (function(coordsToRemove) {
+                    return function() {
+                        if (removeFromIgnoreList(coordsToRemove)) {
+                            showIgnoreListManagement(); // Refresh
+                            showStatus('Village ' + coordsToRemove + ' removed from ignore list', 'success');
+                        }
+                    };
+                })(coords);
+                
+                var leftContainer = document.createElement('div');
+                leftContainer.appendChild(coordsSpan);
+                leftContainer.appendChild(distanceSpan);
+                
+                item.appendChild(leftContainer);
+                item.appendChild(removeBtn);
+                content.appendChild(item);
+            });
+        }
+        
+        // Footer
+        var footer = document.createElement('div');
+        footer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        `;
+        
+        var clearAllBtn = document.createElement('button');
+        clearAllBtn.textContent = '🗑️ Clear All Ignores';
+        clearAllBtn.style.cssText = `
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex: 1;
+        `;
+        clearAllBtn.onclick = function() {
+            if (confirm('Clear all ignored villages for ' + currentWorld + '?')) {
+                clearAllIgnores();
+                showIgnoreListManagement(); // Refresh
+                showStatus('All ignored villages cleared', 'success');
+            }
+        };
+        
+        var closeFooterBtn = document.createElement('button');
+        closeFooterBtn.textContent = 'Close';
+        closeFooterBtn.style.cssText = `
+            background: #666;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        `;
+        closeFooterBtn.onclick = function() {
+            document.body.removeChild(overlay);
+        };
+        
+        footer.appendChild(clearAllBtn);
+        footer.appendChild(closeFooterBtn);
+        
+        // Assemble
+        container.appendChild(header);
+        container.appendChild(content);
+        container.appendChild(footer);
+        overlay.appendChild(container);
+        document.body.appendChild(overlay);
     }
     
     // ===== MAIN EXECUTION =====
