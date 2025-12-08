@@ -568,6 +568,11 @@
     }
     
     function autoAttackNext(buildKey) {
+        console.log("=== autoAttackNext called ===");
+        console.log("Build key:", buildKey);
+        console.log("Target list:", targetList);
+        console.log("Current targets array:", targetList.split(" ").filter(Boolean));
+        
         if (checkForAntibot()) return;
         cleanupOldHistory();
         
@@ -1959,11 +1964,22 @@
         searchInput.focus();
     }
     
-// ===== MAIN EXECUTION =====
+    // ===== MAIN EXECUTION =====
     
-    // Load settings first to check autoAttackEnabled
+    // Get world name first
     currentWorld = getWorldName();
+    console.log("Current world:", currentWorld);
+    
+    // Load ALL data for this world
     loadSettingsFromStorage();
+    loadTargetsFromStorage();
+    loadBuildsFromStorage();
+    
+    // Get home coordinates
+    homeCoords = getCurrentVillageCoords();
+    console.log("Home coords:", homeCoords);
+    console.log("Auto-attack enabled:", settings.autoAttackEnabled);
+    console.log("Target list length:", targetList.split(" ").filter(Boolean).length);
     
     if (!checkForAntibot()) {
         createConfigUI();
@@ -1971,7 +1987,10 @@
         // Check if autoAttackEnabled is true and start auto-attack after UI is created
         if (settings.autoAttackEnabled) {
             console.log("Auto-attack enabled on startup, starting in 2 seconds...");
+            console.log("Available targets:", getCurrentTargets());
+            
             setTimeout(function() {
+                console.log("Now starting auto-attack...");
                 autoAttackNext('A');
             }, 2000);
         }
