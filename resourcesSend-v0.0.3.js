@@ -1,46 +1,3 @@
-<div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 300px; max-width: 400px; font-family: Arial, sans-serif; overflow: hidden;">
-    <!-- Header with close button -->
-    <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
-        <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
-        <button id="twResourcesClose" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
-    </div>
-    
-    <!-- Content area with table -->
-    <div id="twResourcesContent" style="max-height: 400px; overflow-y: auto; padding: 0;">
-        <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 11px;">
-            <thead style="background-color: #e8f5e8; position: sticky; top: 0; z-index: 10;">
-                <tr>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Coords</th>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Wood</th>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Clay</th>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Iron</th>
-                    <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Storage</th>
-                </tr>
-            </thead>
-            <tbody id="twResourcesBody">
-                <!-- Data will be populated here -->
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- Summary section -->
-    <div id="twResourcesSummary" style="padding: 6px 8px; background: #e8f5e8; border-top: 1px solid #ddd; font-size: 11px;">
-        <span style="display: inline-block; margin-right: 10px;">Villages: <strong id="twTotalVillages">0</strong></span>
-        <span style="display: inline-block; margin-right: 10px;">Wood: <strong id="twTotalWood">0</strong></span>
-        <span style="display: inline-block; margin-right: 10px;">Clay: <strong id="twTotalClay">0</strong></span>
-        <span style="display: inline-block; margin-right: 10px;">Iron: <strong id="twTotalIron">0</strong></span>
-    </div>
-    
-    <!-- Controls -->
-    <div id="twResourcesControls" style="padding: 8px; background: #f9f9f9; border-top: 1px solid #ddd; display: flex; gap: 8px; align-items: center;">
-        <button id="twRefreshBtn" style="background: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 11px; cursor: pointer; flex-grow: 1;">🔄 Refresh</button>
-        <label id="twAutoRefresh" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-            <input type="checkbox" id="twAutoRefreshCheckbox"> Auto (30s)
-        </label>
-    </div>
-</div>
-
 <script>
 (function() {
     // Check if already injected
@@ -48,6 +5,59 @@
         console.log('Resources monitor already injected');
         return;
     }
+    
+    // Create the monitor element
+    const monitorHTML = `
+    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 300px; max-width: 400px; font-family: Arial, sans-serif; overflow: hidden;">
+        <!-- Header with close button -->
+        <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
+            <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
+            <button id="twResourcesClose" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
+        </div>
+        
+        <!-- Content area with table -->
+        <div id="twResourcesContent" style="max-height: 400px; overflow-y: auto; padding: 0;">
+            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead style="background-color: #e8f5e8; position: sticky; top: 0; z-index: 10;">
+                    <tr>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Coords</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Wood</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Clay</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Iron</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Storage</th>
+                    </tr>
+                </thead>
+                <tbody id="twResourcesBody">
+                    <!-- Data will be populated here -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Summary section -->
+        <div id="twResourcesSummary" style="padding: 6px 8px; background: #e8f5e8; border-top: 1px solid #ddd; font-size: 11px;">
+            <span style="display: inline-block; margin-right: 10px;">Villages: <strong id="twTotalVillages">0</strong></span>
+            <span style="display: inline-block; margin-right: 10px;">Wood: <strong id="twTotalWood">0</strong></span>
+            <span style="display: inline-block; margin-right: 10px;">Clay: <strong id="twTotalClay">0</strong></span>
+            <span style="display: inline-block; margin-right: 10px;">Iron: <strong id="twTotalIron">0</strong></span>
+        </div>
+        
+        <!-- Controls -->
+        <div id="twResourcesControls" style="padding: 8px; background: #f9f9f9; border-top: 1px solid #ddd; display: flex; gap: 8px; align-items: center;">
+            <button id="twRefreshBtn" style="background: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 11px; cursor: pointer; flex-grow: 1;">🔄 Refresh</button>
+            <label id="twAutoRefresh" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="twAutoRefreshCheckbox"> Auto (30s)
+            </label>
+        </div>
+    </div>
+    `;
+    
+    // Append to body
+    const container = document.createElement('div');
+    container.innerHTML = monitorHTML;
+    document.body.appendChild(container.firstElementChild);
+    
+    console.log('Resources monitor injected into page');
     
     // Sample data - in real use, this would come from parsing the page
     const sampleVillages = [
@@ -231,7 +241,7 @@
         }
     }
 
-    // Initialize everything when DOM is ready
+    // Initialize everything
     function init() {
         // Set up event listeners
         document.getElementById('twResourcesClose').addEventListener('click', function() {
@@ -248,11 +258,7 @@
         refreshData();
     }
 
-    // Start when DOM is loaded
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    // Start initialization
+    setTimeout(init, 100);
 })();
 </script>
