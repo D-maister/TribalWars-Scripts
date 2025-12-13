@@ -4,6 +4,298 @@
         console.log('Resources monitor already injected');
         return;
     }
+
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+        #twResourcesMonitor {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 9999;
+            background: rgba(245, 245, 245, 0.95);
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            min-width: 500px;
+            max-width: 750px;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #twResourcesHeader {
+            background: linear-gradient(to right, #4CAF50, #45a049);
+            color: white;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+        }
+        
+        #twResourcesTitle {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        #twResourcesClose {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        
+        #twResourcesClose:hover {
+            background: #ff6666;
+        }
+        
+        #twResourcesSettings {
+            padding: 8px;
+            background: #f0f8ff;
+            border-bottom: 1px solid #ddd;
+            font-size: 11px;
+        }
+        
+        .tw-settings-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .tw-settings-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .tw-settings-label {
+            white-space: nowrap;
+        }
+        
+        .tw-settings-input {
+            width: 40px;
+            padding: 2px;
+            font-size: 11px;
+            text-align: center;
+        }
+        
+        .tw-speed-input {
+            width: 50px;
+        }
+        
+        .tw-settings-btn {
+            margin-left: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .tw-settings-info {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        #twResourcesContent {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 0;
+        }
+        
+        #twResourcesTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        #twResourcesTable thead {
+            background-color: #e8f5e8;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        #twResourcesTable th {
+            padding: 8px 4px;
+            text-align: left;
+            border-bottom: 1px solid #4CAF50;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        #twResourcesTable td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: middle;
+        }
+        
+        .tw-village-name {
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 10px;
+        }
+        
+        .tw-coords {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 9px;
+        }
+        
+        .tw-current-village {
+            background-color: #4CAF50 !important;
+            color: white !important;
+        }
+        
+        .tw-resource-cell {
+            text-align: right;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-percent-cell {
+            text-align: center;
+            font-size: 10px;
+        }
+        
+        .tw-percent-high {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+            font-weight: bold;
+        }
+        
+        .tw-percent-medium-high {
+            background-color: #e8f5e8;
+            color: #388e3c;
+        }
+        
+        .tw-percent-medium-low {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .tw-percent-low {
+            background-color: #ffcdd2;
+            color: #c62828;
+            font-weight: bold;
+        }
+        
+        .tw-percent-normal {
+            background-color: #f5f5f5;
+            color: #666;
+        }
+        
+        .tw-distance-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-time-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        
+        .tw-merchants-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-available-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-total-row {
+            background-color: #d4edda !important;
+            font-weight: bold !important;
+            border-top: 2px solid #4CAF50 !important;
+        }
+        
+        .tw-total-cell {
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .tw-total-resource {
+            text-align: right;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        
+        .tw-total-percent {
+            text-align: center;
+            font-weight: bold;
+            background-color: #e8f5e8;
+        }
+        
+        #twResourcesControls {
+            padding: 8px;
+            background: #f9f9f9;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        #twRefreshBtn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            flex-grow: 1;
+        }
+        
+        #twAutoRefresh {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        /* Scrollbar styling */
+        #twResourcesContent::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    `;
+    document.head.appendChild(style);
     
     // Create the monitor element
     const monitorHTML = `
