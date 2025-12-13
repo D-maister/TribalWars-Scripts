@@ -339,31 +339,28 @@
                                         village.iron = resourceSpans[2].textContent.trim();
                                     }
                                     
-                                    // Try to parse warehouse from the row first
-                                    const warehouseSpan = row.querySelector('.icon.header.ressources');
-                                    let warehouseFound = false;
+                                    // Try to parse warehouse from the row
+                                    // The warehouse is in a structure like:
+                                    // <td class="nowrap"><span class="icon header ressources" data-title="Склад"> </span>142<span class="grey">.</span>373</td>
+                                    const warehouseTd = row.querySelector('td.nowrap:nth-child(3)'); // 3rd td in row
+                                    let warehouseText = extractWarehouseText(warehouseTd);
                                     
-                                    if (warehouseSpan && warehouseSpan.nextElementSibling) {
-                                        const warehouseText = warehouseSpan.nextElementSibling.textContent.trim();
-                                        if (warehouseText) {
-                                            village.warehouse = warehouseText;
-                                            // Save to cache - only update if we have actual data
-                                            const warehouseNum = formatNumber(warehouseText);
-                                            if (warehouseNum > 0) {
-                                                warehouseCache[village.coords] = warehouseNum;
-                                            }
-                                            warehouseFound = true;
+                                    if (warehouseText) {
+                                        village.warehouse = warehouseText;
+                                        // Save to cache
+                                        const warehouseNum = formatNumber(warehouseText);
+                                        if (warehouseNum > 0) {
+                                            warehouseCache[village.coords] = warehouseNum;
+                                            console.log(`Found warehouse for ${village.coords}: ${warehouseNum}`);
                                         }
-                                    }
-                                    
-                                    // If warehouse not found in parsed data, check cache
-                                    if (!warehouseFound) {
+                                    } else {
+                                        // No warehouse found in parsed data, check cache
                                         if (warehouseCache[village.coords] && warehouseCache[village.coords] > 0) {
-                                            // Use cached value
                                             village.warehouse = displayNumber(warehouseCache[village.coords]);
+                                            console.log(`Using cached warehouse for ${village.coords}: ${warehouseCache[village.coords]}`);
                                         } else {
-                                            // No cached value, show unknown
                                             village.warehouse = '?';
+                                            console.log(`No warehouse data for ${village.coords}`);
                                         }
                                     }
                                     
@@ -396,6 +393,7 @@
                         
                         // Save updated cache
                         saveWarehouseCache();
+                        console.log('Updated warehouse cache:', warehouseCache);
                         
                         resolve(villages);
                         
@@ -773,6 +771,39 @@
         }
         warehouseCache = cleanedCache;
         saveWarehouseCache();
+    }
+
+    // Helper function to extract warehouse text from table cell
+    function extractWarehouseText(warehouseTd) {
+        if (!warehouseTd) return '';
+        
+        // Try multiple approaches to get the warehouse value
+        let warehouseText = '';
+        
+        // Approach 1: Direct text content (simplest)
+        let fullText = warehouseTd.textContent || '';
+        fullText = fullText.trim();
+        
+        // Remove common non-numeric characters but keep dots/numbers
+        warehouseText = fullText.replace(/[^\d.]/g, '');
+        
+        // Approach 2: If first approach fails, try to get text after the icon
+        if (!warehouseText || warehouseText.length < 2) {
+            const warehouseSpan = warehouseTd.querySelector('.icon.header.ressources');
+            if (warehouseSpan && warehouseSpan.nextSibling) {
+                // Get all sibling text nodes
+                let sibling = warehouseSpan.nextSibling;
+                while (sibling) {
+                    if (sibling.nodeType === Node.TEXT_NODE) {
+                        warehouseText += sibling.textContent;
+                    }
+                    sibling = sibling.nextSibling;
+                }
+                warehouseText = warehouseText.replace(/[^\d.]/g, '');
+            }
+        }
+        
+        return warehouseText;
     }
 
     // Initialize everything
