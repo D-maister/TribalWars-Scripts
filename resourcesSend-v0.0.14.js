@@ -499,9 +499,15 @@
             if (currentCoords) {
                 const merchantsData = getMerchantsData();
                 if (merchantsData) {
-                    merchantsCache[currentCoords] = merchantsData;
+                    // Ensure all fields exist
+                    merchantsCache[currentCoords] = {
+                        available: merchantsData.available || 0,
+                        total: merchantsData.total || 0,
+                        maxTransport: merchantsData.maxTransport || 0,
+                        used: merchantsData.used || 0
+                    };
                     saveMerchantsCache();
-                    console.log(`Saved merchants for ${currentCoords}:`, merchantsData);
+                    console.log(`Saved merchants for ${currentCoords}:`, merchantsCache[currentCoords]);
                 }
             }
         } catch (error) {
@@ -518,6 +524,9 @@
     }
 
     function displayNumber(num) {
+        if (num === null || num === undefined || num === '?' || isNaN(num)) {
+            return '?';
+        }
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     }
     
@@ -759,15 +768,23 @@
                                     }
                                     
                                     // Get merchants data from cache
+                                    let merchantsData = null;
                                     if (merchantsCache[village.coords]) {
-                                        village.merchants = merchantsCache[village.coords];
+                                        merchantsData = {
+                                            available: merchantsCache[village.coords].available || '?',
+                                            total: merchantsCache[village.coords].total || '?',
+                                            maxTransport: merchantsCache[village.coords].maxTransport || '?',
+                                            used: (merchantsCache[village.coords].total || 0) - (merchantsCache[village.coords].available || 0)
+                                        };
                                     } else {
-                                        village.merchants = {
+                                        merchantsData = {
                                             available: '?',
                                             total: '?',
+                                            maxTransport: '?',
                                             used: '?'
                                         };
                                     }
+                                    village.merchants = merchantsData;
                                     
                                     // Only add if we have all data and it's not a duplicate
                                     if (village.name && village.coords && village.wood && 
@@ -919,6 +936,8 @@
             const woodPercentClass = getPercentCellClass(villageWoodPercent, targetWoodPercent);
             const clayPercentClass = getPercentCellClass(villageClayPercent, targetClayPercent);
             const ironPercentClass = getPercentCellClass(villageIronPercent, targetIronPercent);
+
+            const merchants = village.merchants || { available: '?', total: '?', maxTransport: '?' };
             
             const row = document.createElement('tr');
             if (isCurrent) {
@@ -937,9 +956,9 @@
                 <td class="tw-resource-cell">${displayNumber(ironNum)}</td>
                 <td class="tw-percent-cell ${ironPercentClass}">${villageIronPercent}%</td>
                 <td class="tw-resource-cell">${warehouseNum > 0 ? displayNumber(warehouseNum) : '?'}</td>
-                <td class="tw-merchants-cell">${merchants.total !== '?' ? merchants.total : '?'}</td>
-                <td class="tw-available-cell">${merchants.available !== '?' ? merchants.available : '?'}</td>
-                <td class="tw-transport-cell">${merchants.maxTransport !== '?' ? displayNumber(merchants.maxTransport) : '?'}</td>
+                <td class="tw-merchants-cell">${displayNumber(merchants.total)}</td>
+                <td class="tw-available-cell">${displayNumber(merchants.available)}</td>
+                <td class="tw-transport-cell">${displayNumber(merchants.maxTransport)}</td>
             `;
             tbody.appendChild(row);
         });
