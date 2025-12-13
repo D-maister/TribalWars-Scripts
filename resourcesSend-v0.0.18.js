@@ -565,7 +565,7 @@
         }
     }
 
-    // Get current village resources from the header
+   // Get current village resources from the header
     function getCurrentVillageResources() {
         try {
             const currentCoords = getCurrentVillageCoords();
@@ -575,7 +575,7 @@
             const menuRow2 = document.getElementById('menu_row2');
             if (menuRow2) {
                 const villageLink = menuRow2.querySelector('a[href*="screen=overview"]');
-                if (villageLink) {
+                    if (villageLink) {
                     currentVillageName = villageLink.textContent.trim();
                 }
             }
@@ -605,8 +605,9 @@
             }
             
             // ALWAYS save current village merchants to cache
+            let merchantsData = null;
             if (currentCoords) {
-                const merchantsData = getMerchantsData();
+                merchantsData = getMerchantsData();
                 if (merchantsData) {
                     merchantsCache[currentCoords] = {
                         available: merchantsData.available || 0,
@@ -616,7 +617,37 @@
                     };
                     saveMerchantsCache();
                     console.log(`Saved/updated merchants for ${currentCoords}:`, merchantsCache[currentCoords]);
+                    
+                    // ALSO attach merchants data to the current village object
+                    currentVillage.merchants = {
+                        available: merchantsData.available || '?',
+                        total: merchantsData.total || '?',
+                        maxTransport: merchantsData.maxTransport || '?',
+                        used: merchantsData.used || '?'
+                    };
+                } else if (merchantsCache[currentCoords]) {
+                    // Use cached data if fresh data not available
+                    currentVillage.merchants = {
+                        available: merchantsCache[currentCoords].available || '?',
+                        total: merchantsCache[currentCoords].total || '?',
+                        maxTransport: merchantsCache[currentCoords].maxTransport || '?',
+                        used: merchantsCache[currentCoords].used || '?'
+                    };
+                } else {
+                    currentVillage.merchants = {
+                        available: '?',
+                        total: '?',
+                        maxTransport: '?',
+                        used: '?'
+                    };
                 }
+            } else {
+                currentVillage.merchants = {
+                    available: '?',
+                    total: '?',
+                    maxTransport: '?',
+                    used: '?'
+                };
             }
             
             return currentVillage;
@@ -1235,10 +1266,40 @@
         
         console.log('Resources monitor initialized');
         
-        // Auto-load resources on startup
+        // First, immediately get and display current village data
+        const currentVillage = getCurrentVillageResources();
+        if (currentVillage) {
+            // Add merchants data to current village before showing
+            const currentCoords = getCurrentVillageCoords();
+            if (currentCoords && merchantsCache[currentCoords]) {
+                currentVillage.merchants = {
+                    available: merchantsCache[currentCoords].available || '?',
+                    total: merchantsCache[currentCoords].total || '?',
+                    maxTransport: merchantsCache[currentCoords].maxTransport || '?',
+                    used: merchantsCache[currentCoords].used || '?'
+                };
+            } else {
+                // If no cache yet, try to get fresh data
+                const merchantsData = getMerchantsData();
+                if (merchantsData) {
+                    currentVillage.merchants = {
+                        available: merchantsData.available || '?',
+                        total: merchantsData.total || '?',
+                        maxTransport: merchantsData.maxTransport || '?',
+                        used: merchantsData.used || '?'
+                    };
+                } else {
+                    currentVillage.merchants = {
+                        available: '?',
+                        total: '?',
+                        maxTransport: '?',
+                        used: '?'
+                    };
+                }
+            }
+            updateResourcesTable([currentVillage]);
+        }
+        
+        // Then auto-load all resources after a delay
         setTimeout(loadResources, 500);
     }
-
-    // Start initialization immediately
-    init();
-})();
