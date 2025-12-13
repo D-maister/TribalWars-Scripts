@@ -5,304 +5,6 @@
         return;
     }
     
-    // Add CSS styles
-    const style = document.createElement('style');
-    style.textContent = `
-        #twResourcesMonitor {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 9999;
-            background: rgba(245, 245, 245, 0.95);
-            border: 2px solid #4CAF50;
-            border-radius: 5px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            min-width: 500px;
-            max-width: 750px;
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-        }
-        
-        #twResourcesHeader {
-            background: linear-gradient(to right, #4CAF50, #45a049);
-            color: white;
-            padding: 8px 12px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: move;
-            user-select: none;
-        }
-        
-        #twResourcesTitle {
-            font-weight: bold;
-            font-size: 14px;
-        }
-        
-        #twResourcesClose {
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            font-size: 12px;
-            line-height: 1;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-        }
-        
-        #twResourcesClose:hover {
-            background: #ff6666;
-        }
-        
-        #twResourcesSettings {
-            padding: 8px;
-            background: #f0f8ff;
-            border-bottom: 1px solid #ddd;
-            font-size: 11px;
-        }
-        
-        .tw-settings-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-        
-        .tw-settings-group {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .tw-settings-label {
-            white-space: nowrap;
-        }
-        
-        .tw-settings-input {
-            width: 40px;
-            padding: 2px;
-            font-size: 11px;
-            text-align: center;
-        }
-        
-        .tw-speed-input {
-            width: 50px;
-        }
-        
-        .tw-settings-btn {
-            margin-left: 4px;
-            padding: 2px 6px;
-            font-size: 10px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        
-        .tw-settings-info {
-            font-size: 10px;
-            color: #666;
-        }
-        
-        #twResourcesContent {
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 0;
-        }
-        
-        #twResourcesTable {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 11px;
-        }
-        
-        #twResourcesTable thead {
-            background-color: #e8f5e8;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        
-        #twResourcesTable th {
-            padding: 8px 4px;
-            text-align: left;
-            border-bottom: 1px solid #4CAF50;
-            font-weight: bold;
-            white-space: nowrap;
-        }
-        
-        #twResourcesTable td {
-            padding: 6px 4px;
-            border-bottom: 1px solid #ddd;
-            vertical-align: middle;
-        }
-        
-        .tw-village-name {
-            max-width: 100px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: 10px;
-        }
-        
-        .tw-coords {
-            font-family: monospace;
-            background: #f0f0f0;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-size: 9px;
-        }
-        
-        .tw-current-village {
-            background-color: #4CAF50 !important;
-            color: white !important;
-        }
-        
-        .tw-resource-cell {
-            text-align: right;
-            font-family: monospace;
-            font-size: 10px;
-        }
-        
-        .tw-percent-cell {
-            text-align: center;
-            font-size: 10px;
-        }
-        
-        .tw-percent-high {
-            background-color: #c8e6c9;
-            color: #2e7d32;
-            font-weight: bold;
-        }
-        
-        .tw-percent-medium-high {
-            background-color: #e8f5e8;
-            color: #388e3c;
-        }
-        
-        .tw-percent-medium-low {
-            background-color: #ffebee;
-            color: #d32f2f;
-        }
-        
-        .tw-percent-low {
-            background-color: #ffcdd2;
-            color: #c62828;
-            font-weight: bold;
-        }
-        
-        .tw-percent-normal {
-            background-color: #f5f5f5;
-            color: #666;
-        }
-        
-        .tw-distance-cell {
-            text-align: center;
-            font-family: monospace;
-            font-size: 10px;
-        }
-        
-        .tw-time-cell {
-            text-align: center;
-            font-family: monospace;
-            font-size: 10px;
-            white-space: nowrap;
-        }
-        
-        .tw-merchants-cell {
-            text-align: center;
-            font-family: monospace;
-            font-size: 10px;
-        }
-        
-        .tw-available-cell {
-            text-align: center;
-            font-family: monospace;
-            font-size: 10px;
-        }
-        
-        .tw-total-row {
-            background-color: #d4edda !important;
-            font-weight: bold !important;
-            border-top: 2px solid #4CAF50 !important;
-        }
-        
-        .tw-total-cell {
-            text-align: center;
-            font-weight: bold;
-        }
-        
-        .tw-total-resource {
-            text-align: right;
-            font-family: monospace;
-            font-weight: bold;
-        }
-        
-        .tw-total-percent {
-            text-align: center;
-            font-weight: bold;
-            background-color: #e8f5e8;
-        }
-        
-        #twResourcesControls {
-            padding: 8px;
-            background: #f9f9f9;
-            border-top: 1px solid #ddd;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        
-        #twRefreshBtn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 3px;
-            font-size: 11px;
-            cursor: pointer;
-            flex-grow: 1;
-        }
-        
-        #twAutoRefresh {
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        /* Scrollbar styling */
-        #twResourcesContent::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        #twResourcesContent::-webkit-scrollbar-track {
-            background: #f1f1f1;
-        }
-        
-        #twResourcesContent::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 3px;
-        }
-        
-        #twResourcesContent::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-
-        .tw-transport-cell {
-            text-align: center;
-            font-family: monospace;
-            font-size: 10px;
-        }
-    `;
-    document.head.appendChild(style);
-    
     // Create the monitor element
     const monitorHTML = `
     <div id="twResourcesMonitor">
@@ -492,29 +194,6 @@
         }
     }
     
-    // Save current village merchants to cache
-    function saveCurrentMerchantsToCache() {
-        try {
-            const currentCoords = getCurrentVillageCoords();
-            if (currentCoords) {
-                const merchantsData = getMerchantsData();
-                if (merchantsData) {
-                    // Ensure all fields exist
-                    merchantsCache[currentCoords] = {
-                        available: merchantsData.available || 0,
-                        total: merchantsData.total || 0,
-                        maxTransport: merchantsData.maxTransport || 0,
-                        used: merchantsData.used || 0
-                    };
-                    saveMerchantsCache();
-                    console.log(`Saved merchants for ${currentCoords}:`, merchantsCache[currentCoords]);
-                }
-            }
-        } catch (error) {
-            console.error('Error saving merchants to cache:', error);
-        }
-    }
-    
     // Utility functions
     function formatNumber(numStr) {
         if (!numStr) return 0;
@@ -626,10 +305,25 @@
             // Save current village warehouse capacity to cache (only if we have actual data)
             if (currentCoords && currentVillage.warehouse !== '0') {
                 const warehouseNum = formatNumber(currentVillage.warehouse);
-                // Only update cache if we have a valid number and it's not already in cache
-                if (warehouseNum > 0 && (!warehouseCache[currentCoords] || warehouseCache[currentCoords] === null)) {
+                // Only update cache if we have a valid number
+                if (warehouseNum > 0) {
                     warehouseCache[currentCoords] = warehouseNum;
                     saveWarehouseCache();
+                }
+            }
+            
+            // ALWAYS save current village merchants to cache
+            if (currentCoords) {
+                const merchantsData = getMerchantsData();
+                if (merchantsData) {
+                    merchantsCache[currentCoords] = {
+                        available: merchantsData.available || 0,
+                        total: merchantsData.total || 0,
+                        maxTransport: merchantsData.maxTransport || 0,
+                        used: merchantsData.used || 0
+                    };
+                    saveMerchantsCache();
+                    console.log(`Saved/updated merchants for ${currentCoords}:`, merchantsCache[currentCoords]);
                 }
             }
             
@@ -684,9 +378,6 @@
                 if (currentVillage) {
                     villages.push(currentVillage);
                 }
-                
-                // Save current village merchants to cache
-                saveCurrentMerchantsToCache();
                 
                 // Find and click the second 'a' element in div.target-select-links
                 const targetSelectLinks = document.querySelector('div.target-select-links');
@@ -771,10 +462,10 @@
                                     let merchantsData = null;
                                     if (merchantsCache[village.coords]) {
                                         merchantsData = {
-                                            available: merchantsCache[village.coords].available || '?',
-                                            total: merchantsCache[village.coords].total || '?',
-                                            maxTransport: merchantsCache[village.coords].maxTransport || '?',
-                                            used: (merchantsCache[village.coords].total || 0) - (merchantsCache[village.coords].available || 0)
+                                            available: merchantsCache[village.coords].available !== undefined ? merchantsCache[village.coords].available : '?',
+                                            total: merchantsCache[village.coords].total !== undefined ? merchantsCache[village.coords].total : '?',
+                                            maxTransport: merchantsCache[village.coords].maxTransport !== undefined ? merchantsCache[village.coords].maxTransport : '?',
+                                            used: merchantsCache[village.coords].used !== undefined ? merchantsCache[village.coords].used : '?'
                                         };
                                     } else {
                                         merchantsData = {
@@ -896,7 +587,7 @@
             const clayNum = formatNumber(village.clay);
             const ironNum = formatNumber(village.iron);
             const warehouseNum = formatNumber(village.warehouse);
-            const merchants = village.merchants || { available: '?', total: '?' };
+            const merchants = village.merchants || { available: '?', total: '?', maxTransport: '?', used: '?' };
             
             // Calculate percentages for this village
             const villageTotal = woodNum + clayNum + ironNum;
@@ -1040,6 +731,47 @@
         }
     }
 
+    // Periodically update merchants cache for current village
+    function startMerchantsUpdate() {
+        // Update merchants every 30 seconds
+        setInterval(() => {
+            const currentCoords = getCurrentVillageCoords();
+            if (currentCoords) {
+                const merchantsData = getMerchantsData();
+                if (merchantsData) {
+                    merchantsCache[currentCoords] = {
+                        available: merchantsData.available || 0,
+                        total: merchantsData.total || 0,
+                        maxTransport: merchantsData.maxTransport || 0,
+                        used: merchantsData.used || 0
+                    };
+                    saveMerchantsCache();
+                    console.log(`Periodic update: Saved merchants for ${currentCoords}`);
+                    
+                    // Update the table if it's showing
+                    const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 14) {
+                            return {
+                                name: cells[0].textContent,
+                                coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
+                                wood: cells[4].textContent.replace(/\./g, ''),
+                                clay: cells[6].textContent.replace(/\./g, ''),
+                                iron: cells[8].textContent.replace(/\./g, ''),
+                                warehouse: cells[10].textContent.replace(/\./g, '') || '0'
+                            };
+                        }
+                        return null;
+                    }).filter(v => v);
+                    
+                    if (villages.length > 0) {
+                        updateResourcesTable(villages);
+                    }
+                }
+            }
+        }, 30000); // 30 seconds
+    }
+
     // Save target ratios
     function saveTargetRatios() {
         const wood = parseInt(document.getElementById('twTargetWood').value) || 0;
@@ -1065,7 +797,7 @@
         // Refresh table to show new ratios
         const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 13) {
+            if (cells.length >= 14) {
                 return {
                     name: cells[0].textContent,
                     coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
@@ -1113,7 +845,7 @@
         // Refresh table to show new travel times
         const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 13) {
+            if (cells.length >= 14) {
                 return {
                     name: cells[0].textContent,
                     coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
@@ -1205,6 +937,9 @@
         
         // Make the monitor draggable
         makeDraggable(document.getElementById('twResourcesMonitor'));
+        
+        // Start periodic merchants update
+        startMerchantsUpdate();
         
         console.log('Resources monitor initialized');
         
