@@ -121,6 +121,7 @@
             const cached = localStorage.getItem('twWarehouseCache');
             if (cached) {
                 warehouseCache = JSON.parse(cached);
+                console.log('Warehouse cache loaded:', warehouseCache);
             }
         } catch (error) {
             console.error('Error loading warehouse cache:', error);
@@ -148,6 +149,8 @@
     // Utility functions
     function formatNumber(numStr) {
         if (!numStr) return 0;
+        // Handle both string numbers and already formatted numbers
+        if (typeof numStr === 'number') return numStr;
         return parseInt(numStr.replace(/\./g, ''));
     }
 
@@ -234,13 +237,18 @@
                 }
             }
             
+            const woodElement = document.getElementById('wood');
+            const clayElement = document.getElementById('stone');
+            const ironElement = document.getElementById('iron');
+            const storageElement = document.getElementById('storage');
+            
             const currentVillage = {
                 name: currentVillageName,
                 coords: currentCoords || 'Current',
-                wood: document.getElementById('wood')?.textContent || '0',
-                clay: document.getElementById('stone')?.textContent || '0',
-                iron: document.getElementById('iron')?.textContent || '0',
-                warehouse: document.getElementById('storage')?.textContent || '0'
+                wood: woodElement?.textContent || '0',
+                clay: clayElement?.textContent || '0',
+                iron: ironElement?.textContent || '0',
+                warehouse: storageElement?.textContent || '0'
             };
             
             // Save current village warehouse capacity to cache
@@ -272,14 +280,14 @@
                 // Find and click the second 'a' element in div.target-select-links
                 const targetSelectLinks = document.querySelector('div.target-select-links');
                 if (!targetSelectLinks) {
-                    console.log('Target select links not found');
+                    console.log('Target select links not found, using only current village');
                     resolve(villages);
                     return;
                 }
                 
                 const links = targetSelectLinks.querySelectorAll('a');
                 if (links.length < 2) {
-                    console.log('Not enough links found');
+                    console.log('Not enough links found, using only current village');
                     resolve(villages);
                     return;
                 }
@@ -328,14 +336,26 @@
                                         village.iron = resourceSpans[2].textContent.trim();
                                     }
                                     
-                                    // Try to parse warehouse from the row
+                                    // Try to parse warehouse from the row first
                                     const warehouseSpan = row.querySelector('.icon.header.ressources');
+                                    let warehouseFound = false;
+                                    
                                     if (warehouseSpan && warehouseSpan.nextElementSibling) {
-                                        village.warehouse = warehouseSpan.nextElementSibling.textContent.trim();
-                                    } else {
-                                        // Check cache for warehouse capacity
-                                        village.warehouse = warehouseCache[village.coords] ? 
-                                            displayNumber(warehouseCache[village.coords]) : '0';
+                                        const warehouseText = warehouseSpan.nextElementSibling.textContent.trim();
+                                        if (warehouseText) {
+                                            village.warehouse = warehouseText;
+                                            // Save to cache
+                                            const warehouseNum = formatNumber(warehouseText);
+                                            warehouseCache[village.coords] = warehouseNum;
+                                            warehouseFound = true;
+                                        }
+                                    }
+                                    
+                                    // If warehouse not found in parsed data, check cache
+                                    if (!warehouseFound && warehouseCache[village.coords]) {
+                                        village.warehouse = displayNumber(warehouseCache[village.coords]);
+                                    } else if (!warehouseFound) {
+                                        village.warehouse = '?';
                                     }
                                     
                                     // Only add if we have all data and it's not a duplicate
@@ -365,6 +385,9 @@
                             }, 100);
                         }
                         
+                        // Save updated cache
+                        saveWarehouseCache();
+                        
                         resolve(villages);
                         
                     } catch (error) {
@@ -383,7 +406,7 @@
                         
                         resolve(villages);
                     }
-                }, 800); // Wait for popup to load
+                }, 1000); // Wait for popup to load
                 
             } catch (error) {
                 console.error('Error in parseResourcesFromPage:', error);
@@ -427,13 +450,18 @@
             totalIron += formatNumber(village.iron);
         });
         
+        const grandTotal = totalWood + totalClay + totalIron;
+        const totalWoodPercent = grandTotal > 0 ? calculatePercentage(totalWood, grandTotal) : 0;
+        const totalClayPercent = grandTotal > 0 ? calculatePercentage(totalClay, grandTotal) : 0;
+        const totalIronPercent = grandTotal > 0 ? calculatePercentage(totalIron, grandTotal) : 0;
+        
         // Calculate percentage for target ratios
         const targetTotal = settings.targetWood + settings.targetClay + settings.targetIron;
         const targetWoodPercent = settings.targetWood;
         const targetClayPercent = settings.targetClay;
         const targetIronPercent = settings.targetIron;
         
-        // Create rows
+        // Create rows for each village
         villages.forEach(village => {
             const woodNum = formatNumber(village.wood);
             const clayNum = formatNumber(village.clay);
@@ -496,6 +524,24 @@
             `;
             tbody.appendChild(row);
         });
+        
+        // Add total resources row (last row)
+        const totalRow = document.createElement('tr');
+        totalRow.style.cssText = 'background-color: #d4edda; font-weight: bold; border-top: 2px solid #4CAF50;';
+        totalRow.innerHTML = `
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">TOTAL</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalWood)}</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalWoodPercent}%</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalClay)}</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalClayPercent}%</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalIron)}</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalIronPercent}%</td>
+            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
+        `;
+        tbody.appendChild(totalRow);
         
         // Update summary
         document.getElementById('twTotalVillages').textContent = villages.length;
@@ -584,7 +630,7 @@
         document.getElementById('twCurrentRatios').textContent = `${wood}/${clay}/${iron}`;
         
         // Refresh table to show new ratios
-        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr')).map(row => {
+        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
             if (cells.length >= 11) {
                 return {
@@ -632,7 +678,7 @@
         document.getElementById('twCurrentSpeed').textContent = speed;
         
         // Refresh table to show new travel times
-        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr')).map(row => {
+        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
             if (cells.length >= 11) {
                 return {
@@ -728,15 +774,10 @@
         
         console.log('Resources monitor initialized');
         
-        // Initial load of current village only
-        setTimeout(() => {
-            const currentVillage = getCurrentVillageResources();
-            if (currentVillage) {
-                updateResourcesTable([currentVillage]);
-            }
-        }, 100);
+        // Auto-load resources on startup
+        setTimeout(loadResources, 500);
     }
 
-    // Start initialization
-    setTimeout(init, 100);
+    // Start initialization immediately
+    init();
 })();
