@@ -254,8 +254,11 @@
             // Save current village warehouse capacity to cache
             if (currentCoords && currentVillage.warehouse !== '0') {
                 const warehouseNum = formatNumber(currentVillage.warehouse);
-                warehouseCache[currentCoords] = warehouseNum;
-                saveWarehouseCache();
+                // Only update cache if we have a valid number
+                if (warehouseNum > 0) {
+                    warehouseCache[currentCoords] = warehouseNum;
+                    saveWarehouseCache();
+                }
             }
             
             return currentVillage;
@@ -344,18 +347,24 @@
                                         const warehouseText = warehouseSpan.nextElementSibling.textContent.trim();
                                         if (warehouseText) {
                                             village.warehouse = warehouseText;
-                                            // Save to cache
+                                            // Save to cache - only update if we have actual data
                                             const warehouseNum = formatNumber(warehouseText);
-                                            warehouseCache[village.coords] = warehouseNum;
+                                            if (warehouseNum > 0) {
+                                                warehouseCache[village.coords] = warehouseNum;
+                                            }
                                             warehouseFound = true;
                                         }
                                     }
                                     
                                     // If warehouse not found in parsed data, check cache
-                                    if (!warehouseFound && warehouseCache[village.coords]) {
-                                        village.warehouse = displayNumber(warehouseCache[village.coords]);
-                                    } else if (!warehouseFound) {
-                                        village.warehouse = '?';
+                                    if (!warehouseFound) {
+                                        if (warehouseCache[village.coords] && warehouseCache[village.coords] > 0) {
+                                            // Use cached value
+                                            village.warehouse = displayNumber(warehouseCache[village.coords]);
+                                        } else {
+                                            // No cached value, show unknown
+                                            village.warehouse = '?';
+                                        }
                                     }
                                     
                                     // Only add if we have all data and it's not a duplicate
@@ -754,10 +763,25 @@
         }
     }
 
+    // Add this function to clean up cache
+    function cleanWarehouseCache() {
+        const cleanedCache = {};
+        for (const [coords, value] of Object.entries(warehouseCache)) {
+            if (value !== null && value !== undefined && value > 0) {
+                cleanedCache[coords] = value;
+            }
+        }
+        warehouseCache = cleanedCache;
+        saveWarehouseCache();
+    }
+
     // Initialize everything
     function init() {
         // Load warehouse cache
         loadWarehouseCache();
+        
+        // Clean up any null values in cache
+        cleanWarehouseCache();
         
         // Set up event listeners
         document.getElementById('twResourcesClose').addEventListener('click', function() {
