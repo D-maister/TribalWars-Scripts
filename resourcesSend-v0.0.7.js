@@ -7,11 +7,35 @@
     
     // Create the monitor element
     const monitorHTML = `
-    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 350px; max-width: 500px; font-family: Arial, sans-serif; overflow: hidden;">
+    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 400px; max-width: 550px; font-family: Arial, sans-serif; overflow: hidden;">
         <!-- Header with close button -->
         <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
             <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
             <button id="twResourcesClose" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
+        </div>
+        
+        <!-- Settings panel -->
+        <div id="twResourcesSettings" style="padding: 8px; background: #f0f8ff; border-bottom: 1px solid #ddd; font-size: 11px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="white-space: nowrap;">Target Ratios:</span>
+                    <input type="number" id="twTargetWood" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Wood %" min="0" max="100">
+                    <span>/</span>
+                    <input type="number" id="twTargetClay" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Clay %" min="0" max="100">
+                    <span>/</span>
+                    <input type="number" id="twTargetIron" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Iron %" min="0" max="100">
+                    <button id="twSaveRatios" style="margin-left: 4px; padding: 2px 6px; font-size: 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Save</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="white-space: nowrap;">Speed:</span>
+                    <input type="number" id="twSpeedPerCell" style="width: 50px; padding: 2px; font-size: 11px; text-align: center;" placeholder="min/cell" min="1" max="60" step="0.1">
+                    <span style="font-size: 10px;">min/cell</span>
+                    <button id="twSaveSpeed" style="margin-left: 4px; padding: 2px 6px; font-size: 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Save</button>
+                </div>
+            </div>
+            <div style="font-size: 10px; color: #666;">
+                <span>Current: <span id="twCurrentRatios">0/0/0</span>% | Speed: <span id="twCurrentSpeed">3</span> min/cell</span>
+            </div>
         </div>
         
         <!-- Content area with table -->
@@ -21,6 +45,8 @@
                     <tr>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Coords</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Dist</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Time</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Wood</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Clay</th>
@@ -61,6 +87,40 @@
     
     console.log('Resources monitor injected into page');
     
+    // Settings from localStorage
+    const defaultSettings = {
+        targetWood: 33,
+        targetClay: 34,
+        targetIron: 33,
+        speedPerCell: 3 // minutes per cell
+    };
+    
+    // Load settings from localStorage
+    function loadSettings() {
+        const settings = { ...defaultSettings };
+        
+        try {
+            const savedSettings = localStorage.getItem('twResourcesSettings');
+            if (savedSettings) {
+                const parsed = JSON.parse(savedSettings);
+                Object.assign(settings, parsed);
+            }
+        } catch (error) {
+            console.error('Error loading settings:', error);
+        }
+        
+        return settings;
+    }
+    
+    // Save settings to localStorage
+    function saveSettings(settings) {
+        try {
+            localStorage.setItem('twResourcesSettings', JSON.stringify(settings));
+        } catch (error) {
+            console.error('Error saving settings:', error);
+        }
+    }
+    
     // Utility functions
     function formatNumber(numStr) {
         if (!numStr) return 0;
@@ -75,30 +135,58 @@
         if (total === 0) return 0;
         return Math.round((part / total) * 100);
     }
+    
+    // Calculate distance between two coordinates
+    function calculateDistance(coord1, coord2) {
+        const [x1, y1] = coord1.split('|').map(Number);
+        const [x2, y2] = coord2.split('|').map(Number);
+        
+        if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
+            return 0;
+        }
+        
+        const distance = Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+        return Math.round(distance * 100) / 100; // Round to 2 decimal places
+    }
+    
+    // Format time as hours:minutes
+    function formatTime(minutes) {
+        if (minutes < 60) {
+            return `${Math.round(minutes)}m`;
+        } else {
+            const hours = Math.floor(minutes / 60);
+            const mins = Math.round(minutes % 60);
+            return `${hours}h${mins > 0 ? ` ${mins}m` : ''}`;
+        }
+    }
 
     // Get current village resources from the header
     function getCurrentVillageResources() {
         try {
+            let currentCoords = 'Current';
+            let currentVillageName = 'Current Village';
+            
+            // Try to get village name and coordinates from village list dropdown
+            const villageSelect = document.getElementById('village_list');
+            if (villageSelect && villageSelect.options) {
+                const selectedOption = Array.from(villageSelect.options).find(opt => opt.selected);
+                if (selectedOption) {
+                    currentVillageName = selectedOption.text.trim();
+                    const match = selectedOption.text.match(/(\d+)\s*\|\s*(\d+)/);
+                    if (match) {
+                        currentCoords = `${match[1]}|${match[2]}`;
+                    }
+                }
+            }
+            
             const currentVillage = {
-                name: document.querySelector('#village_list option[selected]')?.textContent || 'Current Village',
-                coords: 'Current',
+                name: currentVillageName,
+                coords: currentCoords,
                 wood: document.getElementById('wood')?.textContent || '0',
                 clay: document.getElementById('stone')?.textContent || '0',
                 iron: document.getElementById('iron')?.textContent || '0',
                 warehouse: document.getElementById('storage')?.textContent || '0'
             };
-            
-            // Try to get village name from village list dropdown
-            const villageSelect = document.getElementById('village_list');
-            if (villageSelect && villageSelect.options) {
-                const selectedOption = Array.from(villageSelect.options).find(opt => opt.selected);
-                if (selectedOption) {
-                    const match = selectedOption.text.match(/(\d+)\s*\|\s*(\d+)/);
-                    if (match) {
-                        currentVillage.coords = `${match[1]}|${match[2]}`;
-                    }
-                }
-            }
             
             return currentVillage;
         } catch (error) {
@@ -249,6 +337,33 @@
         let totalClay = 0;
         let totalIron = 0;
         
+        // Load current settings
+        const settings = loadSettings();
+        
+        // Update settings display
+        document.getElementById('twCurrentRatios').textContent = 
+            `${settings.targetWood}/${settings.targetClay}/${settings.targetIron}`;
+        document.getElementById('twCurrentSpeed').textContent = settings.speedPerCell;
+        
+        // Update input fields
+        document.getElementById('twTargetWood').value = settings.targetWood;
+        document.getElementById('twTargetClay').value = settings.targetClay;
+        document.getElementById('twTargetIron').value = settings.targetIron;
+        document.getElementById('twSpeedPerCell').value = settings.speedPerCell;
+        
+        // Get current village coordinates
+        let currentCoords = null;
+        if (villages.length > 0 && villages[0].coords !== 'Current') {
+            currentCoords = villages[0].coords;
+        } else if (villages.length > 0) {
+            // Parse current village name for coordinates
+            const currentVillageName = villages[0].name;
+            const match = currentVillageName.match(/(\d+)\s*\|\s*(\d+)/);
+            if (match) {
+                currentCoords = `${match[1]}|${match[2]}`;
+            }
+        }
+        
         // Calculate total resources across all villages
         villages.forEach(village => {
             totalWood += formatNumber(village.wood);
@@ -256,25 +371,11 @@
             totalIron += formatNumber(village.iron);
         });
         
-        // Calculate percentage for current village (first village)
-        const currentVillage = villages[0];
-        let currentTotal = 0;
-        let woodPercent = 0;
-        let clayPercent = 0;
-        let ironPercent = 0;
-        
-        if (currentVillage && currentVillage.coords === 'Current') {
-            const currentWood = formatNumber(currentVillage.wood);
-            const currentClay = formatNumber(currentVillage.clay);
-            const currentIron = formatNumber(currentVillage.iron);
-            currentTotal = currentWood + currentClay + currentIron;
-            
-            if (currentTotal > 0) {
-                woodPercent = calculatePercentage(currentWood, currentTotal);
-                clayPercent = calculatePercentage(currentClay, currentTotal);
-                ironPercent = calculatePercentage(currentIron, currentTotal);
-            }
-        }
+        // Calculate percentage for target ratios
+        const targetTotal = settings.targetWood + settings.targetClay + settings.targetIron;
+        const targetWoodPercent = settings.targetWood;
+        const targetClayPercent = settings.targetClay;
+        const targetIronPercent = settings.targetIron;
         
         // Create rows
         villages.forEach(village => {
@@ -289,31 +390,43 @@
             const villageClayPercent = villageTotal > 0 ? calculatePercentage(clayNum, villageTotal) : 0;
             const villageIronPercent = villageTotal > 0 ? calculatePercentage(ironNum, villageTotal) : 0;
             
+            // Calculate distance and send time
+            let distance = 0;
+            let sendTime = 0;
+            
+            if (currentCoords && village.coords !== 'Current' && !village.coords.includes('Current')) {
+                distance = calculateDistance(currentCoords, village.coords);
+                sendTime = distance * settings.speedPerCell; // minutes
+            }
+            
             // Highlight current village
-            const isCurrent = village.coords === 'Current';
+            const isCurrent = village.coords === 'Current' || village.coords.includes('Current');
             const rowStyle = isCurrent ? 'background-color: #e8f5e8; font-weight: bold;' : '';
             
-            // Determine color for percentage cells based on comparison with current village
-            const getPercentCellStyle = (villagePercent, currentPercent, resourceType) => {
-                if (!isCurrent && currentTotal > 0) {
-                    const diff = villagePercent - currentPercent;
-                    if (diff > 10) return 'background-color: #c8e6c9; color: #2e7d32; font-weight: bold;'; // Green - much higher
-                    if (diff > 5) return 'background-color: #e8f5e8; color: #388e3c;'; // Light green - higher
-                    if (diff < -10) return 'background-color: #ffcdd2; color: #c62828; font-weight: bold;'; // Red - much lower
-                    if (diff < -5) return 'background-color: #ffebee; color: #d32f2f;'; // Light red - lower
+            // Determine color for percentage cells based on comparison with target ratios
+            const getPercentCellStyle = (villagePercent, targetPercent, resourceType) => {
+                if (!isCurrent && targetTotal > 0) {
+                    const diff = villagePercent - targetPercent;
+                    if (diff > 15) return 'background-color: #c8e6c9; color: #2e7d32; font-weight: bold;'; // Green - much higher than target
+                    if (diff > 5) return 'background-color: #e8f5e8; color: #388e3c;'; // Light green - higher than target
+                    if (diff < -15) return 'background-color: #ffcdd2; color: #c62828; font-weight: bold;'; // Red - much lower than target
+                    if (diff < -5) return 'background-color: #ffebee; color: #d32f2f;'; // Light red - lower than target
+                    return 'background-color: #f5f5f5; color: #666;'; // Close to target
                 }
                 return '';
             };
             
-            const woodPercentStyle = getPercentCellStyle(villageWoodPercent, woodPercent, 'wood');
-            const clayPercentStyle = getPercentCellStyle(villageClayPercent, clayPercent, 'clay');
-            const ironPercentStyle = getPercentCellStyle(villageIronPercent, ironPercent, 'iron');
+            const woodPercentStyle = getPercentCellStyle(villageWoodPercent, targetWoodPercent, 'wood');
+            const clayPercentStyle = getPercentCellStyle(villageClayPercent, targetClayPercent, 'clay');
+            const ironPercentStyle = getPercentCellStyle(villageIronPercent, targetIronPercent, 'iron');
             
             const row = document.createElement('tr');
             row.style.cssText = rowStyle;
             row.innerHTML = `
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${village.name}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 9px;">${village.coords}</span></td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9px;">${village.name}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; font-size: 9px;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 8px;">${village.coords}</span></td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 9px;">${distance > 0 ? distance.toFixed(1) : '-'}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 9px; white-space: nowrap;">${sendTime > 0 ? formatTime(sendTime) : '-'}</td>
                 <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(woodNum)}</td>
                 <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${woodPercentStyle}">${villageWoodPercent}%</td>
                 <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(clayNum)}</td>
@@ -389,6 +502,108 @@
         }
     }
 
+    // Save target ratios
+    function saveTargetRatios() {
+        const wood = parseInt(document.getElementById('twTargetWood').value) || 0;
+        const clay = parseInt(document.getElementById('twTargetClay').value) || 0;
+        const iron = parseInt(document.getElementById('twTargetIron').value) || 0;
+        
+        // Validate that total is close to 100%
+        const total = wood + clay + iron;
+        if (Math.abs(total - 100) > 5) {
+            alert(`Ratios total is ${total}%, should be close to 100%`);
+            return;
+        }
+        
+        const settings = loadSettings();
+        settings.targetWood = wood;
+        settings.targetClay = clay;
+        settings.targetIron = iron;
+        saveSettings(settings);
+        
+        // Update display
+        document.getElementById('twCurrentRatios').textContent = `${wood}/${clay}/${iron}`;
+        
+        // Refresh table to show new ratios
+        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr')).map(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 11) {
+                return {
+                    name: cells[0].textContent,
+                    coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
+                    wood: cells[4].textContent.replace(/\./g, ''),
+                    clay: cells[6].textContent.replace(/\./g, ''),
+                    iron: cells[8].textContent.replace(/\./g, ''),
+                    warehouse: cells[10].textContent.replace(/\./g, '')
+                };
+            }
+            return null;
+        }).filter(v => v);
+        
+        if (villages.length > 0) {
+            updateResourcesTable(villages);
+        }
+        
+        // Visual feedback
+        const btn = document.getElementById('twSaveRatios');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Saved';
+        btn.style.backgroundColor = '#2196F3';
+        
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.backgroundColor = '#4CAF50';
+        }, 1500);
+    }
+    
+    // Save speed per cell
+    function saveSpeedPerCell() {
+        const speed = parseFloat(document.getElementById('twSpeedPerCell').value) || 3;
+        
+        if (speed < 0.1 || speed > 60) {
+            alert('Speed should be between 0.1 and 60 minutes per cell');
+            return;
+        }
+        
+        const settings = loadSettings();
+        settings.speedPerCell = speed;
+        saveSettings(settings);
+        
+        // Update display
+        document.getElementById('twCurrentSpeed').textContent = speed;
+        
+        // Refresh table to show new travel times
+        const villages = Array.from(document.querySelectorAll('#twResourcesBody tr')).map(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 11) {
+                return {
+                    name: cells[0].textContent,
+                    coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
+                    wood: cells[4].textContent.replace(/\./g, ''),
+                    clay: cells[6].textContent.replace(/\./g, ''),
+                    iron: cells[8].textContent.replace(/\./g, ''),
+                    warehouse: cells[10].textContent.replace(/\./g, '')
+                };
+            }
+            return null;
+        }).filter(v => v);
+        
+        if (villages.length > 0) {
+            updateResourcesTable(villages);
+        }
+        
+        // Visual feedback
+        const btn = document.getElementById('twSaveSpeed');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Saved';
+        btn.style.backgroundColor = '#2196F3';
+        
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.style.backgroundColor = '#4CAF50';
+        }, 1500);
+    }
+
     // Draggable functionality
     function makeDraggable(element) {
         const header = element.querySelector('#twResourcesHeader');
@@ -443,6 +658,8 @@
         
         document.getElementById('twRefreshBtn').addEventListener('click', loadResources);
         document.getElementById('twAutoRefreshCheckbox').addEventListener('change', toggleAutoRefresh);
+        document.getElementById('twSaveRatios').addEventListener('click', saveTargetRatios);
+        document.getElementById('twSaveSpeed').addEventListener('click', saveSpeedPerCell);
         
         // Make the monitor draggable
         makeDraggable(document.getElementById('twResourcesMonitor'));
