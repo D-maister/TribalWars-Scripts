@@ -7,7 +7,7 @@
     
     // Create the monitor element
     const monitorHTML = `
-    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 400px; max-width: 550px; font-family: Arial, sans-serif; overflow: hidden;">
+    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 420px; max-width: 600px; font-family: Arial, sans-serif; overflow: hidden;">
         <!-- Header with close button -->
         <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
             <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
@@ -40,7 +40,7 @@
         
         <!-- Content area with table -->
         <div id="twResourcesContent" style="max-height: 400px; overflow-y: auto; padding: 0;">
-            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 10px;">
+            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 9px;">
                 <thead style="background-color: #e8f5e8; position: sticky; top: 0; z-index: 10;">
                     <tr>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
@@ -95,6 +95,9 @@
         speedPerCell: 3 // minutes per cell
     };
     
+    // Warehouse capacities cache
+    let warehouseCache = {};
+    
     // Load settings from localStorage
     function loadSettings() {
         const settings = { ...defaultSettings };
@@ -110,6 +113,27 @@
         }
         
         return settings;
+    }
+    
+    // Load warehouse cache from localStorage
+    function loadWarehouseCache() {
+        try {
+            const cached = localStorage.getItem('twWarehouseCache');
+            if (cached) {
+                warehouseCache = JSON.parse(cached);
+            }
+        } catch (error) {
+            console.error('Error loading warehouse cache:', error);
+        }
+    }
+    
+    // Save warehouse cache to localStorage
+    function saveWarehouseCache() {
+        try {
+            localStorage.setItem('twWarehouseCache', JSON.stringify(warehouseCache));
+        } catch (error) {
+            console.error('Error saving warehouse cache:', error);
+        }
     }
     
     // Save settings to localStorage
@@ -160,33 +184,71 @@
         }
     }
 
-    // Get current village resources from the header
-    function getCurrentVillageResources() {
+    // Get current village coordinates from the menu row
+    function getCurrentVillageCoords() {
         try {
-            let currentCoords = 'Current';
-            let currentVillageName = 'Current Village';
+            // Try to get coordinates from menu_row2
+            const menuRow2 = document.getElementById('menu_row2');
+            if (menuRow2) {
+                const coordsElement = menuRow2.querySelector('b.nowrap');
+                if (coordsElement) {
+                    const text = coordsElement.textContent || '';
+                    const match = text.match(/\((\d+)\|(\d+)\)/);
+                    if (match) {
+                        return `${match[1]}|${match[2]}`;
+                    }
+                }
+            }
             
-            // Try to get village name and coordinates from village list dropdown
+            // Fallback: try to get from village list dropdown
             const villageSelect = document.getElementById('village_list');
             if (villageSelect && villageSelect.options) {
                 const selectedOption = Array.from(villageSelect.options).find(opt => opt.selected);
                 if (selectedOption) {
-                    currentVillageName = selectedOption.text.trim();
                     const match = selectedOption.text.match(/(\d+)\s*\|\s*(\d+)/);
                     if (match) {
-                        currentCoords = `${match[1]}|${match[2]}`;
+                        return `${match[1]}|${match[2]}`;
                     }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error getting current village coordinates:', error);
+            return null;
+        }
+    }
+
+    // Get current village resources from the header
+    function getCurrentVillageResources() {
+        try {
+            const currentCoords = getCurrentVillageCoords();
+            let currentVillageName = 'Current Village';
+            
+            // Get village name from menu_row2
+            const menuRow2 = document.getElementById('menu_row2');
+            if (menuRow2) {
+                const villageLink = menuRow2.querySelector('a[href*="screen=overview"]');
+                if (villageLink) {
+                    currentVillageName = villageLink.textContent.trim();
                 }
             }
             
             const currentVillage = {
                 name: currentVillageName,
-                coords: currentCoords,
+                coords: currentCoords || 'Current',
                 wood: document.getElementById('wood')?.textContent || '0',
                 clay: document.getElementById('stone')?.textContent || '0',
                 iron: document.getElementById('iron')?.textContent || '0',
                 warehouse: document.getElementById('storage')?.textContent || '0'
             };
+            
+            // Save current village warehouse capacity to cache
+            if (currentCoords && currentVillage.warehouse !== '0') {
+                const warehouseNum = formatNumber(currentVillage.warehouse);
+                warehouseCache[currentCoords] = warehouseNum;
+                saveWarehouseCache();
+            }
             
             return currentVillage;
         } catch (error) {
@@ -266,10 +328,14 @@
                                         village.iron = resourceSpans[2].textContent.trim();
                                     }
                                     
-                                    // Parse warehouse
+                                    // Try to parse warehouse from the row
                                     const warehouseSpan = row.querySelector('.icon.header.ressources');
                                     if (warehouseSpan && warehouseSpan.nextElementSibling) {
                                         village.warehouse = warehouseSpan.nextElementSibling.textContent.trim();
+                                    } else {
+                                        // Check cache for warehouse capacity
+                                        village.warehouse = warehouseCache[village.coords] ? 
+                                            displayNumber(warehouseCache[village.coords]) : '0';
                                     }
                                     
                                     // Only add if we have all data and it's not a duplicate
@@ -352,17 +418,7 @@
         document.getElementById('twSpeedPerCell').value = settings.speedPerCell;
         
         // Get current village coordinates
-        let currentCoords = null;
-        if (villages.length > 0 && villages[0].coords !== 'Current') {
-            currentCoords = villages[0].coords;
-        } else if (villages.length > 0) {
-            // Parse current village name for coordinates
-            const currentVillageName = villages[0].name;
-            const match = currentVillageName.match(/(\d+)\s*\|\s*(\d+)/);
-            if (match) {
-                currentCoords = `${match[1]}|${match[2]}`;
-            }
-        }
+        let currentCoords = getCurrentVillageCoords();
         
         // Calculate total resources across all villages
         villages.forEach(village => {
@@ -393,15 +449,18 @@
             // Calculate distance and send time
             let distance = 0;
             let sendTime = 0;
+            let isCurrent = false;
             
-            if (currentCoords && village.coords !== 'Current' && !village.coords.includes('Current')) {
-                distance = calculateDistance(currentCoords, village.coords);
-                sendTime = distance * settings.speedPerCell; // minutes
+            if (currentCoords && village.coords && village.coords !== 'Current') {
+                if (village.coords === currentCoords) {
+                    isCurrent = true;
+                } else {
+                    distance = calculateDistance(currentCoords, village.coords);
+                    sendTime = distance * settings.speedPerCell; // minutes
+                }
+            } else if (village.coords === 'Current') {
+                isCurrent = true;
             }
-            
-            // Highlight current village
-            const isCurrent = village.coords === 'Current' || village.coords.includes('Current');
-            const rowStyle = isCurrent ? 'background-color: #e8f5e8; font-weight: bold;' : '';
             
             // Determine color for percentage cells based on comparison with target ratios
             const getPercentCellStyle = (villagePercent, targetPercent, resourceType) => {
@@ -421,19 +480,19 @@
             const ironPercentStyle = getPercentCellStyle(villageIronPercent, targetIronPercent, 'iron');
             
             const row = document.createElement('tr');
-            row.style.cssText = rowStyle;
+            row.style.cssText = isCurrent ? 'background-color: #e8f5e8; font-weight: bold;' : '';
             row.innerHTML = `
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9px;">${village.name}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; font-size: 9px;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 8px;">${village.coords}</span></td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 9px;">${distance > 0 ? distance.toFixed(1) : '-'}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 9px; white-space: nowrap;">${sendTime > 0 ? formatTime(sendTime) : '-'}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(woodNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${woodPercentStyle}">${villageWoodPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(clayNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${clayPercentStyle}">${villageClayPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(ironNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${ironPercentStyle}">${villageIronPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(warehouseNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 8px;">${village.name}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; font-size: 8px;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 7px;">${village.coords}</span></td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 8px;">${distance > 0 ? distance.toFixed(1) : isCurrent ? '-' : '?'}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 8px; white-space: nowrap;">${sendTime > 0 ? formatTime(sendTime) : isCurrent ? '-' : '?'}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(woodNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${woodPercentStyle}">${villageWoodPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(clayNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${clayPercentStyle}">${villageClayPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(ironNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${ironPercentStyle}">${villageIronPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${warehouseNum > 0 ? displayNumber(warehouseNum) : '?'}</td>
             `;
             tbody.appendChild(row);
         });
@@ -534,7 +593,7 @@
                     wood: cells[4].textContent.replace(/\./g, ''),
                     clay: cells[6].textContent.replace(/\./g, ''),
                     iron: cells[8].textContent.replace(/\./g, ''),
-                    warehouse: cells[10].textContent.replace(/\./g, '')
+                    warehouse: cells[10].textContent.replace(/\./g, '') || '0'
                 };
             }
             return null;
@@ -582,7 +641,7 @@
                     wood: cells[4].textContent.replace(/\./g, ''),
                     clay: cells[6].textContent.replace(/\./g, ''),
                     iron: cells[8].textContent.replace(/\./g, ''),
-                    warehouse: cells[10].textContent.replace(/\./g, '')
+                    warehouse: cells[10].textContent.replace(/\./g, '') || '0'
                 };
             }
             return null;
@@ -651,6 +710,9 @@
 
     // Initialize everything
     function init() {
+        // Load warehouse cache
+        loadWarehouseCache();
+        
         // Set up event listeners
         document.getElementById('twResourcesClose').addEventListener('click', function() {
             document.getElementById('twResourcesMonitor').style.display = 'none';
