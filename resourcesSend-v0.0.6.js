@@ -7,7 +7,7 @@
     
     // Create the monitor element
     const monitorHTML = `
-    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 320px; max-width: 450px; font-family: Arial, sans-serif; overflow: hidden;">
+    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 350px; max-width: 500px; font-family: Arial, sans-serif; overflow: hidden;">
         <!-- Header with close button -->
         <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
             <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
@@ -16,14 +16,17 @@
         
         <!-- Content area with table -->
         <div id="twResourcesContent" style="max-height: 400px; overflow-y: auto; padding: 0;">
-            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 10px;">
                 <thead style="background-color: #e8f5e8; position: sticky; top: 0; z-index: 10;">
                     <tr>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Coords</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Wood</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Clay</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Iron</th>
+                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
                         <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Storage</th>
                     </tr>
                 </thead>
@@ -44,6 +47,9 @@
         <!-- Controls -->
         <div id="twResourcesControls" style="padding: 8px; background: #f9f9f9; border-top: 1px solid #ddd; display: flex; gap: 8px; align-items: center;">
             <button id="twRefreshBtn" style="background: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 11px; cursor: pointer; flex-grow: 1;">🔄 Load Resources</button>
+            <label id="twAutoRefresh" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="twAutoRefreshCheckbox"> Auto (60s)
+            </label>
         </div>
     </div>
     `;
@@ -63,6 +69,11 @@
 
     function displayNumber(num) {
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+    
+    function calculatePercentage(part, total) {
+        if (total === 0) return 0;
+        return Math.round((part / total) * 100);
     }
 
     // Get current village resources from the header
@@ -123,13 +134,30 @@
                     return;
                 }
                 
+                // Store original display style
+                const villageTargetsDiv = document.getElementById('village_targets');
+                let originalDisplay = '';
+                if (villageTargetsDiv) {
+                    originalDisplay = villageTargetsDiv.style.display || '';
+                }
+                
+                // Hide the popup before clicking
+                if (villageTargetsDiv) {
+                    villageTargetsDiv.style.display = 'none';
+                }
+                
                 // Click the second link to open village targets popup
                 links[1].click();
                 
                 // Wait for popup to load and parse data
                 setTimeout(() => {
                     try {
-                        // Look for the village targets popup
+                        // Show the popup temporarily to get data
+                        if (villageTargetsDiv) {
+                            villageTargetsDiv.style.display = 'block';
+                        }
+                        
+                        // Look for the village targets content
                         const villageTargets = document.getElementById('village_targets_content');
                         if (villageTargets) {
                             const rows = villageTargets.querySelectorAll('table.vis tr');
@@ -165,10 +193,22 @@
                             });
                         }
                         
-                        // Close the popup
+                        // Hide the popup again
+                        if (villageTargetsDiv) {
+                            villageTargetsDiv.style.display = 'none';
+                        }
+                        
+                        // Click the close link to properly close the popup
                         const closeLink = document.getElementById('closelink_village_targets');
                         if (closeLink) {
                             closeLink.click();
+                        }
+                        
+                        // Restore original display style if needed
+                        if (villageTargetsDiv && originalDisplay) {
+                            setTimeout(() => {
+                                villageTargetsDiv.style.display = originalDisplay;
+                            }, 100);
                         }
                         
                         resolve(villages);
@@ -176,15 +216,20 @@
                     } catch (error) {
                         console.error('Error parsing village data:', error);
                         
-                        // Try to close popup on error
+                        // Try to close popup and restore display on error
                         const closeLink = document.getElementById('closelink_village_targets');
                         if (closeLink) {
                             closeLink.click();
                         }
                         
+                        const villageTargetsDiv = document.getElementById('village_targets');
+                        if (villageTargetsDiv && originalDisplay) {
+                            villageTargetsDiv.style.display = originalDisplay;
+                        }
+                        
                         resolve(villages);
                     }
-                }, 500); // Wait for popup to load
+                }, 800); // Wait for popup to load
                 
             } catch (error) {
                 console.error('Error in parseResourcesFromPage:', error);
@@ -193,7 +238,7 @@
         });
     }
 
-    // Update the table with village data
+    // Update the table with village data and calculate percentages
     function updateResourcesTable(villages) {
         const tbody = document.getElementById('twResourcesBody');
         if (!tbody) return;
@@ -204,29 +249,78 @@
         let totalClay = 0;
         let totalIron = 0;
         
+        // Calculate total resources across all villages
+        villages.forEach(village => {
+            totalWood += formatNumber(village.wood);
+            totalClay += formatNumber(village.clay);
+            totalIron += formatNumber(village.iron);
+        });
+        
+        // Calculate percentage for current village (first village)
+        const currentVillage = villages[0];
+        let currentTotal = 0;
+        let woodPercent = 0;
+        let clayPercent = 0;
+        let ironPercent = 0;
+        
+        if (currentVillage && currentVillage.coords === 'Current') {
+            const currentWood = formatNumber(currentVillage.wood);
+            const currentClay = formatNumber(currentVillage.clay);
+            const currentIron = formatNumber(currentVillage.iron);
+            currentTotal = currentWood + currentClay + currentIron;
+            
+            if (currentTotal > 0) {
+                woodPercent = calculatePercentage(currentWood, currentTotal);
+                clayPercent = calculatePercentage(currentClay, currentTotal);
+                ironPercent = calculatePercentage(currentIron, currentTotal);
+            }
+        }
+        
+        // Create rows
         villages.forEach(village => {
             const woodNum = formatNumber(village.wood);
             const clayNum = formatNumber(village.clay);
             const ironNum = formatNumber(village.iron);
             const warehouseNum = formatNumber(village.warehouse);
             
-            totalWood += woodNum;
-            totalClay += clayNum;
-            totalIron += ironNum;
+            // Calculate percentages for this village
+            const villageTotal = woodNum + clayNum + ironNum;
+            const villageWoodPercent = villageTotal > 0 ? calculatePercentage(woodNum, villageTotal) : 0;
+            const villageClayPercent = villageTotal > 0 ? calculatePercentage(clayNum, villageTotal) : 0;
+            const villageIronPercent = villageTotal > 0 ? calculatePercentage(ironNum, villageTotal) : 0;
             
             // Highlight current village
             const isCurrent = village.coords === 'Current';
             const rowStyle = isCurrent ? 'background-color: #e8f5e8; font-weight: bold;' : '';
             
+            // Determine color for percentage cells based on comparison with current village
+            const getPercentCellStyle = (villagePercent, currentPercent, resourceType) => {
+                if (!isCurrent && currentTotal > 0) {
+                    const diff = villagePercent - currentPercent;
+                    if (diff > 10) return 'background-color: #c8e6c9; color: #2e7d32; font-weight: bold;'; // Green - much higher
+                    if (diff > 5) return 'background-color: #e8f5e8; color: #388e3c;'; // Light green - higher
+                    if (diff < -10) return 'background-color: #ffcdd2; color: #c62828; font-weight: bold;'; // Red - much lower
+                    if (diff < -5) return 'background-color: #ffebee; color: #d32f2f;'; // Light red - lower
+                }
+                return '';
+            };
+            
+            const woodPercentStyle = getPercentCellStyle(villageWoodPercent, woodPercent, 'wood');
+            const clayPercentStyle = getPercentCellStyle(villageClayPercent, clayPercent, 'clay');
+            const ironPercentStyle = getPercentCellStyle(villageIronPercent, ironPercent, 'iron');
+            
             const row = document.createElement('tr');
             row.style.cssText = rowStyle;
             row.innerHTML = `
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${village.name}</td>
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 10px;">${village.coords}</span></td>
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 10px;">${displayNumber(woodNum)}</td>
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 10px;">${displayNumber(clayNum)}</td>
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 10px;">${displayNumber(ironNum)}</td>
-                <td style="padding: 4px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 10px;">${displayNumber(warehouseNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 100px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${village.name}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 9px;">${village.coords}</span></td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(woodNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${woodPercentStyle}">${villageWoodPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(clayNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${clayPercentStyle}">${villageClayPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(ironNum)}</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 9px; ${ironPercentStyle}">${villageIronPercent}%</td>
+                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 9px;">${displayNumber(warehouseNum)}</td>
             `;
             tbody.appendChild(row);
         });
@@ -275,6 +369,23 @@
                 btn.style.backgroundColor = originalBg;
                 btn.disabled = false;
             }, 2000);
+        }
+    }
+
+    // Auto-refresh functionality
+    let autoRefreshInterval = null;
+    
+    function toggleAutoRefresh() {
+        const checkbox = document.getElementById('twAutoRefreshCheckbox');
+        if (checkbox.checked) {
+            autoRefreshInterval = setInterval(loadResources, 60000); // 60 seconds
+            console.log('Auto-refresh enabled (60s interval)');
+        } else {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                console.log('Auto-refresh disabled');
+            }
         }
     }
 
@@ -331,6 +442,7 @@
         });
         
         document.getElementById('twRefreshBtn').addEventListener('click', loadResources);
+        document.getElementById('twAutoRefreshCheckbox').addEventListener('change', toggleAutoRefresh);
         
         // Make the monitor draggable
         makeDraggable(document.getElementById('twResourcesMonitor'));
