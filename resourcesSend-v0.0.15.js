@@ -936,8 +936,6 @@
             const woodPercentClass = getPercentCellClass(villageWoodPercent, targetWoodPercent);
             const clayPercentClass = getPercentCellClass(villageClayPercent, targetClayPercent);
             const ironPercentClass = getPercentCellClass(villageIronPercent, targetIronPercent);
-
-            const merchants = village.merchants || { available: '?', total: '?', maxTransport: '?' };
             
             const row = document.createElement('tr');
             if (isCurrent) {
