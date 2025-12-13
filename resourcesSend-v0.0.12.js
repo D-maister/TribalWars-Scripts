@@ -5,55 +5,349 @@
         return;
     }
     
+    // Add CSS styles
+    const style = document.createElement('style');
+    style.textContent = `
+        #twResourcesMonitor {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 9999;
+            background: rgba(245, 245, 245, 0.95);
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            min-width: 500px;
+            max-width: 750px;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #twResourcesHeader {
+            background: linear-gradient(to right, #4CAF50, #45a049);
+            color: white;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+        }
+        
+        #twResourcesTitle {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        #twResourcesClose {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        
+        #twResourcesClose:hover {
+            background: #ff6666;
+        }
+        
+        #twResourcesSettings {
+            padding: 8px;
+            background: #f0f8ff;
+            border-bottom: 1px solid #ddd;
+            font-size: 11px;
+        }
+        
+        .tw-settings-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        
+        .tw-settings-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .tw-settings-label {
+            white-space: nowrap;
+        }
+        
+        .tw-settings-input {
+            width: 40px;
+            padding: 2px;
+            font-size: 11px;
+            text-align: center;
+        }
+        
+        .tw-speed-input {
+            width: 50px;
+        }
+        
+        .tw-settings-btn {
+            margin-left: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .tw-settings-info {
+            font-size: 10px;
+            color: #666;
+        }
+        
+        #twResourcesContent {
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 0;
+        }
+        
+        #twResourcesTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        #twResourcesTable thead {
+            background-color: #e8f5e8;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        #twResourcesTable th {
+            padding: 8px 4px;
+            text-align: left;
+            border-bottom: 1px solid #4CAF50;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        #twResourcesTable td {
+            padding: 6px 4px;
+            border-bottom: 1px solid #ddd;
+            vertical-align: middle;
+        }
+        
+        .tw-village-name {
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 10px;
+        }
+        
+        .tw-coords {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 9px;
+        }
+        
+        .tw-current-village {
+            background-color: #4CAF50 !important;
+            color: white !important;
+        }
+        
+        .tw-resource-cell {
+            text-align: right;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-percent-cell {
+            text-align: center;
+            font-size: 10px;
+        }
+        
+        .tw-percent-high {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+            font-weight: bold;
+        }
+        
+        .tw-percent-medium-high {
+            background-color: #e8f5e8;
+            color: #388e3c;
+        }
+        
+        .tw-percent-medium-low {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .tw-percent-low {
+            background-color: #ffcdd2;
+            color: #c62828;
+            font-weight: bold;
+        }
+        
+        .tw-percent-normal {
+            background-color: #f5f5f5;
+            color: #666;
+        }
+        
+        .tw-distance-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-time-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+        
+        .tw-merchants-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-available-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
+        
+        .tw-total-row {
+            background-color: #d4edda !important;
+            font-weight: bold !important;
+            border-top: 2px solid #4CAF50 !important;
+        }
+        
+        .tw-total-cell {
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .tw-total-resource {
+            text-align: right;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        
+        .tw-total-percent {
+            text-align: center;
+            font-weight: bold;
+            background-color: #e8f5e8;
+        }
+        
+        #twResourcesControls {
+            padding: 8px;
+            background: #f9f9f9;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        #twRefreshBtn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            flex-grow: 1;
+        }
+        
+        #twAutoRefresh {
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        /* Scrollbar styling */
+        #twResourcesContent::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        #twResourcesContent::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    `;
+    document.head.appendChild(style);
+    
     // Create the monitor element
     const monitorHTML = `
-    <div id="twResourcesMonitor" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: rgba(245, 245, 245, 0.95); border: 2px solid #4CAF50; border-radius: 5px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); min-width: 420px; max-width: 600px; font-family: Arial, sans-serif; overflow: hidden;">
+    <div id="twResourcesMonitor">
         <!-- Header with close button -->
-        <div id="twResourcesHeader" style="background: linear-gradient(to right, #4CAF50, #45a049); color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
-            <div id="twResourcesTitle" style="font-weight: bold; font-size: 14px;">📊 Village Resources Monitor</div>
-            <button id="twResourcesClose" style="background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;">×</button>
+        <div id="twResourcesHeader">
+            <div id="twResourcesTitle">📊 Village Resources Monitor</div>
+            <button id="twResourcesClose">×</button>
         </div>
         
         <!-- Settings panel -->
-        <div id="twResourcesSettings" style="padding: 8px; background: #f0f8ff; border-bottom: 1px solid #ddd; font-size: 11px;">
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px;">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="white-space: nowrap;">Target Ratios:</span>
-                    <input type="number" id="twTargetWood" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Wood %" min="0" max="100">
+        <div id="twResourcesSettings">
+            <div class="tw-settings-row">
+                <div class="tw-settings-group">
+                    <span class="tw-settings-label">Target Ratios:</span>
+                    <input type="number" id="twTargetWood" class="tw-settings-input" placeholder="Wood %" min="0" max="100">
                     <span>/</span>
-                    <input type="number" id="twTargetClay" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Clay %" min="0" max="100">
+                    <input type="number" id="twTargetClay" class="tw-settings-input" placeholder="Clay %" min="0" max="100">
                     <span>/</span>
-                    <input type="number" id="twTargetIron" style="width: 40px; padding: 2px; font-size: 11px; text-align: center;" placeholder="Iron %" min="0" max="100">
-                    <button id="twSaveRatios" style="margin-left: 4px; padding: 2px 6px; font-size: 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Save</button>
+                    <input type="number" id="twTargetIron" class="tw-settings-input" placeholder="Iron %" min="0" max="100">
+                    <button id="twSaveRatios" class="tw-settings-btn">Save</button>
                 </div>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <span style="white-space: nowrap;">Speed:</span>
-                    <input type="number" id="twSpeedPerCell" style="width: 50px; padding: 2px; font-size: 11px; text-align: center;" placeholder="min/cell" min="1" max="60" step="0.1">
+                <div class="tw-settings-group">
+                    <span class="tw-settings-label">Speed:</span>
+                    <input type="number" id="twSpeedPerCell" class="tw-settings-input tw-speed-input" placeholder="min/cell" min="1" max="60" step="0.1">
                     <span style="font-size: 10px;">min/cell</span>
-                    <button id="twSaveSpeed" style="margin-left: 4px; padding: 2px 6px; font-size: 10px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Save</button>
+                    <button id="twSaveSpeed" class="tw-settings-btn">Save</button>
                 </div>
             </div>
-            <div style="font-size: 10px; color: #666;">
+            <div class="tw-settings-info">
                 <span>Current: <span id="twCurrentRatios">0/0/0</span>% | Speed: <span id="twCurrentSpeed">3</span> min/cell</span>
             </div>
         </div>
         
         <!-- Content area with table -->
-        <div id="twResourcesContent" style="max-height: 400px; overflow-y: auto; padding: 0;">
-            <table id="twResourcesTable" style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                <thead style="background-color: #e8f5e8; position: sticky; top: 0; z-index: 10;">
+        <div id="twResourcesContent">
+            <table id="twResourcesTable">
+                <thead>
                     <tr>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Village</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Coords</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Dist</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Time</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Wood</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Clay</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Iron</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">%</th>
-                        <th style="padding: 6px 4px; text-align: left; border-bottom: 1px solid #4CAF50; font-weight: bold; white-space: nowrap;">Storage</th>
+                        <th>Village</th>
+                        <th>Coords</th>
+                        <th>Dist</th>
+                        <th>Time</th>
+                        <th>Wood</th>
+                        <th>%</th>
+                        <th>Clay</th>
+                        <th>%</th>
+                        <th>Iron</th>
+                        <th>%</th>
+                        <th>Storage</th>
+                        <th>Merchants</th>
+                        <th>Available</th>
                     </tr>
                 </thead>
                 <tbody id="twResourcesBody">
@@ -62,18 +356,10 @@
             </table>
         </div>
         
-        <!-- Summary section -->
-        <div id="twResourcesSummary" style="padding: 6px 8px; background: #e8f5e8; border-top: 1px solid #ddd; font-size: 11px;">
-            <span style="display: inline-block; margin-right: 10px;">Villages: <strong id="twTotalVillages">0</strong></span>
-            <span style="display: inline-block; margin-right: 10px;">Wood: <strong id="twTotalWood">0</strong></span>
-            <span style="display: inline-block; margin-right: 10px;">Clay: <strong id="twTotalClay">0</strong></span>
-            <span style="display: inline-block; margin-right: 10px;">Iron: <strong id="twTotalIron">0</strong></span>
-        </div>
-        
         <!-- Controls -->
-        <div id="twResourcesControls" style="padding: 8px; background: #f9f9f9; border-top: 1px solid #ddd; display: flex; gap: 8px; align-items: center;">
-            <button id="twRefreshBtn" style="background: #4CAF50; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 11px; cursor: pointer; flex-grow: 1;">🔄 Load Resources</button>
-            <label id="twAutoRefresh" style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+        <div id="twResourcesControls">
+            <button id="twRefreshBtn">🔄 Load Resources</button>
+            <label id="twAutoRefresh">
                 <input type="checkbox" id="twAutoRefreshCheckbox"> Auto (60s)
             </label>
         </div>
@@ -97,6 +383,8 @@
     
     // Warehouse capacities cache
     let warehouseCache = {};
+    // Merchants cache
+    let merchantsCache = {};
     
     // Load settings from localStorage
     function loadSettings() {
@@ -128,6 +416,19 @@
         }
     }
     
+    // Load merchants cache from localStorage
+    function loadMerchantsCache() {
+        try {
+            const cached = localStorage.getItem('twMerchantsCache');
+            if (cached) {
+                merchantsCache = JSON.parse(cached);
+                console.log('Merchants cache loaded:', merchantsCache);
+            }
+        } catch (error) {
+            console.error('Error loading merchants cache:', error);
+        }
+    }
+    
     // Save warehouse cache to localStorage
     function saveWarehouseCache() {
         try {
@@ -137,12 +438,64 @@
         }
     }
     
+    // Save merchants cache to localStorage
+    function saveMerchantsCache() {
+        try {
+            localStorage.setItem('twMerchantsCache', JSON.stringify(merchantsCache));
+        } catch (error) {
+            console.error('Error saving merchants cache:', error);
+        }
+    }
+    
     // Save settings to localStorage
     function saveSettings(settings) {
         try {
             localStorage.setItem('twResourcesSettings', JSON.stringify(settings));
         } catch (error) {
             console.error('Error saving settings:', error);
+        }
+    }
+    
+    // Get merchants data from market status bar
+    function getMerchantsData() {
+        try {
+            const marketBar = document.getElementById('market_status_bar');
+            if (marketBar) {
+                const availableSpan = document.getElementById('market_merchant_available_count');
+                const totalSpan = document.getElementById('market_merchant_total_count');
+                
+                if (availableSpan && totalSpan) {
+                    const available = parseInt(availableSpan.textContent) || 0;
+                    const total = parseInt(totalSpan.textContent) || 0;
+                    
+                    return {
+                        available: available,
+                        total: total,
+                        used: total - available
+                    };
+                }
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting merchants data:', error);
+            return null;
+        }
+    }
+    
+    // Save current village merchants to cache
+    function saveCurrentMerchantsToCache() {
+        try {
+            const currentCoords = getCurrentVillageCoords();
+            if (currentCoords) {
+                const merchantsData = getMerchantsData();
+                if (merchantsData) {
+                    merchantsCache[currentCoords] = merchantsData;
+                    saveMerchantsCache();
+                    console.log(`Saved merchants for ${currentCoords}:`, merchantsData);
+                }
+            }
+        } catch (error) {
+            console.error('Error saving merchants to cache:', error);
         }
     }
     
@@ -251,11 +604,11 @@
                 warehouse: storageElement?.textContent || '0'
             };
             
-            // Save current village warehouse capacity to cache
+            // Save current village warehouse capacity to cache (only if we have actual data)
             if (currentCoords && currentVillage.warehouse !== '0') {
                 const warehouseNum = formatNumber(currentVillage.warehouse);
-                // Only update cache if we have a valid number
-                if (warehouseNum > 0) {
+                // Only update cache if we have a valid number and it's not already in cache
+                if (warehouseNum > 0 && (!warehouseCache[currentCoords] || warehouseCache[currentCoords] === null)) {
                     warehouseCache[currentCoords] = warehouseNum;
                     saveWarehouseCache();
                 }
@@ -266,6 +619,39 @@
             console.error('Error getting current village:', error);
             return null;
         }
+    }
+
+    // Helper function to extract warehouse text from table cell
+    function extractWarehouseText(warehouseTd) {
+        if (!warehouseTd) return '';
+        
+        // Try multiple approaches to get the warehouse value
+        let warehouseText = '';
+        
+        // Approach 1: Direct text content (simplest)
+        let fullText = warehouseTd.textContent || '';
+        fullText = fullText.trim();
+        
+        // Remove common non-numeric characters but keep dots/numbers
+        warehouseText = fullText.replace(/[^\d.]/g, '');
+        
+        // Approach 2: If first approach fails, try to get text after the icon
+        if (!warehouseText || warehouseText.length < 2) {
+            const warehouseSpan = warehouseTd.querySelector('.icon.header.ressources');
+            if (warehouseSpan && warehouseSpan.nextSibling) {
+                // Get all sibling text nodes
+                let sibling = warehouseSpan.nextSibling;
+                while (sibling) {
+                    if (sibling.nodeType === Node.TEXT_NODE) {
+                        warehouseText += sibling.textContent;
+                    }
+                    sibling = sibling.nextSibling;
+                }
+                warehouseText = warehouseText.replace(/[^\d.]/g, '');
+            }
+        }
+        
+        return warehouseText;
     }
 
     // Parse resources from Tribal Wars page by simulating clicks
@@ -279,6 +665,9 @@
                 if (currentVillage) {
                     villages.push(currentVillage);
                 }
+                
+                // Save current village merchants to cache
+                saveCurrentMerchantsToCache();
                 
                 // Find and click the second 'a' element in div.target-select-links
                 const targetSelectLinks = document.querySelector('div.target-select-links');
@@ -340,9 +729,7 @@
                                     }
                                     
                                     // Try to parse warehouse from the row
-                                    // The warehouse is in a structure like:
-                                    // <td class="nowrap"><span class="icon header ressources" data-title="Склад"> </span>142<span class="grey">.</span>373</td>
-                                    const warehouseTd = row.querySelector('td.nowrap:nth-child(3)'); // 3rd td in row
+                                    const warehouseTd = row.querySelector('td.nowrap:nth-child(3)');
                                     let warehouseText = extractWarehouseText(warehouseTd);
                                     
                                     if (warehouseText) {
@@ -351,17 +738,25 @@
                                         const warehouseNum = formatNumber(warehouseText);
                                         if (warehouseNum > 0) {
                                             warehouseCache[village.coords] = warehouseNum;
-                                            console.log(`Found warehouse for ${village.coords}: ${warehouseNum}`);
                                         }
                                     } else {
                                         // No warehouse found in parsed data, check cache
                                         if (warehouseCache[village.coords] && warehouseCache[village.coords] > 0) {
                                             village.warehouse = displayNumber(warehouseCache[village.coords]);
-                                            console.log(`Using cached warehouse for ${village.coords}: ${warehouseCache[village.coords]}`);
                                         } else {
                                             village.warehouse = '?';
-                                            console.log(`No warehouse data for ${village.coords}`);
                                         }
+                                    }
+                                    
+                                    // Get merchants data from cache
+                                    if (merchantsCache[village.coords]) {
+                                        village.merchants = merchantsCache[village.coords];
+                                    } else {
+                                        village.merchants = {
+                                            available: '?',
+                                            total: '?',
+                                            used: '?'
+                                        };
                                     }
                                     
                                     // Only add if we have all data and it's not a duplicate
@@ -391,9 +786,9 @@
                             }, 100);
                         }
                         
-                        // Save updated cache
+                        // Save updated caches
                         saveWarehouseCache();
-                        console.log('Updated warehouse cache:', warehouseCache);
+                        saveMerchantsCache();
                         
                         resolve(villages);
                         
@@ -474,6 +869,7 @@
             const clayNum = formatNumber(village.clay);
             const ironNum = formatNumber(village.iron);
             const warehouseNum = formatNumber(village.warehouse);
+            const merchants = village.merchants || { available: '?', total: '?' };
             
             // Calculate percentages for this village
             const villageTotal = woodNum + clayNum + ironNum;
@@ -497,64 +893,65 @@
                 isCurrent = true;
             }
             
-            // Determine color for percentage cells based on comparison with target ratios
-            const getPercentCellStyle = (villagePercent, targetPercent, resourceType) => {
+            // Determine color class for percentage cells based on comparison with target ratios
+            const getPercentCellClass = (villagePercent, targetPercent) => {
                 if (!isCurrent && targetTotal > 0) {
                     const diff = villagePercent - targetPercent;
-                    if (diff > 15) return 'background-color: #c8e6c9; color: #2e7d32; font-weight: bold;'; // Green - much higher than target
-                    if (diff > 5) return 'background-color: #e8f5e8; color: #388e3c;'; // Light green - higher than target
-                    if (diff < -15) return 'background-color: #ffcdd2; color: #c62828; font-weight: bold;'; // Red - much lower than target
-                    if (diff < -5) return 'background-color: #ffebee; color: #d32f2f;'; // Light red - lower than target
-                    return 'background-color: #f5f5f5; color: #666;'; // Close to target
+                    if (diff > 15) return 'tw-percent-high';
+                    if (diff > 5) return 'tw-percent-medium-high';
+                    if (diff < -15) return 'tw-percent-low';
+                    if (diff < -5) return 'tw-percent-medium-low';
+                    return 'tw-percent-normal';
                 }
                 return '';
             };
             
-            const woodPercentStyle = getPercentCellStyle(villageWoodPercent, targetWoodPercent, 'wood');
-            const clayPercentStyle = getPercentCellStyle(villageClayPercent, targetClayPercent, 'clay');
-            const ironPercentStyle = getPercentCellStyle(villageIronPercent, targetIronPercent, 'iron');
+            const woodPercentClass = getPercentCellClass(villageWoodPercent, targetWoodPercent);
+            const clayPercentClass = getPercentCellClass(villageClayPercent, targetClayPercent);
+            const ironPercentClass = getPercentCellClass(villageIronPercent, targetIronPercent);
             
             const row = document.createElement('tr');
-            row.style.cssText = isCurrent ? 'background-color: #e8f5e8; font-weight: bold;' : '';
+            if (isCurrent) {
+                row.style.cssText = 'background-color: #e8f5e8; font-weight: bold;';
+            }
+            
             row.innerHTML = `
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 8px;">${village.name}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; font-size: 8px;"><span style="font-family: monospace; background: ${isCurrent ? '#4CAF50' : '#f0f0f0'}; color: ${isCurrent ? 'white' : 'black'}; padding: 2px 4px; border-radius: 3px; font-size: 7px;">${village.coords}</span></td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 8px;">${distance > 0 ? distance.toFixed(1) : isCurrent ? '-' : '?'}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-family: monospace; font-size: 8px; white-space: nowrap;">${sendTime > 0 ? formatTime(sendTime) : isCurrent ? '-' : '?'}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(woodNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${woodPercentStyle}">${villageWoodPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(clayNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${clayPercentStyle}">${villageClayPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${displayNumber(ironNum)}</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: center; font-size: 8px; ${ironPercentStyle}">${villageIronPercent}%</td>
-                <td style="padding: 3px 2px; border-bottom: 1px solid #ddd; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px;">${warehouseNum > 0 ? displayNumber(warehouseNum) : '?'}</td>
+                <td class="tw-village-name">${village.name}</td>
+                <td><span class="tw-coords ${isCurrent ? 'tw-current-village' : ''}">${village.coords}</span></td>
+                <td class="tw-distance-cell">${distance > 0 ? distance.toFixed(1) : isCurrent ? '-' : '?'}</td>
+                <td class="tw-time-cell">${sendTime > 0 ? formatTime(sendTime) : isCurrent ? '-' : '?'}</td>
+                <td class="tw-resource-cell">${displayNumber(woodNum)}</td>
+                <td class="tw-percent-cell ${woodPercentClass}">${villageWoodPercent}%</td>
+                <td class="tw-resource-cell">${displayNumber(clayNum)}</td>
+                <td class="tw-percent-cell ${clayPercentClass}">${villageClayPercent}%</td>
+                <td class="tw-resource-cell">${displayNumber(ironNum)}</td>
+                <td class="tw-percent-cell ${ironPercentClass}">${villageIronPercent}%</td>
+                <td class="tw-resource-cell">${warehouseNum > 0 ? displayNumber(warehouseNum) : '?'}</td>
+                <td class="tw-merchants-cell">${merchants.total !== '?' ? merchants.total : '?'}</td>
+                <td class="tw-available-cell">${merchants.available !== '?' ? merchants.available : '?'}</td>
             `;
             tbody.appendChild(row);
         });
         
         // Add total resources row (last row)
         const totalRow = document.createElement('tr');
-        totalRow.style.cssText = 'background-color: #d4edda; font-weight: bold; border-top: 2px solid #4CAF50;';
+        totalRow.className = 'tw-total-row';
         totalRow.innerHTML = `
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">TOTAL</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalWood)}</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalWoodPercent}%</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalClay)}</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalClayPercent}%</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: right; font-family: monospace; font-size: 8px; font-weight: bold;">${displayNumber(totalIron)}</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold; background-color: #e8f5e8;">${totalIronPercent}%</td>
-            <td style="padding: 4px 2px; vertical-align: middle; text-align: center; font-size: 8px; font-weight: bold;">-</td>
+            <td class="tw-total-cell">TOTAL</td>
+            <td class="tw-total-cell">-</td>
+            <td class="tw-total-cell">-</td>
+            <td class="tw-total-cell">-</td>
+            <td class="tw-total-resource">${displayNumber(totalWood)}</td>
+            <td class="tw-total-percent">${totalWoodPercent}%</td>
+            <td class="tw-total-resource">${displayNumber(totalClay)}</td>
+            <td class="tw-total-percent">${totalClayPercent}%</td>
+            <td class="tw-total-resource">${displayNumber(totalIron)}</td>
+            <td class="tw-total-percent">${totalIronPercent}%</td>
+            <td class="tw-total-cell">-</td>
+            <td class="tw-total-cell">-</td>
+            <td class="tw-total-cell">-</td>
         `;
         tbody.appendChild(totalRow);
-        
-        // Update summary
-        document.getElementById('twTotalVillages').textContent = villages.length;
-        document.getElementById('twTotalWood').textContent = displayNumber(totalWood);
-        document.getElementById('twTotalClay').textContent = displayNumber(totalClay);
-        document.getElementById('twTotalIron').textContent = displayNumber(totalIron);
     }
 
     // Load resources function with loading state
@@ -639,7 +1036,7 @@
         // Refresh table to show new ratios
         const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 11) {
+            if (cells.length >= 13) {
                 return {
                     name: cells[0].textContent,
                     coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
@@ -687,7 +1084,7 @@
         // Refresh table to show new travel times
         const villages = Array.from(document.querySelectorAll('#twResourcesBody tr:not(:last-child)')).map(row => {
             const cells = row.querySelectorAll('td');
-            if (cells.length >= 11) {
+            if (cells.length >= 13) {
                 return {
                     name: cells[0].textContent,
                     coords: cells[1].querySelector('span')?.textContent || cells[1].textContent,
@@ -761,58 +1158,11 @@
         }
     }
 
-    // Add this function to clean up cache
-    function cleanWarehouseCache() {
-        const cleanedCache = {};
-        for (const [coords, value] of Object.entries(warehouseCache)) {
-            if (value !== null && value !== undefined && value > 0) {
-                cleanedCache[coords] = value;
-            }
-        }
-        warehouseCache = cleanedCache;
-        saveWarehouseCache();
-    }
-
-    // Helper function to extract warehouse text from table cell
-    function extractWarehouseText(warehouseTd) {
-        if (!warehouseTd) return '';
-        
-        // Try multiple approaches to get the warehouse value
-        let warehouseText = '';
-        
-        // Approach 1: Direct text content (simplest)
-        let fullText = warehouseTd.textContent || '';
-        fullText = fullText.trim();
-        
-        // Remove common non-numeric characters but keep dots/numbers
-        warehouseText = fullText.replace(/[^\d.]/g, '');
-        
-        // Approach 2: If first approach fails, try to get text after the icon
-        if (!warehouseText || warehouseText.length < 2) {
-            const warehouseSpan = warehouseTd.querySelector('.icon.header.ressources');
-            if (warehouseSpan && warehouseSpan.nextSibling) {
-                // Get all sibling text nodes
-                let sibling = warehouseSpan.nextSibling;
-                while (sibling) {
-                    if (sibling.nodeType === Node.TEXT_NODE) {
-                        warehouseText += sibling.textContent;
-                    }
-                    sibling = sibling.nextSibling;
-                }
-                warehouseText = warehouseText.replace(/[^\d.]/g, '');
-            }
-        }
-        
-        return warehouseText;
-    }
-
     // Initialize everything
     function init() {
-        // Load warehouse cache
+        // Load caches
         loadWarehouseCache();
-        
-        // Clean up any null values in cache
-        cleanWarehouseCache();
+        loadMerchantsCache();
         
         // Set up event listeners
         document.getElementById('twResourcesClose').addEventListener('click', function() {
