@@ -1,4 +1,3 @@
-<script>
 (function() {
     // Check if already injected
     if (document.getElementById('twResourcesMonitor')) {
@@ -261,4 +260,3 @@
     // Start initialization
     setTimeout(init, 100);
 })();
-</script>
