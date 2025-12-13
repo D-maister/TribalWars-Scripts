@@ -294,6 +294,12 @@
         #twResourcesContent::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+
+        .tw-transport-cell {
+            text-align: center;
+            font-family: monospace;
+            font-size: 10px;
+        }
     `;
     document.head.appendChild(style);
     
@@ -348,6 +354,7 @@
                         <th>Storage</th>
                         <th>Merchants</th>
                         <th>Available</th>
+                        <th>Max Transport</th>
                     </tr>
                 </thead>
                 <tbody id="twResourcesBody">
@@ -463,14 +470,17 @@
             if (marketBar) {
                 const availableSpan = document.getElementById('market_merchant_available_count');
                 const totalSpan = document.getElementById('market_merchant_total_count');
+                const maxTransportSpan = document.getElementById('market_merchant_max_transport');
                 
-                if (availableSpan && totalSpan) {
+                if (availableSpan && totalSpan && maxTransportSpan) {
                     const available = parseInt(availableSpan.textContent) || 0;
                     const total = parseInt(totalSpan.textContent) || 0;
+                    const maxTransport = parseInt(maxTransportSpan.textContent) || 0;
                     
                     return {
                         available: available,
                         total: total,
+                        maxTransport: maxTransport,
                         used: total - available
                     };
                 }
@@ -929,6 +939,7 @@
                 <td class="tw-resource-cell">${warehouseNum > 0 ? displayNumber(warehouseNum) : '?'}</td>
                 <td class="tw-merchants-cell">${merchants.total !== '?' ? merchants.total : '?'}</td>
                 <td class="tw-available-cell">${merchants.available !== '?' ? merchants.available : '?'}</td>
+                <td class="tw-transport-cell">${merchants.maxTransport !== '?' ? displayNumber(merchants.maxTransport) : '?'}</td>
             `;
             tbody.appendChild(row);
         });
@@ -947,6 +958,7 @@
             <td class="tw-total-percent">${totalClayPercent}%</td>
             <td class="tw-total-resource">${displayNumber(totalIron)}</td>
             <td class="tw-total-percent">${totalIronPercent}%</td>
+            <td class="tw-total-cell">-</td>
             <td class="tw-total-cell">-</td>
             <td class="tw-total-cell">-</td>
             <td class="tw-total-cell">-</td>
