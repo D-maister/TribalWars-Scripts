@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Village Renamer
 // @namespace    http://tampermonkey.net/
-// @version      3.1
+// @version      3.2
 // @description  Rename villages by replacing coordinates with custom names
 // @author       Your Name
 // @match        *://*.tribalwars.*/*
@@ -388,25 +388,31 @@ class VillageRenamer {
             let newText = text;
             let changed = false;
             
-            // Replace coordinates in both formats
+            // Process each renamed coordinate
             for (const [coords, fakeName] of Object.entries(this.renames)) {
                 const escapedCoords = coords.replace('|', '\\|');
                 
-                // Format with parentheses: (xxx|yyy) -> fakename xxx|yyy
-                const regexWithParens = new RegExp(`\\(${escapedCoords}\\)`, 'g');
-                if (regexWithParens.test(newText)) {
-                    newText = newText.replace(regexWithParens, `${fakeName} ${coords}`);
+                // First check for coordinates with parentheses
+                const withParensRegex = new RegExp(`\\(${escapedCoords}\\)`, 'g');
+                if (withParensRegex.test(newText)) {
+                    newText = newText.replace(withParensRegex, `${fakeName} ${coords}`);
                     changed = true;
-                    continue; // Skip other patterns after this one matches
+                    // Don't continue to other patterns for this coordinate
+                    continue;
                 }
                 
-                // Format without parentheses: xxx|yyy -> fakename xxx|yyy
-                const regexWithoutParens = new RegExp(`\\b${escapedCoords}\\b`, 'g');
-                if (regexWithoutParens.test(newText)) {
-                    newText = newText.replace(regexWithoutParens, `${fakeName} ${coords}`);
+                // Then check for coordinates without parentheses
+                const withoutParensRegex = new RegExp(`\\b${escapedCoords}\\b`, 'g');
+                if (withoutParensRegex.test(newText)) {
+                    newText = newText.replace(withoutParensRegex, `${fakeName} ${coords}`);
                     changed = true;
-                    continue; // Skip other patterns after this one matches
                 }
+            }
+            
+            // Update node if changes were made
+            if (changed && newText !== text) {
+                const newNode = document.createTextNode(newText);
+                node.parentNode.replaceChild(newNode, node);
             }
         });
     }
