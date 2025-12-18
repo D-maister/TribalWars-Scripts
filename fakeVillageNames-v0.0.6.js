@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Tribal Wars Village Renamer
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Rename villages with custom names (only visible to you)
+// @version      3.0
+// @description  Rename villages by replacing coordinates with custom names
 // @author       Your Name
 // @match        *://*.tribalwars.*/*
 // @match        *://*.voynaplemyon.com/*
@@ -11,7 +11,6 @@
 
 // Configuration
 const STORAGE_KEY = 'tw_village_renames';
-const REAL_NAME_ATTRIBUTE = 'data-real-village-name';
 
 // Initialize storage if needed
 if (!localStorage.getItem(STORAGE_KEY)) {
@@ -32,7 +31,7 @@ class VillageRenamer {
     getCurrentServer() {
         const hostname = window.location.hostname;
         
-        // Extract server name (e.g., "ru100" from "ru100.tribalwars.net" or "ru100.voynaplemyon.com")
+        // Extract server name
         const serverMatch = hostname.match(/^([a-z]+\d+)\./);
         if (serverMatch) {
             return serverMatch[1];
@@ -44,14 +43,12 @@ class VillageRenamer {
             return parts[0];
         }
         
-        // Default fallback
         return 'default';
     }
 
     loadRenames() {
         try {
             const allRenames = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-            // Return only renames for current server
             return allRenames[this.currentServer] || {};
         } catch (e) {
             console.error('Error loading renames:', e);
@@ -75,7 +72,7 @@ class VillageRenamer {
         if (!villageLink) return null;
 
         const villageName = villageLink.textContent.trim();
-        const coords = this.extractCoordinates();
+        const coords = this.extractCoordinatesFromHeader();
         
         if (!coords) {
             console.warn('Could not extract coordinates for village');
@@ -89,7 +86,7 @@ class VillageRenamer {
         };
     }
 
-    extractCoordinates() {
+    extractCoordinatesFromHeader() {
         // Look for coordinates in the menu_row2 element
         const menuRow2 = document.querySelector('#menu_row2');
         if (!menuRow2) return null;
@@ -123,57 +120,40 @@ class VillageRenamer {
                 this.addRenameButton();
             }
             
-            // Always replace names on page, regardless of current village
-            this.replaceAllNamesOnPage();
+            // Replace coordinates with fake names
+            this.replaceAllCoordinatesOnPage();
             
-            // Set up mutation observer to handle dynamic content
+            // Set up mutation observer
             this.setupMutationObserver();
             
             // Handle page changes
             window.addEventListener('hashchange', () => {
                 setTimeout(() => this.handlePageChange(), 100);
             });
-            
-            // Check for server changes
-            this.checkForServerChange();
         }, 1000);
-    }
-
-    // Check if server changed (when switching worlds)
-    checkForServerChange() {
-        const currentServer = this.getCurrentServer();
-        if (currentServer !== this.currentServer) {
-            console.log(`Server changed from ${this.currentServer} to ${currentServer}`);
-            this.currentServer = currentServer;
-            this.renames = this.loadRenames();
-            this.currentVillage = this.getCurrentVillage();
-            
-            if (this.currentVillage) {
-                this.addRenameButton();
-            }
-            this.replaceAllNamesOnPage();
-        }
     }
 
     // Handle page changes
     handlePageChange() {
-        this.checkForServerChange();
+        const currentServer = this.getCurrentServer();
+        if (currentServer !== this.currentServer) {
+            this.currentServer = currentServer;
+            this.renames = this.loadRenames();
+        }
         
         const newVillage = this.getCurrentVillage();
         if (newVillage && (!this.currentVillage || newVillage.coords !== this.currentVillage.coords)) {
             this.currentVillage = newVillage;
             this.addRenameButton();
         }
-        // Always replace names on page change
-        setTimeout(() => this.replaceAllNamesOnPage(), 200);
+        
+        setTimeout(() => this.replaceAllCoordinatesOnPage(), 200);
     }
 
     // Setup mutation observer for dynamic content
     setupMutationObserver() {
         const observer = new MutationObserver((mutations) => {
             if (!this.renameInProgress) {
-                this.checkForServerChange();
-                
                 // Check if village header changed
                 const newVillage = this.getCurrentVillage();
                 if (newVillage && (!this.currentVillage || newVillage.coords !== this.currentVillage.coords)) {
@@ -181,8 +161,8 @@ class VillageRenamer {
                     this.addRenameButton();
                 }
                 
-                // Replace names for any new content
-                setTimeout(() => this.replaceAllNamesOnPage(), 100);
+                // Replace coordinates for any new content
+                setTimeout(() => this.replaceAllCoordinatesOnPage(), 100);
             }
         });
         
@@ -209,22 +189,7 @@ class VillageRenamer {
 
         const villageKey = this.currentVillage.coords;
         const hasCustomName = this.renames[villageKey];
-        const realName = this.currentVillage.name;
         
-        // Store real name as attribute
-        if (!villageLink.hasAttribute(REAL_NAME_ATTRIBUTE)) {
-            villageLink.setAttribute(REAL_NAME_ATTRIBUTE, realName);
-        }
-        
-        // Add tooltip to real name
-        if (!villageLink.hasAttribute('data-original-title')) {
-            villageLink.setAttribute('data-original-title', 
-                hasCustomName ? 
-                `Real name: ${realName}\nCustom name: ${this.renames[villageKey].name}\nCoords: ${villageKey}` :
-                `Real name: ${realName}\nCoords: ${villageKey}\nServer: ${this.currentServer}`
-            );
-        }
-
         // Create rename button
         const renameBtn = document.createElement('button');
         renameBtn.className = 'rename-village-btn';
@@ -244,19 +209,14 @@ class VillageRenamer {
         
         renameBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.showRenameInterface(villageCell, villageLink, villageKey);
+            this.showRenameInterface(villageCell, villageKey);
         });
 
         villageLink.insertAdjacentElement('afterend', renameBtn);
-
-        // Apply custom name if exists
-        if (hasCustomName) {
-            this.applyCustomName(villageLink, villageKey);
-        }
     }
 
     // Show rename interface
-    showRenameInterface(villageCell, villageLink, villageKey) {
+    showRenameInterface(villageCell, villageKey) {
         // Remove existing rename interface
         const existingInterface = villageCell.querySelector('.rename-interface');
         if (existingInterface) {
@@ -269,9 +229,8 @@ class VillageRenamer {
         
         this.renameInProgress = true;
         
-        // Get current names
-        const realName = villageLink.getAttribute(REAL_NAME_ATTRIBUTE);
-        const currentName = this.renames[villageKey] ? this.renames[villageKey].name : realName;
+        // Get current name
+        const currentName = this.renames[villageKey] || '';
         
         // Create rename interface
         const interfaceDiv = document.createElement('div');
@@ -286,6 +245,7 @@ class VillageRenamer {
         const input = document.createElement('input');
         input.type = 'text';
         input.value = currentName;
+        input.placeholder = 'Enter custom name';
         input.style.cssText = `
             padding: 2px 5px;
             border: 1px solid #666;
@@ -311,8 +271,8 @@ class VillageRenamer {
         
         // Create reset button
         const resetBtn = document.createElement('button');
-        resetBtn.textContent = '↩️';
-        resetBtn.title = 'Reset to real name';
+        resetBtn.textContent = '🗑️';
+        resetBtn.title = 'Remove custom name';
         resetBtn.style.cssText = `
             background: #ff9800;
             border: none;
@@ -341,14 +301,14 @@ class VillageRenamer {
         
         // Add event listeners
         saveBtn.addEventListener('click', () => {
-            this.saveRename(villageKey, input.value, realName, villageLink);
+            this.saveRename(villageKey, input.value);
             interfaceDiv.remove();
             renameBtn.style.display = 'inline-block';
             this.renameInProgress = false;
         });
         
         resetBtn.addEventListener('click', () => {
-            input.value = realName;
+            input.value = '';
         });
         
         cancelBtn.addEventListener('click', () => {
@@ -364,6 +324,7 @@ class VillageRenamer {
         interfaceDiv.appendChild(cancelBtn);
         
         // Add interface to DOM
+        const villageLink = villageCell.querySelector('a');
         villageLink.insertAdjacentElement('afterend', interfaceDiv);
         
         // Focus input
@@ -372,220 +333,61 @@ class VillageRenamer {
     }
 
     // Save rename to storage
-    saveRename(villageKey, newName, realName, villageLink) {
+    saveRename(villageKey, newName) {
         if (newName.trim() === '') {
             // Remove rename if empty
             if (this.renames[villageKey]) {
                 delete this.renames[villageKey];
                 this.saveRenames();
-                this.restoreRealName(villageLink, realName);
-                this.replaceAllNamesOnPage();
+                this.replaceAllCoordinatesOnPage();
             }
         } else {
-            // Save new name (even if it's the same as real name)
-            this.renames[villageKey] = {
-                name: newName.trim(),
-                realName: realName,
-                coords: villageKey,
-                server: this.currentServer,
-                timestamp: Date.now()
-            };
+            // Save new name
+            this.renames[villageKey] = newName.trim();
             this.saveRenames();
-            this.applyCustomName(villageLink, villageKey);
-            this.replaceAllNamesOnPage();
+            this.replaceAllCoordinatesOnPage();
         }
     }
 
-    // Apply custom name to element
-    applyCustomName(element, villageKey) {
-        if (!this.renames[villageKey]) return;
-        
-        const customName = this.renames[villageKey].name;
-        const realName = this.renames[villageKey].realName;
-        
-        // Store real name if not already stored
-        if (!element.hasAttribute(REAL_NAME_ATTRIBUTE)) {
-            element.setAttribute(REAL_NAME_ATTRIBUTE, realName);
-        }
-        
-        // Update text content
-        if (element.textContent.includes(realName)) {
-            element.textContent = element.textContent.replace(realName, customName);
-        }
-        
-        // Update tooltip
-        element.setAttribute('data-original-title', 
-            `Real name: ${realName}\nCustom name: ${customName}\nCoords: ${villageKey}\nServer: ${this.currentServer}`
-        );
-    }
-
-    // Restore real name
-    restoreRealName(element, realName) {
-        if (element.textContent && realName) {
-            element.textContent = element.textContent.replace(
-                element.textContent,
-                realName
-            );
-        }
-        element.removeAttribute('data-original-title');
-    }
-
-    // Replace ALL village names on page (for all renamed villages)
-    replaceAllNamesOnPage() {
+    // Replace ALL coordinates on page with fake names
+    replaceAllCoordinatesOnPage() {
         if (Object.keys(this.renames).length === 0) return;
         
-        // Find all coordinate elements on the page
-        const coordElements = this.findAllCoordinateElements();
-        
-        // For each coordinate element, find and replace the associated village name
-        coordElements.forEach(coordElement => {
-            const coords = this.extractCoordsFromText(coordElement.textContent);
-            if (coords && this.renames[coords]) {
-                this.replaceVillageNameForCoordinates(coordElement, coords);
-            }
-        });
-    }
-
-    // Find all elements that might contain coordinates
-    findAllCoordinateElements() {
-        const elements = [];
-        
-        // Search through all text nodes for coordinate patterns
+        // Walk through all text nodes
         this.walkTextNodes(document.body, (node) => {
             const text = node.textContent;
-            if (text && text.match(/\(\d+\|\d+\)/)) {
-                // Find the parent element that contains this text
-                let parent = node.parentNode;
-                while (parent && parent !== document.body) {
-                    if (parent.nodeType === Node.ELEMENT_NODE) {
-                        elements.push(parent);
-                        break;
+            if (!text || text.trim().length === 0) return;
+            
+            // Skip if node is inside input, textarea, or script
+            if (node.parentNode && (
+                node.parentNode.tagName === 'INPUT' ||
+                node.parentNode.tagName === 'TEXTAREA' ||
+                node.parentNode.tagName === 'SCRIPT' ||
+                node.parentNode.tagName === 'STYLE'
+            )) {
+                return;
+            }
+            
+            // Check for coordinate pattern
+            const match = text.match(/\((\d+)\|(\d+)\)/g);
+            if (match) {
+                let newText = text;
+                
+                // Replace each found coordinate
+                match.forEach(coordMatch => {
+                    const cleanCoords = coordMatch.replace(/[()]/g, '');
+                    if (this.renames[cleanCoords]) {
+                        newText = newText.replace(coordMatch, this.renames[cleanCoords]);
                     }
-                    parent = parent.parentNode;
-                }
-            }
-        });
-        
-        return [...new Set(elements)]; // Remove duplicates
-    }
-
-    // Extract coordinates from text (e.g., "(529|558)" -> "529|558")
-    extractCoordsFromText(text) {
-        const match = text.match(/\((\d+)\|(\d+)\)/);
-        return match ? `${match[1]}|${match[2]}` : null;
-    }
-
-    // Replace village name for specific coordinates
-    replaceVillageNameForCoordinates(coordElement, coords) {
-        const renameInfo = this.renames[coords];
-        if (!renameInfo || renameInfo.realName === renameInfo.name) return;
-        
-        const realName = renameInfo.realName;
-        const customName = renameInfo.name;
-        
-        // Strategy 1: Look for village name in the same table row or nearby
-        let rowElement = coordElement;
-        while (rowElement && rowElement.tagName !== 'TR' && rowElement.parentNode) {
-            rowElement = rowElement.parentNode;
-        }
-        
-        if (rowElement && rowElement.tagName === 'TR') {
-            this.replaceNameInRow(rowElement, realName, customName);
-            return;
-        }
-        
-        // Strategy 2: Look in parent container
-        let container = coordElement.parentNode;
-        for (let i = 0; i < 5 && container; i++) {
-            if (this.replaceNameInContainer(container, realName, customName)) {
-                return;
-            }
-            container = container.parentNode;
-        }
-        
-        // Strategy 3: Look for the village name near the coordinates
-        const nearbyElements = this.getElementsNearby(coordElement);
-        for (const element of nearbyElements) {
-            if (this.replaceTextInElement(element, realName, customName)) {
-                return;
-            }
-        }
-    }
-
-    // Replace name in table row
-    replaceNameInRow(row, realName, customName) {
-        const cells = row.querySelectorAll('td, th');
-        for (const cell of cells) {
-            if (this.replaceTextInElement(cell, realName, customName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Replace name in container
-    replaceNameInContainer(container, realName, customName) {
-        // Look for text nodes in this container
-        let replaced = false;
-        this.walkTextNodes(container, (node) => {
-            const text = node.textContent;
-            if (text && text.includes(realName) && !text.includes('|')) {
-                // Don't replace if text contains coordinates
-                const newText = text.replace(new RegExp(this.escapeRegExp(realName), 'g'), customName);
+                });
+                
+                // Update node if changes were made
                 if (newText !== text) {
                     const newNode = document.createTextNode(newText);
                     node.parentNode.replaceChild(newNode, node);
-                    replaced = true;
                 }
             }
         });
-        return replaced;
-    }
-
-    // Get elements nearby the coordinate element
-    getElementsNearby(coordElement, maxDistance = 3) {
-        const nearby = [];
-        let current = coordElement.previousElementSibling;
-        let distance = 0;
-        
-        // Check previous siblings
-        while (current && distance < maxDistance) {
-            nearby.push(current);
-            current = current.previousElementSibling;
-            distance++;
-        }
-        
-        current = coordElement.nextElementSibling;
-        distance = 0;
-        
-        // Check next siblings
-        while (current && distance < maxDistance) {
-            nearby.push(current);
-            current = current.nextElementSibling;
-            distance++;
-        }
-        
-        return nearby;
-    }
-
-    // Replace text in a single element
-    replaceTextInElement(element, realName, customName) {
-        let replaced = false;
-        
-        this.walkTextNodes(element, (node) => {
-            const text = node.textContent;
-            // Only replace if text contains the real name but NOT coordinates
-            if (text && text.includes(realName) && !text.match(/\(\d+\|\d+\)/)) {
-                const newText = text.replace(new RegExp(this.escapeRegExp(realName), 'g'), customName);
-                if (newText !== text) {
-                    const newNode = document.createTextNode(newText);
-                    node.parentNode.replaceChild(newNode, node);
-                    replaced = true;
-                }
-            }
-        });
-        
-        return replaced;
     }
 
     // Helper to walk through text nodes
@@ -606,11 +408,6 @@ class VillageRenamer {
                 this.walkTextNodes(child, callback);
             }
         }
-    }
-
-    // Escape special regex characters
-    escapeRegExp(string) {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 }
 
