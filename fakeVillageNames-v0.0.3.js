@@ -1,5 +1,3 @@
-'use strict';
-
 // Configuration
 const STORAGE_KEY = 'tw_village_renames';
 const REAL_NAME_ATTRIBUTE = 'data-real-village-name';
@@ -12,15 +10,38 @@ if (!localStorage.getItem(STORAGE_KEY)) {
 // Main class
 class VillageRenamer {
     constructor() {
+        this.currentServer = this.getCurrentServer();
         this.renames = this.loadRenames();
         this.currentVillage = null;
         this.renameInProgress = false;
         this.init();
     }
 
+    // Get current server from URL
+    getCurrentServer() {
+        const hostname = window.location.hostname;
+        
+        // Extract server name (e.g., "ru100" from "ru100.tribalwars.net" or "ru100.voynaplemyon.com")
+        const serverMatch = hostname.match(/^([a-z]+\d+)\./);
+        if (serverMatch) {
+            return serverMatch[1];
+        }
+        
+        // Fallback: use the subdomain
+        const parts = hostname.split('.');
+        if (parts.length > 2) {
+            return parts[0];
+        }
+        
+        // Default fallback
+        return 'default';
+    }
+
     loadRenames() {
         try {
-            return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            const allRenames = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            // Return only renames for current server
+            return allRenames[this.currentServer] || {};
         } catch (e) {
             console.error('Error loading renames:', e);
             return {};
@@ -28,7 +49,13 @@ class VillageRenamer {
     }
 
     saveRenames() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.renames));
+        try {
+            const allRenames = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+            allRenames[this.currentServer] = this.renames;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allRenames));
+        } catch (e) {
+            console.error('Error saving renames:', e);
+        }
     }
 
     // Get current village info
@@ -37,7 +64,6 @@ class VillageRenamer {
         if (!villageLink) return null;
 
         const villageName = villageLink.textContent.trim();
-        const villageUrl = villageLink.getAttribute('href');
         const coords = this.extractCoordinates();
         
         if (!coords) {
@@ -47,9 +73,8 @@ class VillageRenamer {
         
         return {
             name: villageName,
-            url: villageUrl,
             coords: coords,
-            key: coords // Use coordinates as the unique key
+            key: coords
         };
     }
 
@@ -78,46 +103,82 @@ class VillageRenamer {
 
     // Initialize the script
     init() {
+        console.log(`Village Renamer initialized for server: ${this.currentServer}`);
+        
         // Wait for page to load
         setTimeout(() => {
             this.currentVillage = this.getCurrentVillage();
             if (this.currentVillage) {
                 this.addRenameButton();
-                this.replaceNamesOnPage();
             }
+            
+            // Always replace names on page, regardless of current village
+            this.replaceAllNamesOnPage();
             
             // Set up mutation observer to handle dynamic content
             this.setupMutationObserver();
             
-            // Also run on hash change (for SPA navigation)
+            // Handle page changes
             window.addEventListener('hashchange', () => {
                 setTimeout(() => this.handlePageChange(), 100);
             });
-        }, 500);
+            
+            // Check for server changes
+            this.checkForServerChange();
+        }, 1000);
+    }
+
+    // Check if server changed (when switching worlds)
+    checkForServerChange() {
+        const currentServer = this.getCurrentServer();
+        if (currentServer !== this.currentServer) {
+            console.log(`Server changed from ${this.currentServer} to ${currentServer}`);
+            this.currentServer = currentServer;
+            this.renames = this.loadRenames();
+            this.currentVillage = this.getCurrentVillage();
+            
+            if (this.currentVillage) {
+                this.addRenameButton();
+            }
+            this.replaceAllNamesOnPage();
+        }
     }
 
     // Handle page changes
     handlePageChange() {
+        this.checkForServerChange();
+        
         const newVillage = this.getCurrentVillage();
         if (newVillage && (!this.currentVillage || newVillage.coords !== this.currentVillage.coords)) {
             this.currentVillage = newVillage;
             this.addRenameButton();
-            this.replaceNamesOnPage();
         }
+        // Always replace names on page change
+        setTimeout(() => this.replaceAllNamesOnPage(), 200);
     }
 
     // Setup mutation observer for dynamic content
     setupMutationObserver() {
         const observer = new MutationObserver((mutations) => {
             if (!this.renameInProgress) {
-                this.replaceNamesOnPage();
+                this.checkForServerChange();
+                
+                // Check if village header changed
+                const newVillage = this.getCurrentVillage();
+                if (newVillage && (!this.currentVillage || newVillage.coords !== this.currentVillage.coords)) {
+                    this.currentVillage = newVillage;
+                    this.addRenameButton();
+                }
+                
+                // Replace names for any new content
+                this.replaceAllNamesOnPage();
             }
         });
         
         observer.observe(document.body, {
             childList: true,
             subtree: true,
-            characterData: true
+            characterData: false
         });
     }
 
@@ -149,7 +210,7 @@ class VillageRenamer {
             villageLink.setAttribute('data-original-title', 
                 hasCustomName ? 
                 `Real name: ${realName}\nCustom name: ${this.renames[villageKey].name}\nCoords: ${villageKey}` :
-                `Real name: ${realName}\nCoords: ${villageKey}`
+                `Real name: ${realName}\nCoords: ${villageKey}\nServer: ${this.currentServer}`
             );
         }
 
@@ -307,7 +368,7 @@ class VillageRenamer {
                 delete this.renames[villageKey];
                 this.saveRenames();
                 this.restoreRealName(villageLink, realName);
-                this.replaceNamesOnPage();
+                this.replaceAllNamesOnPage();
             }
         } else {
             // Save new name
@@ -315,11 +376,12 @@ class VillageRenamer {
                 name: newName.trim(),
                 realName: realName,
                 coords: villageKey,
+                server: this.currentServer,
                 timestamp: Date.now()
             };
             this.saveRenames();
             this.applyCustomName(villageLink, villageKey);
-            this.replaceNamesOnPage();
+            this.replaceAllNamesOnPage();
         }
     }
 
@@ -342,78 +404,68 @@ class VillageRenamer {
         
         // Update tooltip
         element.setAttribute('data-original-title', 
-            `Real name: ${realName}\nCustom name: ${customName}\nCoords: ${villageKey}`
+            `Real name: ${realName}\nCustom name: ${customName}\nCoords: ${villageKey}\nServer: ${this.currentServer}`
         );
     }
 
     // Restore real name
     restoreRealName(element, realName) {
-        element.textContent = element.textContent.replace(
-            element.textContent.match(/[^>]+$/)?.[0] || '',
-            realName
-        );
+        if (element.textContent && realName) {
+            element.textContent = element.textContent.replace(
+                element.textContent,
+                realName
+            );
+        }
         element.removeAttribute('data-original-title');
     }
 
-    // Replace all occurrences of village name on page
-    replaceNamesOnPage() {
-        if (!this.currentVillage) return;
+    // Replace ALL village names on page (for all renamed villages)
+    replaceAllNamesOnPage() {
+        if (Object.keys(this.renames).length === 0) return;
         
-        const villageKey = this.currentVillage.coords;
-        const renameInfo = this.renames[villageKey];
-        
-        if (!renameInfo) {
-            // No custom name - restore all real names
-            this.restoreAllNames(villageKey);
-            return;
-        }
-        
-        const realName = renameInfo.realName || this.currentVillage.name;
-        const customName = renameInfo.name;
-        
-        // Don't replace if names are the same
-        if (realName === customName) return;
-        
-        // Walk through all text nodes in the document
+        // Process all text nodes
         this.walkTextNodes(document.body, (node) => {
             const text = node.textContent;
-            if (text.includes(realName)) {
-                // Check if this node is inside an element with real name attribute
-                let parent = node.parentNode;
-                let shouldReplace = true;
-                
-                while (parent && parent !== document.body) {
-                    if (parent.hasAttribute && parent.hasAttribute(REAL_NAME_ATTRIBUTE)) {
-                        shouldReplace = false;
-                        break;
-                    }
-                    parent = parent.parentNode;
-                }
-                
-                if (shouldReplace && !node.isReplaced) {
-                    const newNode = node.cloneNode();
-                    newNode.textContent = text.replace(new RegExp(this.escapeRegExp(realName), 'g'), customName);
-                    newNode.isReplaced = true;
-                    node.parentNode.replaceChild(newNode, node);
-                }
+            if (!text || text.trim().length === 0) return;
+            
+            // Skip if node is inside input, textarea, or script
+            if (node.parentNode && (
+                node.parentNode.tagName === 'INPUT' ||
+                node.parentNode.tagName === 'TEXTAREA' ||
+                node.parentNode.tagName === 'SCRIPT' ||
+                node.parentNode.tagName === 'STYLE'
+            )) {
+                return;
             }
-        });
-    }
-
-    // Restore all names to real names
-    restoreAllNames(villageKey) {
-        const renameInfo = this.renames[villageKey];
-        if (!renameInfo) return;
-        
-        const realName = renameInfo.realName;
-        const customName = renameInfo.name;
-        
-        this.walkTextNodes(document.body, (node) => {
-            const text = node.textContent;
-            if (text.includes(customName)) {
-                const newNode = node.cloneNode();
-                newNode.textContent = text.replace(new RegExp(this.escapeRegExp(customName), 'g'), realName);
-                node.parentNode.replaceChild(newNode, node);
+            
+            // Check against all renamed villages
+            for (const [coords, renameInfo] of Object.entries(this.renames)) {
+                const realName = renameInfo.realName;
+                const customName = renameInfo.name;
+                
+                if (text.includes(realName) && realName !== customName) {
+                    // Skip if this node already has the real name attribute (header)
+                    let parent = node.parentNode;
+                    let shouldReplace = true;
+                    
+                    while (parent && parent !== document.body) {
+                        if (parent.hasAttribute && parent.hasAttribute(REAL_NAME_ATTRIBUTE)) {
+                            shouldReplace = false;
+                            break;
+                        }
+                        parent = parent.parentNode;
+                    }
+                    
+                    if (shouldReplace) {
+                        const newText = text.replace(new RegExp(this.escapeRegExp(realName), 'g'), customName);
+                        if (newText !== text) {
+                            const newNode = document.createTextNode(newText);
+                            node.parentNode.replaceChild(newNode, node);
+                            // Stop after first replacement for this node
+                            return;
+                        }
+                    }
+                }
             }
         });
     }
@@ -422,7 +474,22 @@ class VillageRenamer {
     walkTextNodes(node, callback) {
         if (node.nodeType === Node.TEXT_NODE) {
             callback(node);
-        } else {
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            // Skip certain elements
+            const tagName = node.tagName;
+            if (tagName === 'SCRIPT' || tagName === 'STYLE' || tagName === 'INPUT' || tagName === 'TEXTAREA') {
+                return;
+            }
+            
+            // Check for data attributes that might indicate this shouldn't be replaced
+            if (node.hasAttribute && 
+               (node.hasAttribute(REAL_NAME_ATTRIBUTE) || 
+                node.hasAttribute('data-coords') ||
+                node.className && node.className.includes('coords'))) {
+                return;
+            }
+            
+            // Process children
             for (const child of node.childNodes) {
                 this.walkTextNodes(child, callback);
             }
