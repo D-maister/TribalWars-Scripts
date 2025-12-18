@@ -391,14 +391,14 @@ class VillageRenamer {
             // Replace coordinates in both formats
             for (const [coords, fakeName] of Object.entries(this.renames)) {
                 // Format with parentheses: (xxx|yyy) -> (fakename)
-                const regexWithParens = new RegExp(`\\(${coords}\\)`, 'g');
+                const regexWithParens = new RegExp(`\\(${coords.replace('|', '\\|')}\\)`, 'g');
                 if (regexWithParens.test(newText)) {
                     newText = newText.replace(regexWithParens, `(${fakeName})`);
                     changed = true;
                 }
                 
                 // Format without parentheses: xxx|yyy -> fakename
-                const regexWithoutParens = new RegExp(`\\b${coords}\\b`, 'g');
+                const regexWithoutParens = new RegExp(`\\b${coords.replace('|', '\\|')}\\b`, 'g');
                 if (regexWithoutParens.test(newText)) {
                     newText = newText.replace(regexWithoutParens, fakeName);
                     changed = true;
