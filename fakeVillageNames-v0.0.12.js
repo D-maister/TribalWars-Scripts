@@ -370,8 +370,13 @@ class VillageRenamer {
     replaceAllCoordinatesOnPage() {
         if (Object.keys(this.renames).length === 0) return;
         
+        // Create a processed nodes set to avoid re-processing
+        const processedNodes = new WeakSet();
+        
         // Walk through all text nodes
         this.walkTextNodes(document.body, (node) => {
+            if (processedNodes.has(node)) return;
+            
             const text = node.textContent;
             if (!text || text.trim().length === 0) return;
             
@@ -397,15 +402,15 @@ class VillageRenamer {
                 if (withParensRegex.test(newText)) {
                     newText = newText.replace(withParensRegex, `${fakeName} ${coords}`);
                     changed = true;
-                    // Don't continue to other patterns for this coordinate
-                    continue;
+                    break; // Only process one replacement per text node
                 }
                 
                 // Then check for coordinates without parentheses
-                const withoutParensRegex = new RegExp(`\\b${escapedCoords}\\b`, 'g');
+                const withoutParensRegex = new RegExp(`(?<!\\(|\\w)${escapedCoords}(?!\\)|\\w)`, 'g');
                 if (withoutParensRegex.test(newText)) {
                     newText = newText.replace(withoutParensRegex, `${fakeName} ${coords}`);
                     changed = true;
+                    break; // Only process one replacement per text node
                 }
             }
             
@@ -413,6 +418,7 @@ class VillageRenamer {
             if (changed && newText !== text) {
                 const newNode = document.createTextNode(newText);
                 node.parentNode.replaceChild(newNode, node);
+                processedNodes.add(newNode);
             }
         });
     }
