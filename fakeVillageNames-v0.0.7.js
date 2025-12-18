@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Village Renamer
 // @namespace    http://tampermonkey.net/
-// @version      3.0
+// @version      3.1
 // @description  Rename villages by replacing coordinates with custom names
 // @author       Your Name
 // @match        *://*.tribalwars.*/*
@@ -99,11 +99,28 @@ class VillageRenamer {
         let nextSibling = villageCell.nextElementSibling;
         while (nextSibling) {
             const text = nextSibling.textContent || '';
-            const match = text.match(/\((\d+)\|(\d+)\)/);
-            if (match) {
-                return `${match[1]}|${match[2]}`;
+            const coords = this.extractCoordsFromText(text);
+            if (coords) {
+                return coords;
             }
             nextSibling = nextSibling.nextElementSibling;
+        }
+        
+        return null;
+    }
+
+    // Extract coordinates from text (supports both formats)
+    extractCoordsFromText(text) {
+        // Try format with parentheses: (xxx|yyy)
+        let match = text.match(/\((\d+)\|(\d+)\)/);
+        if (match) {
+            return `${match[1]}|${match[2]}`;
+        }
+        
+        // Try format without parentheses: xxx|yyy
+        match = text.match(/(\d+)\|(\d+)/);
+        if (match) {
+            return `${match[1]}|${match[2]}`;
         }
         
         return null;
@@ -368,24 +385,37 @@ class VillageRenamer {
                 return;
             }
             
-            // Check for coordinate pattern
-            const match = text.match(/\((\d+)\|(\d+)\)/g);
-            if (match) {
-                let newText = text;
-                
-                // Replace each found coordinate
-                match.forEach(coordMatch => {
-                    const cleanCoords = coordMatch.replace(/[()]/g, '');
-                    if (this.renames[cleanCoords]) {
-                        newText = newText.replace(coordMatch, this.renames[cleanCoords]);
-                    }
-                });
-                
-                // Update node if changes were made
-                if (newText !== text) {
-                    const newNode = document.createTextNode(newText);
-                    node.parentNode.replaceChild(newNode, node);
+            let newText = text;
+            let changed = false;
+            
+            // Replace coordinates in both formats
+            for (const [coords, fakeName] of Object.entries(this.renames)) {
+                // Format with parentheses: (xxx|yyy) -> (fakename)
+                const regexWithParens = new RegExp(`\\(${coords}\\)`, 'g');
+                if (regexWithParens.test(newText)) {
+                    newText = newText.replace(regexWithParens, `(${fakeName})`);
+                    changed = true;
                 }
+                
+                // Format without parentheses: xxx|yyy -> fakename
+                const regexWithoutParens = new RegExp(`\\b${coords}\\b`, 'g');
+                if (regexWithoutParens.test(newText)) {
+                    newText = newText.replace(regexWithoutParens, fakeName);
+                    changed = true;
+                }
+                
+                // Also handle the format where it's already in parentheses in the text
+                const regexFullWithParens = new RegExp(`\\(${coords.replace('|', '\\|')}\\)`, 'g');
+                if (regexFullWithParens.test(newText)) {
+                    newText = newText.replace(regexFullWithParens, `(${fakeName})`);
+                    changed = true;
+                }
+            }
+            
+            // Update node if changes were made
+            if (changed && newText !== text) {
+                const newNode = document.createTextNode(newText);
+                node.parentNode.replaceChild(newNode, node);
             }
         });
     }
