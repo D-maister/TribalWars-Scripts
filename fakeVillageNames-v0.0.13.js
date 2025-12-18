@@ -24,6 +24,7 @@ class VillageRenamer {
         this.renames = this.loadRenames();
         this.currentVillage = null;
         this.renameInProgress = false;
+        this.isReplacing = false; // Add this line
         this.init();
     }
 
@@ -170,7 +171,7 @@ class VillageRenamer {
     // Setup mutation observer for dynamic content
     setupMutationObserver() {
         const observer = new MutationObserver((mutations) => {
-            if (!this.renameInProgress) {
+            if (!this.renameInProgress && !this.isReplacing) { // Add !this.isReplacing
                 // Check if village header changed
                 const newVillage = this.getCurrentVillage();
                 if (newVillage && (!this.currentVillage || newVillage.coords !== this.currentVillage.coords)) {
@@ -369,58 +370,70 @@ class VillageRenamer {
     // Replace ALL coordinates on page with fake names
     replaceAllCoordinatesOnPage() {
         if (Object.keys(this.renames).length === 0) return;
+        if (this.isReplacing) return; // Prevent recursion
         
-        // Create a processed nodes set to avoid re-processing
-        const processedNodes = new WeakSet();
+        this.isReplacing = true;
         
-        // Walk through all text nodes
-        this.walkTextNodes(document.body, (node) => {
-            if (processedNodes.has(node)) return;
-            
-            const text = node.textContent;
-            if (!text || text.trim().length === 0) return;
-            
-            // Skip if node is inside input, textarea, or script
-            if (node.parentNode && (
-                node.parentNode.tagName === 'INPUT' ||
-                node.parentNode.tagName === 'TEXTAREA' ||
-                node.parentNode.tagName === 'SCRIPT' ||
-                node.parentNode.tagName === 'STYLE'
-            )) {
-                return;
-            }
-            
-            let newText = text;
-            let changed = false;
-            
-            // Process each renamed coordinate
-            for (const [coords, fakeName] of Object.entries(this.renames)) {
-                const escapedCoords = coords.replace('|', '\\|');
+        try {
+            // Walk through all text nodes
+            this.walkTextNodes(document.body, (node) => {
+                const text = node.textContent;
+                if (!text || text.trim().length === 0) return;
                 
-                // First check for coordinates with parentheses
-                const withParensRegex = new RegExp(`\\(${escapedCoords}\\)`, 'g');
-                if (withParensRegex.test(newText)) {
-                    newText = newText.replace(withParensRegex, `${fakeName} ${coords}`);
-                    changed = true;
-                    break; // Only process one replacement per text node
+                // Skip if node is inside input, textarea, or script
+                if (node.parentNode && (
+                    node.parentNode.tagName === 'INPUT' ||
+                    node.parentNode.tagName === 'TEXTAREA' ||
+                    node.parentNode.tagName === 'SCRIPT' ||
+                    node.parentNode.tagName === 'STYLE'
+                )) {
+                    return;
                 }
                 
-                // Then check for coordinates without parentheses
-                const withoutParensRegex = new RegExp(`(?<!\\(|\\w)${escapedCoords}(?!\\)|\\w)`, 'g');
-                if (withoutParensRegex.test(newText)) {
-                    newText = newText.replace(withoutParensRegex, `${fakeName} ${coords}`);
-                    changed = true;
-                    break; // Only process one replacement per text node
+                let newText = text;
+                let changed = false;
+                
+                // Process each renamed coordinate
+                for (const [coords, fakeName] of Object.entries(this.renames)) {
+                    const escapedCoords = coords.replace('|', '\\|');
+                    
+                    // First check for coordinates with parentheses
+                    const withParensRegex = new RegExp(`\\(${escapedCoords}\\)`, 'g');
+                    const withParensMatch = newText.match(withParensRegex);
+                    if (withParensMatch) {
+                        // Check if this text already contains the fake name
+                        if (!newText.includes(fakeName)) {
+                            newText = newText.replace(withParensRegex, `${fakeName} ${coords}`);
+                            changed = true;
+                        }
+                        break;
+                    }
+                    
+                    // Then check for coordinates without parentheses
+                    const withoutParensRegex = new RegExp(`\\b${escapedCoords}\\b`, 'g');
+                    const withoutParensMatch = newText.match(withoutParensRegex);
+                    if (withoutParensMatch) {
+                        // Check if this text already contains the fake name
+                        if (!newText.includes(fakeName)) {
+                            newText = newText.replace(withoutParensRegex, `${fakeName} ${coords}`);
+                            changed = true;
+                        }
+                        break;
+                    }
                 }
-            }
-            
-            // Update node if changes were made
-            if (changed && newText !== text) {
-                const newNode = document.createTextNode(newText);
-                node.parentNode.replaceChild(newNode, node);
-                processedNodes.add(newNode);
-            }
-        });
+                
+                // Update node if changes were made
+                if (changed && newText !== text) {
+                    const newNode = document.createTextNode(newText);
+                    node.parentNode.replaceChild(newNode, node);
+                }
+            });
+        } finally {
+            // Use setTimeout to prevent immediate re-triggering
+            setTimeout(() => {
+                this.isReplacing = false;
+            }, 100);
+        }
     }
 
     // Helper to walk through text nodes
