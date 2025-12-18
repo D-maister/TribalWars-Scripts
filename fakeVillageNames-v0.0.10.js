@@ -390,32 +390,23 @@ class VillageRenamer {
             
             // Replace coordinates in both formats
             for (const [coords, fakeName] of Object.entries(this.renames)) {
-                // Format with parentheses: (xxx|yyy) -> (fakename)
-                const regexWithParens = new RegExp(`\\(${coords.replace('|', '\\|')}\\)`, 'g');
+                const escapedCoords = coords.replace('|', '\\|');
+                
+                // Format with parentheses: (xxx|yyy) -> fakename xxx|yyy
+                const regexWithParens = new RegExp(`\\(${escapedCoords}\\)`, 'g');
                 if (regexWithParens.test(newText)) {
                     newText = newText.replace(regexWithParens, `${fakeName} ${coords}`);
                     changed = true;
+                    continue; // Skip other patterns after this one matches
                 }
                 
-                // Format without parentheses: xxx|yyy -> fakename
-                const regexWithoutParens = new RegExp(`\\b${coords.replace('|', '\\|')}\\b`, 'g');
+                // Format without parentheses: xxx|yyy -> fakename xxx|yyy
+                const regexWithoutParens = new RegExp(`\\b${escapedCoords}\\b`, 'g');
                 if (regexWithoutParens.test(newText)) {
                     newText = newText.replace(regexWithoutParens, `${fakeName} ${coords}`);
                     changed = true;
+                    continue; // Skip other patterns after this one matches
                 }
-                
-                // Also handle the format where it's already in parentheses in the text
-                const regexFullWithParens = new RegExp(`\\(${coords.replace('|', '\\|')}\\)`, 'g');
-                if (regexFullWithParens.test(newText)) {
-                    newText = newText.replace(regexFullWithParens, `(${fakeName})`);
-                    changed = true;
-                }
-            }
-            
-            // Update node if changes were made
-            if (changed && newText !== text) {
-                const newNode = document.createTextNode(newText);
-                node.parentNode.replaceChild(newNode, node);
             }
         });
     }
