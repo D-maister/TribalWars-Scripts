@@ -393,14 +393,14 @@ class VillageRenamer {
                 // Format with parentheses: (xxx|yyy) -> (fakename)
                 const regexWithParens = new RegExp(`\\(${coords.replace('|', '\\|')}\\)`, 'g');
                 if (regexWithParens.test(newText)) {
-                    newText = newText.replace(regexWithParens, `(${fakeName})`);
+                    newText = newText.replace(regexWithParens, `${fakeName} ${coords}`);
                     changed = true;
                 }
                 
                 // Format without parentheses: xxx|yyy -> fakename
                 const regexWithoutParens = new RegExp(`\\b${coords.replace('|', '\\|')}\\b`, 'g');
                 if (regexWithoutParens.test(newText)) {
-                    newText = newText.replace(regexWithoutParens, fakeName);
+                    newText = newText.replace(regexWithoutParens, `${fakeName} ${coords}`);
                     changed = true;
                 }
                 
