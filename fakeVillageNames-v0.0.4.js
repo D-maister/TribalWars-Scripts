@@ -362,7 +362,7 @@ class VillageRenamer {
 
     // Save rename to storage
     saveRename(villageKey, newName, realName, villageLink) {
-        if (newName.trim() === realName.trim() || newName.trim() === '') {
+        if (newName.trim() === '') {
             // Remove rename if set to real name or empty
             if (this.renames[villageKey]) {
                 delete this.renames[villageKey];
