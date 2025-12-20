@@ -84,7 +84,7 @@ function addStyles() {
         
         .scavenge-panel-title {
             margin: 0;
-            color: #2E7D32;
+            color: #6C4D2D;
             font-size: 18px;
         }
         
@@ -207,7 +207,7 @@ function addStyles() {
         .scavenge-mode-title {
             font-weight: bold;
             margin-bottom: 10px;
-            color: #2E7D32;
+            color: #6C4D2D;
         }
         
         .scavenge-mode-controls-container {
@@ -277,7 +277,7 @@ function addStyles() {
         
         .scavenge-resources-total {
             font-weight: bold;
-            color: #2E7D32;
+            color: #6C4D2D;
         }
         
         .scavenge-auto-repeat {
