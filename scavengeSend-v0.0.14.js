@@ -56,7 +56,7 @@ function addStyles() {
             left: 50%;
             transform: translate(-50%, -50%);
             background: white;
-            border: 2px solid #4CAF50;
+            border: 2px solid #6C4D2D;
             border-radius: 5px;
             padding: 15px;
             z-index: 10000;
@@ -125,7 +125,7 @@ function addStyles() {
         
         .scavenge-slider-value {
             font-weight: bold;
-            color: #4CAF50;
+            color: #6C4D2D;
             min-width: 40px;
             text-align: right;
         }
@@ -149,7 +149,7 @@ function addStyles() {
             width: 18px;
             height: 18px;
             border-radius: 50%;
-            background: #4CAF50;
+            background: #6C4D2D;
             cursor: pointer;
             border: 2px solid white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -167,7 +167,7 @@ function addStyles() {
             width: 18px;
             height: 18px;
             border-radius: 50%;
-            background: #4CAF50;
+            background: #6C4D2D;
             cursor: pointer;
             border: 2px solid white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
@@ -190,6 +190,11 @@ function addStyles() {
             margin-right: 5px;
             cursor: pointer;
         }
+
+        .scavenge-troop-checkbox,
+        .scavenge-mode-checkbox {
+            accent-color: #6C4D2D;
+        }
         
         .scavenge-troop-label {
             cursor: pointer;
@@ -201,7 +206,7 @@ function addStyles() {
             padding: 10px;
             background: #e8f5e8;
             border-radius: 4px;
-            border: 1px solid #4CAF50;
+            border: 1px solid #6C4D2D;
         }
         
         .scavenge-mode-title {
@@ -254,7 +259,7 @@ function addStyles() {
             padding: 8px;
             text-align: center;
             border: 1px solid #ddd;
-            background-color: #4CAF50;
+            background-color: #6C4D2D;
             color: white;
         }
         
@@ -685,7 +690,7 @@ function createTroopCheckboxes() {
     
     var troopTypes = [
         { id: 'spear', name: 'Spear', color: '#2196F3' },
-        { id: 'sword', name: 'Sword', color: '#4CAF50' },
+        { id: 'sword', name: 'Sword', color: '#6C4D2D' },
         { id: 'axe', name: 'Axe', color: '#FF9800' },
         { id: 'light', name: 'Light', color: '#9C27B0' },
         { id: 'heavy', name: 'Heavy', color: '#F44336' },
@@ -734,7 +739,7 @@ function createModeControls() {
     container.appendChild(title);
     
     var modeNames = ['Lazy', 'Modest', 'Skillful', 'Great'];
-    var modeColors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
+    var modeColors = ['#6C4D2D', '#2196F3', '#FF9800', '#9C27B0'];
     
     var controlsContainer = document.createElement('div');
     controlsContainer.className = 'scavenge-mode-controls-container';
@@ -1032,7 +1037,7 @@ function createControlPanel() {
             } else {
                 timeCell.textContent = mode.durationText;
             }
-            timeCell.style.color = '#4CAF50';
+            timeCell.style.color = '#6C4D2D';
         }
         row.appendChild(timeCell);
         
@@ -1194,7 +1199,7 @@ function updateControlPanelWithDurations() {
                 timeCell.className = '';
             } else if (modeDurations[modeIndex]) {
                 timeCell.textContent = modeDurations[modeIndex];
-                timeCell.style.color = '#4CAF50';
+                timeCell.style.color = '#6C4D2D';
                 timeCell.className = '';
             }
             
