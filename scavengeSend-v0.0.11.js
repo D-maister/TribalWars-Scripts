@@ -18,10 +18,8 @@ var calculatedData = {
     actualTotalRatio: 0
 };
 
-// Store durations persistently
+// Store durations and resources for each mode
 var modeDurations = {};
-
-// Store resources for each mode
 var modeResources = {};
 
 // Store which modes are enabled by user (by default all are enabled)
@@ -31,6 +29,11 @@ var enabledModes = [true, true, true, true];
 var customRatios = modeRatios.split('/').map(function(ratio) {
     return parseInt(ratio);
 });
+
+// Auto-repeat settings
+var autoRepeatEnabled = false;
+var nextAutoRunTime = null;
+var isAutoRunning = false;
 
 // UI Elements
 var controlPanel = null;
@@ -110,21 +113,26 @@ function addStyles() {
             padding: 10px;
             background: #f5f5f5;
             border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         
         .scavenge-slider-label {
-            margin-right: 10px;
             font-weight: bold;
+            white-space: nowrap;
         }
         
         .scavenge-slider-value {
             font-weight: bold;
             color: #4CAF50;
+            min-width: 40px;
+            text-align: right;
         }
         
         .scavenge-slider {
-            width: 100%;
-            margin: 10px 0;
+            flex: 1;
+            margin: 0;
             cursor: pointer;
         }
         
@@ -230,19 +238,34 @@ function addStyles() {
             font-weight: bold;
         }
         
-        .scavenge-btn-calculate {
-            background: #2196F3;
-            color: white;
-        }
-        
-        .scavenge-btn-send {
-            background: #4CAF50;
-            color: white;
-        }
-        
         .scavenge-resources-total {
             font-weight: bold;
             color: #2E7D32;
+        }
+        
+        .scavenge-auto-repeat {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #fff3e0;
+            border-radius: 4px;
+            border: 1px solid #FF9800;
+        }
+        
+        .scavenge-auto-repeat-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #FF9800;
+        }
+        
+        .scavenge-auto-repeat-info {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .unlocking-status {
+            color: #FF9800 !important;
+            font-weight: bold !important;
         }
         
         #scavengeToggleBtn {
@@ -302,6 +325,86 @@ function clearAllTroopInputs() {
 }
 
 /**
+ * Check if a scavenge mode is locked (not researched)
+ * @param {number} modeIndex - Index of the mode to check
+ * @returns {boolean} - True if mode is locked
+ */
+function isModeLocked(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var lockedView = modeElement.querySelector('.locked-view');
+        var unlockingView = modeElement.querySelector('.unlocking-view');
+        var unlockCountdown = modeElement.querySelector('.unlock-countdown');
+        
+        return !!lockedView || !!unlockingView || !!unlockCountdown;
+    }
+    return false;
+}
+
+/**
+ * Check if a scavenge mode is unlocking (currently being unlocked)
+ * @param {number} modeIndex - Index of the mode to check
+ * @returns {boolean} - True if mode is unlocking
+ */
+function isModeUnlocking(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var unlockingView = modeElement.querySelector('.unlocking-view');
+        var unlockCountdown = modeElement.querySelector('.unlock-countdown');
+        
+        return !!unlockingView || !!unlockCountdown;
+    }
+    return false;
+}
+
+/**
+ * Get unlocking countdown text if mode is unlocking
+ * @param {number} modeIndex - Index of the mode to check
+ * @returns {string} - Countdown text or empty string
+ */
+function getUnlockingCountdown(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var countdownText = modeElement.querySelector('.unlock-countdown-text');
+        if (countdownText) {
+            return countdownText.textContent.trim();
+        }
+    }
+    return '';
+}
+
+/**
+ * Check if a scavenge mode is active
+ * @param {number} modeIndex - Index of the mode to check
+ * @returns {boolean} - True if mode is active
+ */
+function isModeActive(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var activeView = modeElement.querySelector('.active-view');
+        return !!activeView;
+    }
+    return false;
+}
+
+/**
+ * Check if a scavenge mode is available (not locked, not unlocking, and not active)
+ * @param {number} modeIndex - Index of the mode to check
+ * @returns {boolean} - True if mode is available
+ */
+function isModeAvailable(modeIndex) {
+    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
+    if (modeElement) {
+        var lockedView = modeElement.querySelector('.locked-view');
+        var unlockingView = modeElement.querySelector('.unlocking-view');
+        var activeView = modeElement.querySelector('.active-view');
+        
+        return !lockedView && !unlockingView && !activeView;
+    }
+    return false;
+}
+
+/**
  * Calculate troops for a specific mode
  * @param {number} modeIndex - Index of the mode
  * @param {number} modeRatio - Ratio for this mode
@@ -334,6 +437,10 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
     // Get resources if available
     var totalResources = modeResources[modeIndex] || 0;
     
+    // Check if mode is unlocking
+    var isUnlocking = isModeUnlocking(modeIndex);
+    var unlockingCountdown = isUnlocking ? getUnlockingCountdown(modeIndex) : '';
+    
     return {
         modeIndex: modeIndex,
         modeName: getModeName(modeIndex),
@@ -344,9 +451,32 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
         totalResources: totalResources,
         isAvailable: isModeAvailable(modeIndex),
         isLocked: isModeLocked(modeIndex),
+        isUnlocking: isUnlocking,
+        unlockingCountdown: unlockingCountdown,
         isActive: isModeActive(modeIndex),
         isEnabledByUser: enabledModes[modeIndex]
     };
+}
+
+/**
+ * Parse resource value from string (handles numbers with dots like "3.128")
+ * @param {string} valueStr - String value like "3.128"
+ * @returns {number} - Parsed integer value (3128)
+ */
+function parseResourceValue(valueStr) {
+    if (!valueStr) return 0;
+    
+    // Remove any whitespace
+    valueStr = valueStr.trim();
+    
+    // If it contains a dot, treat it as a formatted number
+    if (valueStr.includes('.')) {
+        // Remove dots and parse as integer
+        return parseInt(valueStr.replace(/\./g, '')) || 0;
+    }
+    
+    // Otherwise parse as regular number
+    return parseInt(valueStr) || 0;
 }
 
 /**
@@ -384,9 +514,9 @@ function getActualDurationAndResourcesForMode(modeIndex) {
             var stoneValue = previewElement.querySelector('.stone-value');
             var ironValue = previewElement.querySelector('.iron-value');
             
-            var wood = woodValue ? parseInt(woodValue.textContent) || 0 : 0;
-            var stone = stoneValue ? parseInt(stoneValue.textContent) || 0 : 0;
-            var iron = ironValue ? parseInt(ironValue.textContent) || 0 : 0;
+            var wood = woodValue ? parseResourceValue(woodValue.textContent) : 0;
+            var stone = stoneValue ? parseResourceValue(stoneValue.textContent) : 0;
+            var iron = ironValue ? parseResourceValue(ironValue.textContent) : 0;
             
             totalResources = wood + stone + iron;
         }
@@ -400,20 +530,6 @@ function getActualDurationAndResourcesForMode(modeIndex) {
         duration: 'Unknown',
         totalResources: 0
     };
-}
-
-/**
- * Check if a scavenge mode is active
- * @param {number} modeIndex - Index of the mode to check
- * @returns {boolean} - True if mode is active
- */
-function isModeActive(modeIndex) {
-    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
-    if (modeElement) {
-        var activeView = modeElement.querySelector('.active-view');
-        return !!activeView;
-    }
-    return false;
 }
 
 /**
@@ -449,42 +565,13 @@ function sendTroops(modeIndex) {
 }
 
 /**
- * Check if a scavenge mode is available (not locked and not active)
- * @param {number} modeIndex - Index of the mode to check
- * @returns {boolean} - True if mode is available
- */
-function isModeAvailable(modeIndex) {
-    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
-    if (modeElement) {
-        var lockedView = modeElement.querySelector('.locked-view');
-        var activeView = modeElement.querySelector('.active-view');
-        return !lockedView && !activeView;
-    }
-    return false;
-}
-
-/**
- * Check if a scavenge mode is locked (not researched)
- * @param {number} modeIndex - Index of the mode to check
- * @returns {boolean} - True if mode is locked
- */
-function isModeLocked(modeIndex) {
-    var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
-    if (modeElement) {
-        var lockedView = modeElement.querySelector('.locked-view');
-        return !!lockedView;
-    }
-    return false;
-}
-
-/**
  * Calculate all modes data
  */
 function calculateAllModes() {
     // Use custom ratios if available
     var currentRatios = customRatios;
     
-    // Get locked modes
+    // Get locked modes (including unlocking modes)
     var lockedModes = [];
     for (var i = 0; i < currentRatios.length; i++) {
         if (isModeLocked(i)) {
@@ -492,7 +579,15 @@ function calculateAllModes() {
         }
     }
     
-    // Recalculate total ratio EXCLUDING locked modes AND disabled modes
+    // Get unlocking modes
+    var unlockingModes = [];
+    for (var i = 0; i < currentRatios.length; i++) {
+        if (isModeUnlocking(i)) {
+            unlockingModes.push(i);
+        }
+    }
+    
+    // Recalculate total ratio EXCLUDING locked modes (including unlocking) AND disabled modes
     var actualTotalRatio = 0;
     for (var i = 0; i < currentRatios.length; i++) {
         if (!lockedModes.includes(i) && enabledModes[i]) {
@@ -532,7 +627,8 @@ function calculateAllModes() {
         modes: modesData,
         totalTroopsAvailable: totalTroopsAvailable,
         actualTotalRatio: actualTotalRatio,
-        lockedModes: lockedModes
+        lockedModes: lockedModes,
+        unlockingModes: unlockingModes
     };
     
     return calculatedData;
@@ -658,6 +754,53 @@ function createModeControls() {
 }
 
 /**
+ * Create auto-repeat section
+ */
+function createAutoRepeatSection() {
+    var container = document.createElement('div');
+    container.className = 'scavenge-auto-repeat';
+    
+    var title = document.createElement('div');
+    title.textContent = 'Auto Repeat Settings:';
+    title.className = 'scavenge-auto-repeat-title';
+    container.appendChild(title);
+    
+    var checkboxContainer = document.createElement('div');
+    checkboxContainer.style.display = 'flex';
+    checkboxContainer.style.alignItems = 'center';
+    checkboxContainer.style.gap = '8px';
+    
+    var autoRepeatCheckbox = document.createElement('input');
+    autoRepeatCheckbox.type = 'checkbox';
+    autoRepeatCheckbox.id = 'autoRepeatCheckbox';
+    autoRepeatCheckbox.checked = autoRepeatEnabled;
+    autoRepeatCheckbox.style.cursor = 'pointer';
+    
+    autoRepeatCheckbox.onchange = function() {
+        autoRepeatEnabled = this.checked;
+        updateControlPanel();
+    };
+    
+    var autoRepeatLabel = document.createElement('label');
+    autoRepeatLabel.htmlFor = 'autoRepeatCheckbox';
+    autoRepeatLabel.textContent = 'Enable Auto Repeat';
+    autoRepeatLabel.style.cursor = 'pointer';
+    autoRepeatLabel.style.fontWeight = 'bold';
+    
+    checkboxContainer.appendChild(autoRepeatCheckbox);
+    checkboxContainer.appendChild(autoRepeatLabel);
+    container.appendChild(checkboxContainer);
+    
+    // Info text
+    var infoText = document.createElement('div');
+    infoText.className = 'scavenge-auto-repeat-info';
+    infoText.textContent = 'When enabled, script will automatically restart scavenging when all modes complete. Settings are saved.';
+    container.appendChild(infoText);
+    
+    return container;
+}
+
+/**
  * Create control panel HTML
  */
 function createControlPanel() {
@@ -724,6 +867,9 @@ function createControlPanel() {
     // Create mode controls (checkboxes and ratio inputs)
     var modeControls = createModeControls();
     
+    // Create auto-repeat section
+    var autoRepeatSection = createAutoRepeatSection();
+    
     // Create table
     var table = document.createElement('table');
     table.className = 'scavenge-table';
@@ -748,8 +894,10 @@ function createControlPanel() {
         var row = document.createElement('tr');
         
         // Determine row background color based on multiple conditions
-        if (mode.isLocked) {
+        if (mode.isLocked && !mode.isUnlocking) {
             row.style.backgroundColor = '#ffebee'; // Red for locked
+        } else if (mode.isUnlocking) {
+            row.style.backgroundColor = '#fff3e0'; // Orange for unlocking
         } else if (mode.isActive) {
             row.style.backgroundColor = '#fff3e0'; // Orange for active
         } else if (!mode.isEnabledByUser) {
@@ -767,8 +915,8 @@ function createControlPanel() {
         modeCell.style.alignItems = 'center';
         modeCell.style.gap = '8px';
         
-        // Add checkbox only if not locked and not active
-        if (!mode.isLocked && !mode.isActive) {
+        // Add checkbox only if not locked, not unlocking, and not active
+        if (!mode.isLocked && !mode.isActive && !mode.isUnlocking) {
             var modeCheckbox = document.createElement('input');
             modeCheckbox.type = 'checkbox';
             modeCheckbox.checked = mode.isEnabledByUser;
@@ -783,9 +931,20 @@ function createControlPanel() {
         var modeNameSpan = document.createElement('span');
         modeNameSpan.textContent = mode.modeName;
         modeNameSpan.style.fontWeight = 'bold';
-        modeNameSpan.style.color = mode.isLocked ? '#999' : 
-                                  mode.isActive ? '#ff9800' : 
-                                  !mode.isEnabledByUser ? '#999' : '#333';
+        
+        // Set color based on mode status
+        if (mode.isLocked && !mode.isUnlocking) {
+            modeNameSpan.style.color = '#f44336'; // Red for locked
+        } else if (mode.isUnlocking) {
+            modeNameSpan.style.color = '#FF9800'; // Orange for unlocking
+        } else if (mode.isActive) {
+            modeNameSpan.style.color = '#ff9800'; // Orange for active
+        } else if (!mode.isEnabledByUser) {
+            modeNameSpan.style.color = '#999'; // Gray for disabled
+        } else {
+            modeNameSpan.style.color = '#333'; // Normal
+        }
+        
         modeCell.appendChild(modeNameSpan);
         
         row.appendChild(modeCell);
@@ -796,7 +955,7 @@ function createControlPanel() {
             var troopCell = document.createElement('td');
             var troopCount = mode.troops[troopType] || 0;
             
-            if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
+            if (mode.isLocked || mode.isActive || mode.isUnlocking || !mode.isEnabledByUser) {
                 troopCell.textContent = '-';
                 troopCell.style.color = '#999';
             } else {
@@ -817,9 +976,12 @@ function createControlPanel() {
         
         // Time cell
         var timeCell = document.createElement('td');
-        if (mode.isLocked) {
+        if (mode.isLocked && !mode.isUnlocking) {
             timeCell.textContent = 'Locked';
             timeCell.style.color = '#f44336';
+        } else if (mode.isUnlocking) {
+            timeCell.textContent = 'Unlocking: ' + mode.unlockingCountdown;
+            timeCell.className = 'unlocking-status';
         } else if (mode.isActive) {
             timeCell.textContent = 'Active';
             timeCell.style.color = '#ff9800';
@@ -839,7 +1001,7 @@ function createControlPanel() {
         
         // Total Resources cell
         var resourcesCell = document.createElement('td');
-        if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
+        if (mode.isLocked || mode.isActive || mode.isUnlocking || !mode.isEnabledByUser) {
             resourcesCell.textContent = '-';
             resourcesCell.style.color = '#999';
         } else {
@@ -859,13 +1021,15 @@ function createControlPanel() {
     var summaryCell = document.createElement('td');
     summaryCell.colSpan = 8;
     
-    var enabledCount = data.modes.filter(m => m.isEnabledByUser && !m.isLocked && !m.isActive).length;
+    var enabledCount = data.modes.filter(m => m.isEnabledByUser && !m.isLocked && !m.isActive && !m.isUnlocking).length;
+    var availableCount = data.modes.filter(m => m.isAvailable && m.isEnabledByUser).length;
     var usedRatios = customRatios.filter((ratio, index) => enabledModes[index]).join('/');
     
     summaryCell.textContent = 'Total troops: ' + data.totalTroopsAvailable + 
-                             ' | Available: ' + data.modes.filter(m => m.isAvailable && m.isEnabledByUser).length +
+                             ' | Available: ' + availableCount +
                              ' | Enabled: ' + enabledCount +
                              ' | Locked: ' + data.lockedModes.length +
+                             ' | Unlocking: ' + data.unlockingModes.length +
                              ' | Ratios: ' + usedRatios;
     
     summaryCell.style.padding = '8px';
@@ -885,7 +1049,7 @@ function createControlPanel() {
     // Calculate button - sequential calculation
     var calculateBtn = document.createElement('button');
     calculateBtn.textContent = '📊 Calculate All Modes';
-    calculateBtn.className = 'btn btn-default scavenge-btn scavenge-btn-calculate';
+    calculateBtn.className = 'btn btn-default scavenge-btn';
     calculateBtn.onclick = function() {
         calculateAndFillSequentially();
     };
@@ -893,7 +1057,7 @@ function createControlPanel() {
     // Send All button
     var sendAllBtn = document.createElement('button');
     sendAllBtn.textContent = '🚀 Send All Available';
-    sendAllBtn.className = 'btn btn-default scavenge-btn scavenge-btn-send';
+    sendAllBtn.className = 'btn btn-default scavenge-btn';
     sendAllBtn.onclick = function() {
         sendAllAvailableModes();
     };
@@ -906,6 +1070,7 @@ function createControlPanel() {
     controlPanel.appendChild(sliderContainer);
     controlPanel.appendChild(troopCheckboxes);
     controlPanel.appendChild(modeControls);
+    controlPanel.appendChild(autoRepeatSection);
     controlPanel.appendChild(table);
     controlPanel.appendChild(buttonsContainer);
     
@@ -961,9 +1126,6 @@ function updateControlPanel() {
 function updateControlPanelWithDurations() {
     if (!controlPanel || !isPanelVisible) return;
     
-    console.log('Updating panel with durations:', modeDurations);
-    console.log('Updating panel with resources:', modeResources);
-    
     // Update the table with stored durations and resources
     var rows = controlPanel.querySelectorAll('.scavenge-table tbody tr');
     
@@ -978,24 +1140,32 @@ function updateControlPanelWithDurations() {
             var mode = calculatedData.modes[modeIndex];
             
             // Update time cell
-            if (mode.isLocked) {
+            if (mode.isLocked && !mode.isUnlocking) {
                 timeCell.textContent = 'Locked';
                 timeCell.style.color = '#f44336';
+                timeCell.className = '';
+            } else if (mode.isUnlocking) {
+                timeCell.textContent = 'Unlocking: ' + (mode.unlockingCountdown || getUnlockingCountdown(modeIndex));
+                timeCell.className = 'unlocking-status';
             } else if (mode.isActive) {
                 timeCell.textContent = 'Active';
                 timeCell.style.color = '#ff9800';
+                timeCell.className = '';
             } else if (!mode.isEnabledByUser) {
                 timeCell.textContent = 'Disabled';
                 timeCell.style.color = '#999';
+                timeCell.className = '';
             } else if (modeDurations[modeIndex]) {
                 timeCell.textContent = modeDurations[modeIndex];
                 timeCell.style.color = '#4CAF50';
+                timeCell.className = '';
             }
             
             // Update resources cell
-            if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
+            if (mode.isLocked || mode.isActive || mode.isUnlocking || !mode.isEnabledByUser) {
                 resourcesCell.textContent = '-';
                 resourcesCell.style.color = '#999';
+                resourcesCell.className = '';
             } else if (modeResources[modeIndex]) {
                 resourcesCell.textContent = modeResources[modeIndex].toLocaleString();
                 resourcesCell.className = 'scavenge-resources-total';
@@ -1009,7 +1179,7 @@ function updateControlPanelWithDurations() {
  */
 function calculateAndFillSequentially() {
     var data = calculateAllModes();
-    // Only calculate modes that are enabled by user
+    // Only calculate modes that are enabled by user and not locked/unlocking
     var availableModes = data.modes.filter(mode => mode.isAvailable && mode.isEnabledByUser);
     
     if (availableModes.length === 0) {
@@ -1018,7 +1188,7 @@ function calculateAndFillSequentially() {
     }
     
     // Disable the calculate button during processing
-    var calculateBtn = controlPanel.querySelector('.scavenge-btn-calculate');
+    var calculateBtn = controlPanel.querySelector('.scavenge-btn');
     if (calculateBtn) {
         calculateBtn.disabled = true;
         calculateBtn.textContent = '⏳ Calculating...';
@@ -1037,7 +1207,7 @@ function calculateAndFillSequentially() {
             if (calculateBtn) {
                 calculateBtn.disabled = false;
                 calculateBtn.textContent = '📊 Calculate All Modes';
-                calculateBtn.style.backgroundColor = '#2196F3';
+                calculateBtn.style.backgroundColor = '';
             }
             
             alert('Sequential calculation completed!');
@@ -1103,7 +1273,7 @@ function calculateAndFillSequentially() {
  */
 function sendAllAvailableModes() {
     var data = calculateAllModes();
-    // Only send modes that are enabled by user
+    // Only send modes that are enabled by user and not locked/unlocking
     var availableModes = data.modes.filter(mode => mode.isAvailable && mode.isEnabledByUser);
     
     if (availableModes.length === 0) {
