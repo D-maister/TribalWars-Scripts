@@ -21,6 +21,9 @@ var calculatedData = {
 // Store durations persistently
 var modeDurations = {};
 
+// Store resources for each mode
+var modeResources = {};
+
 // Store which modes are enabled by user (by default all are enabled)
 var enabledModes = [true, true, true, true];
 
@@ -32,6 +35,229 @@ var customRatios = modeRatios.split('/').map(function(ratio) {
 // UI Elements
 var controlPanel = null;
 var isPanelVisible = false;
+
+// Add styles to the page
+function addStyles() {
+    // Remove existing styles if they exist
+    var existingStyles = document.getElementById('tw-scavenge-mode-styles');
+    if (existingStyles) {
+        existingStyles.remove();
+    }
+    
+    var styleElement = document.createElement('style');
+    styleElement.id = 'tw-scavenge-mode-styles';
+    styleElement.textContent = `
+        #scavengeControlPanel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 2px solid #4CAF50;
+            border-radius: 5px;
+            padding: 15px;
+            z-index: 10000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        #scavengeControlPanel.visible {
+            display: block;
+        }
+        
+        .scavenge-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+        }
+        
+        .scavenge-panel-title {
+            margin: 0;
+            color: #2E7D32;
+            font-size: 18px;
+        }
+        
+        .scavenge-close-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        
+        .scavenge-close-btn:hover {
+            background: #ff6666;
+        }
+        
+        .scavenge-slider-container {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .scavenge-slider-label {
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .scavenge-slider-value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .scavenge-slider {
+            width: 100%;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+        
+        .scavenge-troop-checkboxes {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .scavenge-troop-checkbox-group {
+            margin-right: 15px;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .scavenge-troop-checkbox {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        
+        .scavenge-troop-label {
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .scavenge-mode-controls {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #e8f5e8;
+            border-radius: 4px;
+            border: 1px solid #4CAF50;
+        }
+        
+        .scavenge-mode-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2E7D32;
+        }
+        
+        .scavenge-mode-controls-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .scavenge-mode-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .scavenge-mode-checkbox {
+            cursor: pointer;
+        }
+        
+        .scavenge-mode-name {
+            cursor: pointer;
+            font-weight: bold;
+            min-width: 60px;
+        }
+        
+        .scavenge-ratio-input {
+            width: 50px;
+            padding: 3px 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            text-align: center;
+        }
+        
+        .scavenge-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        
+        .scavenge-table th {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .scavenge-table td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        
+        .scavenge-buttons-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .scavenge-btn {
+            flex: 1;
+            font-weight: bold;
+        }
+        
+        .scavenge-btn-calculate {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .scavenge-btn-send {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .scavenge-resources-total {
+            font-weight: bold;
+            color: #2E7D32;
+        }
+        
+        #scavengeToggleBtn {
+            position: relative;
+            top: 0;
+            right: 0;
+            margin-right: 10px;
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: 60px;
+        }
+    `;
+    
+    document.head.appendChild(styleElement);
+}
 
 /**
  * Get the number of available troops for a specific unit type
@@ -105,6 +331,9 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
     // Get mode duration - will be filled later when mode is actually processed
     var durationText = '-';
     
+    // Get resources if available
+    var totalResources = modeResources[modeIndex] || 0;
+    
     return {
         modeIndex: modeIndex,
         modeName: getModeName(modeIndex),
@@ -112,6 +341,7 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
         troops: troopsForMode,
         totalTroops: totalTroops,
         durationText: durationText,
+        totalResources: totalResources,
         isAvailable: isModeAvailable(modeIndex),
         isLocked: isModeLocked(modeIndex),
         isActive: isModeActive(modeIndex),
@@ -120,33 +350,56 @@ function calculateTroopsForMode(modeIndex, modeRatio, totalRatio) {
 }
 
 /**
- * Get actual duration for a mode (by filling troops and checking time)
+ * Get actual duration and resources for a mode (by filling troops and checking time)
  * @param {number} modeIndex - Index of the mode
- * @returns {string} - Duration text
+ * @returns {Object} - Object with duration and total resources
  */
-function getActualDurationForMode(modeIndex) {
+function getActualDurationAndResourcesForMode(modeIndex) {
     var modeElement = document.querySelectorAll('.scavenge-option')[modeIndex];
     if (modeElement) {
-        // Try different selectors for the duration element
+        // Get duration
+        var durationText = 'Unknown';
         var durationElement = modeElement.querySelector('.duration');
         
-        // If not found with .duration, try other possible selectors
         if (!durationElement) {
-            // Look in duration-section
             var durationSection = modeElement.querySelector('.duration-section');
             if (durationSection) {
                 durationElement = durationSection.querySelector('.duration');
             }
         }
         
-        // Also try looking for any span with class duration
         if (!durationElement) {
             durationElement = modeElement.querySelector('span.duration');
         }
         
-        return durationElement ? durationElement.textContent.trim() : 'Unknown';
+        if (durationElement) {
+            durationText = durationElement.textContent.trim();
+        }
+        
+        // Get resources
+        var totalResources = 0;
+        var previewElement = modeElement.querySelector('.preview');
+        if (previewElement) {
+            var woodValue = previewElement.querySelector('.wood-value');
+            var stoneValue = previewElement.querySelector('.stone-value');
+            var ironValue = previewElement.querySelector('.iron-value');
+            
+            var wood = woodValue ? parseInt(woodValue.textContent) || 0 : 0;
+            var stone = stoneValue ? parseInt(stoneValue.textContent) || 0 : 0;
+            var iron = ironValue ? parseInt(ironValue.textContent) || 0 : 0;
+            
+            totalResources = wood + stone + iron;
+        }
+        
+        return {
+            duration: durationText,
+            totalResources: totalResources
+        };
     }
-    return 'Unknown';
+    return {
+        duration: 'Unknown',
+        totalResources: 0
+    };
 }
 
 /**
@@ -263,9 +516,13 @@ function calculateAllModes() {
     for (var i = 0; i < currentRatios.length; i++) {
         var modeData = calculateTroopsForMode(i, currentRatios[i], actualTotalRatio);
         
-        // Preserve existing duration if we have it
+        // Preserve existing duration and resources if we have them
         if (modeDurations[i]) {
             modeData.durationText = modeDurations[i];
+        }
+        
+        if (modeResources[i]) {
+            modeData.totalResources = modeResources[i];
         }
         
         modesData.push(modeData);
@@ -286,17 +543,11 @@ function calculateAllModes() {
  */
 function createTroopCheckboxes() {
     var container = document.createElement('div');
-    container.style.cssText = `
-        margin-bottom: 15px;
-        padding: 10px;
-        background: #f5f5f5;
-        border-radius: 4px;
-    `;
+    container.className = 'scavenge-troop-checkboxes';
     
     var label = document.createElement('label');
     label.textContent = 'Troop types to use: ';
-    label.style.marginRight = '10px';
-    label.style.fontWeight = 'bold';
+    label.className = 'scavenge-slider-label';
     container.appendChild(label);
     
     var troopTypes = [
@@ -310,20 +561,14 @@ function createTroopCheckboxes() {
     
     troopTypes.forEach(function(troop) {
         var checkboxContainer = document.createElement('span');
-        checkboxContainer.style.cssText = `
-            margin-right: 15px;
-            display: inline-flex;
-            align-items: center;
-        `;
+        checkboxContainer.className = 'scavenge-troop-checkbox-group';
+        checkboxContainer.style.color = troop.color;
         
         var checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.id = 'troop_' + troop.id;
+        checkbox.className = 'scavenge-troop-checkbox';
         checkbox.checked = troopSettings[troop.id];
-        checkbox.style.cssText = `
-            margin-right: 5px;
-            cursor: pointer;
-        `;
         
         checkbox.onchange = function() {
             troopSettings[troop.id] = this.checked;
@@ -333,11 +578,7 @@ function createTroopCheckboxes() {
         var checkboxLabel = document.createElement('label');
         checkboxLabel.htmlFor = 'troop_' + troop.id;
         checkboxLabel.textContent = troop.name;
-        checkboxLabel.style.cssText = `
-            cursor: pointer;
-            color: ${troop.color};
-            font-weight: bold;
-        `;
+        checkboxLabel.className = 'scavenge-troop-label';
         
         checkboxContainer.appendChild(checkbox);
         checkboxContainer.appendChild(checkboxLabel);
@@ -352,51 +593,29 @@ function createTroopCheckboxes() {
  */
 function createModeControls() {
     var container = document.createElement('div');
-    container.style.cssText = `
-        margin-bottom: 15px;
-        padding: 10px;
-        background: #e8f5e8;
-        border-radius: 4px;
-        border: 1px solid #4CAF50;
-    `;
+    container.className = 'scavenge-mode-controls';
     
     var title = document.createElement('div');
     title.textContent = 'Mode Configuration:';
-    title.style.fontWeight = 'bold';
-    title.style.marginBottom = '10px';
-    title.style.color = '#2E7D32';
+    title.className = 'scavenge-mode-title';
     container.appendChild(title);
     
     var modeNames = ['Lazy', 'Modest', 'Skillful', 'Great'];
     var modeColors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0'];
     
     var controlsContainer = document.createElement('div');
-    controlsContainer.style.cssText = `
-        display: flex;
-        flex-wrap: wrap;
-        gap: 15px;
-    `;
+    controlsContainer.className = 'scavenge-mode-controls-container';
     
     for (var i = 0; i < 4; i++) {
         var modeControl = document.createElement('div');
-        modeControl.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 10px;
-            background: white;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        `;
+        modeControl.className = 'scavenge-mode-control';
         
         // Mode checkbox
         var modeCheckbox = document.createElement('input');
         modeCheckbox.type = 'checkbox';
         modeCheckbox.id = 'mode_' + i;
+        modeCheckbox.className = 'scavenge-mode-checkbox';
         modeCheckbox.checked = enabledModes[i];
-        modeCheckbox.style.cssText = `
-            cursor: pointer;
-        `;
         
         modeCheckbox.onchange = function() {
             var modeIndex = parseInt(this.id.split('_')[1]);
@@ -408,12 +627,8 @@ function createModeControls() {
         var modeLabel = document.createElement('label');
         modeLabel.htmlFor = 'mode_' + i;
         modeLabel.textContent = modeNames[i];
-        modeLabel.style.cssText = `
-            cursor: pointer;
-            color: ${modeColors[i]};
-            font-weight: bold;
-            min-width: 60px;
-        `;
+        modeLabel.className = 'scavenge-mode-name';
+        modeLabel.style.color = modeColors[i];
         
         // Ratio input
         var ratioInput = document.createElement('input');
@@ -421,16 +636,10 @@ function createModeControls() {
         ratioInput.min = '0';
         ratioInput.max = '100';
         ratioInput.value = customRatios[i];
-        ratioInput.style.cssText = `
-            width: 50px;
-            padding: 3px 5px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            text-align: center;
-        `;
+        ratioInput.className = 'scavenge-ratio-input';
         
         ratioInput.onchange = function() {
-            var modeIndex = parseInt(this.parentElement.querySelector('input[type="checkbox"]').id.split('_')[1]);
+            var modeIndex = parseInt(this.parentElement.querySelector('.scavenge-mode-checkbox').id.split('_')[1]);
             var value = parseInt(this.value) || 0;
             customRatios[modeIndex] = value;
             updateControlPanel();
@@ -458,63 +667,23 @@ function createControlPanel() {
     
     controlPanel = document.createElement('div');
     controlPanel.id = 'scavengeControlPanel';
-    controlPanel.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        background: white;
-        border: 2px solid #4CAF50;
-        border-radius: 5px;
-        padding: 15px;
-        z-index: 10000;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        font-family: Arial, sans-serif;
-        max-width: 800px;
-        max-height: 80vh;
-        overflow-y: auto;
-    `;
     
     // Calculate data first
     var data = calculateAllModes();
     
     // Create header
     var header = document.createElement('div');
-    header.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ccc;
-    `;
+    header.className = 'scavenge-panel-header';
     
     var title = document.createElement('h3');
     title.textContent = 'Scavenge Auto Farmer';
-    title.style.margin = '0';
+    title.className = 'scavenge-panel-title';
     
     var closeBtn = document.createElement('button');
     closeBtn.innerHTML = '&times;';
-    closeBtn.style.cssText = `
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        cursor: pointer;
-        font-size: 20px;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
-    `;
+    closeBtn.className = 'scavenge-close-btn';
     closeBtn.onclick = function() {
-        if (controlPanel) {
-            controlPanel.remove();
-            controlPanel = null;
-        }
-        isPanelVisible = false;
+        hideControlPanel();
     };
     
     header.appendChild(title);
@@ -522,34 +691,22 @@ function createControlPanel() {
     
     // Create slider for percentage
     var sliderContainer = document.createElement('div');
-    sliderContainer.style.cssText = `
-        margin-bottom: 15px;
-        padding: 10px;
-        background: #f5f5f5;
-        border-radius: 4px;
-    `;
+    sliderContainer.className = 'scavenge-slider-container';
     
     var sliderLabel = document.createElement('label');
     sliderLabel.textContent = 'Troops to send: ';
-    sliderLabel.style.marginRight = '10px';
-    sliderLabel.style.fontWeight = 'bold';
+    sliderLabel.className = 'scavenge-slider-label';
     
     var sliderValue = document.createElement('span');
     sliderValue.textContent = percentageToUse + '%';
-    sliderValue.style.fontWeight = 'bold';
-    sliderValue.style.color = '#4CAF50';
+    sliderValue.className = 'scavenge-slider-value';
     
     var slider = document.createElement('input');
     slider.type = 'range';
     slider.min = '0';
     slider.max = '100';
     slider.value = percentageToUse;
-    slider.style.cssText = `
-        width: 200px;
-        margin: 0 10px;
-        vertical-align: middle;
-        cursor: pointer;
-    `;
+    slider.className = 'scavenge-slider';
     
     slider.oninput = function() {
         percentageToUse = parseInt(this.value);
@@ -569,25 +726,16 @@ function createControlPanel() {
     
     // Create table
     var table = document.createElement('table');
-    table.style.cssText = `
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 15px;
-    `;
+    table.className = 'scavenge-table';
     
     // Table header
     var thead = document.createElement('thead');
     var headerRow = document.createElement('tr');
-    headerRow.style.backgroundColor = '#4CAF50';
-    headerRow.style.color = 'white';
     
-    var headers = ['Mode', 'Spear', 'Sword', 'Axe', 'Light', 'Heavy', 'Time'];
+    var headers = ['Mode', 'Spear', 'Sword', 'Axe', 'Light', 'Heavy', 'Time', 'Total Resources'];
     headers.forEach(function(headerText) {
         var th = document.createElement('th');
         th.textContent = headerText;
-        th.style.padding = '8px';
-        th.style.textAlign = 'center';
-        th.style.border = '1px solid #ddd';
         headerRow.appendChild(th);
     });
     
@@ -615,13 +763,9 @@ function createControlPanel() {
         
         // Mode cell with checkbox
         var modeCell = document.createElement('td');
-        modeCell.style.cssText = `
-            padding: 8px;
-            border: 1px solid #ddd;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        `;
+        modeCell.style.display = 'flex';
+        modeCell.style.alignItems = 'center';
+        modeCell.style.gap = '8px';
         
         // Add checkbox only if not locked and not active
         if (!mode.isLocked && !mode.isActive) {
@@ -668,9 +812,6 @@ function createControlPanel() {
                 }
             }
             
-            troopCell.style.padding = '8px';
-            troopCell.style.textAlign = 'center';
-            troopCell.style.border = '1px solid #ddd';
             row.appendChild(troopCell);
         });
         
@@ -694,10 +835,19 @@ function createControlPanel() {
             }
             timeCell.style.color = '#4CAF50';
         }
-        timeCell.style.padding = '8px';
-        timeCell.style.textAlign = 'center';
-        timeCell.style.border = '1px solid #ddd';
         row.appendChild(timeCell);
+        
+        // Total Resources cell
+        var resourcesCell = document.createElement('td');
+        if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
+            resourcesCell.textContent = '-';
+            resourcesCell.style.color = '#999';
+        } else {
+            var resources = mode.totalResources || 0;
+            resourcesCell.textContent = resources.toLocaleString();
+            resourcesCell.className = 'scavenge-resources-total';
+        }
+        row.appendChild(resourcesCell);
         
         tbody.appendChild(row);
     });
@@ -707,7 +857,7 @@ function createControlPanel() {
     summaryRow.style.backgroundColor = '#e3f2fd';
     
     var summaryCell = document.createElement('td');
-    summaryCell.colSpan = 7;
+    summaryCell.colSpan = 8;
     
     var enabledCount = data.modes.filter(m => m.isEnabledByUser && !m.isLocked && !m.isActive).length;
     var usedRatios = customRatios.filter((ratio, index) => enabledModes[index]).join('/');
@@ -721,7 +871,6 @@ function createControlPanel() {
     summaryCell.style.padding = '8px';
     summaryCell.style.textAlign = 'center';
     summaryCell.style.fontWeight = 'bold';
-    summaryCell.style.border = '1px solid #ddd';
     
     summaryRow.appendChild(summaryCell);
     tbody.appendChild(summaryRow);
@@ -731,25 +880,12 @@ function createControlPanel() {
     
     // Create buttons container
     var buttonsContainer = document.createElement('div');
-    buttonsContainer.style.cssText = `
-        display: flex;
-        gap: 10px;
-        margin-top: 15px;
-    `;
+    buttonsContainer.className = 'scavenge-buttons-container';
     
     // Calculate button - sequential calculation
     var calculateBtn = document.createElement('button');
     calculateBtn.textContent = '📊 Calculate All Modes';
-    calculateBtn.style.cssText = `
-        padding: 10px 15px;
-        background: #2196F3;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        flex: 1;
-        font-weight: bold;
-    `;
+    calculateBtn.className = 'btn btn-default scavenge-btn scavenge-btn-calculate';
     calculateBtn.onclick = function() {
         calculateAndFillSequentially();
     };
@@ -757,43 +893,13 @@ function createControlPanel() {
     // Send All button
     var sendAllBtn = document.createElement('button');
     sendAllBtn.textContent = '🚀 Send All Available';
-    sendAllBtn.style.cssText = `
-        padding: 10px 15px;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        flex: 1;
-        font-weight: bold;
-    `;
+    sendAllBtn.className = 'btn btn-default scavenge-btn scavenge-btn-send';
     sendAllBtn.onclick = function() {
         sendAllAvailableModes();
     };
     
-    // Close button
-    var closePanelBtn = document.createElement('button');
-    closePanelBtn.textContent = 'Close Panel';
-    closePanelBtn.style.cssText = `
-        padding: 10px 15px;
-        background: #9e9e9e;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        flex: 1;
-    `;
-    closePanelBtn.onclick = function() {
-        if (controlPanel) {
-            controlPanel.remove();
-            controlPanel = null;
-        }
-        isPanelVisible = false;
-    };
-    
     buttonsContainer.appendChild(calculateBtn);
     buttonsContainer.appendChild(sendAllBtn);
-    buttonsContainer.appendChild(closePanelBtn);
     
     // Assemble the panel
     controlPanel.appendChild(header);
@@ -804,7 +910,38 @@ function createControlPanel() {
     controlPanel.appendChild(buttonsContainer);
     
     document.body.appendChild(controlPanel);
+}
+
+/**
+ * Show control panel
+ */
+function showControlPanel() {
+    if (!controlPanel) {
+        createControlPanel();
+    }
+    controlPanel.classList.add('visible');
     isPanelVisible = true;
+}
+
+/**
+ * Hide control panel
+ */
+function hideControlPanel() {
+    if (controlPanel) {
+        controlPanel.classList.remove('visible');
+        isPanelVisible = false;
+    }
+}
+
+/**
+ * Toggle control panel visibility
+ */
+function toggleControlPanel() {
+    if (isPanelVisible) {
+        hideControlPanel();
+    } else {
+        showControlPanel();
+    }
 }
 
 /**
@@ -814,55 +951,57 @@ function updateControlPanel() {
     if (controlPanel && isPanelVisible) {
         controlPanel.remove();
         createControlPanel();
+        controlPanel.classList.add('visible');
     }
 }
 
 /**
- * Update control panel with durations (without recalculating everything)
+ * Update control panel with durations and resources (without recalculating everything)
  */
 function updateControlPanelWithDurations() {
     if (!controlPanel || !isPanelVisible) return;
     
     console.log('Updating panel with durations:', modeDurations);
+    console.log('Updating panel with resources:', modeResources);
     
-    // Get all time cells from the table
-    var timeCells = controlPanel.querySelectorAll('tbody tr td:nth-child(7)');
+    // Update the table with stored durations and resources
+    var rows = controlPanel.querySelectorAll('.scavenge-table tbody tr');
     
-    // Update each time cell
-    for (var i = 0; i < timeCells.length; i++) {
-        var timeCell = timeCells[i];
-        var modeIndex = i; // Row index matches mode index
+    for (var i = 0; i < rows.length - 1; i++) { // -1 to exclude summary row
+        var row = rows[i];
+        var timeCell = row.cells[6]; // 7th column (0-indexed)
+        var resourcesCell = row.cells[7]; // 8th column (0-indexed)
         
-        // Skip summary row (last row)
-        if (i >= calculatedData.modes.length) break;
+        var modeIndex = i;
         
-        var mode = calculatedData.modes[modeIndex];
-        
-        if (mode.isLocked) {
-            timeCell.textContent = 'Locked';
-            timeCell.style.color = '#f44336';
-        } else if (mode.isActive) {
-            timeCell.textContent = 'Active';
-            timeCell.style.color = '#ff9800';
-        } else if (!mode.isEnabledByUser) {
-            timeCell.textContent = 'Disabled';
-            timeCell.style.color = '#999';
-        } else if (modeDurations[modeIndex]) {
-            // Use stored duration if available
-            timeCell.textContent = modeDurations[modeIndex];
-            timeCell.style.color = '#4CAF50';
-            console.log('Updated mode ' + modeIndex + ' with duration: ' + modeDurations[modeIndex]);
-        } else {
-            // Use placeholder
-            timeCell.textContent = '-';
-            timeCell.style.color = '#4CAF50';
+        if (calculatedData.modes[modeIndex]) {
+            var mode = calculatedData.modes[modeIndex];
+            
+            // Update time cell
+            if (mode.isLocked) {
+                timeCell.textContent = 'Locked';
+                timeCell.style.color = '#f44336';
+            } else if (mode.isActive) {
+                timeCell.textContent = 'Active';
+                timeCell.style.color = '#ff9800';
+            } else if (!mode.isEnabledByUser) {
+                timeCell.textContent = 'Disabled';
+                timeCell.style.color = '#999';
+            } else if (modeDurations[modeIndex]) {
+                timeCell.textContent = modeDurations[modeIndex];
+                timeCell.style.color = '#4CAF50';
+            }
+            
+            // Update resources cell
+            if (mode.isLocked || mode.isActive || !mode.isEnabledByUser) {
+                resourcesCell.textContent = '-';
+                resourcesCell.style.color = '#999';
+            } else if (modeResources[modeIndex]) {
+                resourcesCell.textContent = modeResources[modeIndex].toLocaleString();
+                resourcesCell.className = 'scavenge-resources-total';
+            }
         }
     }
-    
-    // Also force a full panel refresh to ensure everything is updated
-    setTimeout(function() {
-        updateControlPanel();
-    }, 100);
 }
 
 /**
@@ -879,7 +1018,7 @@ function calculateAndFillSequentially() {
     }
     
     // Disable the calculate button during processing
-    var calculateBtn = controlPanel.querySelector('button:nth-child(1)');
+    var calculateBtn = controlPanel.querySelector('.scavenge-btn-calculate');
     if (calculateBtn) {
         calculateBtn.disabled = true;
         calculateBtn.textContent = '⏳ Calculating...';
@@ -902,7 +1041,7 @@ function calculateAndFillSequentially() {
             }
             
             alert('Sequential calculation completed!');
-            updateControlPanelWithDurations(); // Refresh panel with updated durations
+            updateControlPanelWithDurations(); // Refresh panel with updated durations and resources
             return;
         }
         
@@ -921,24 +1060,27 @@ function calculateAndFillSequentially() {
                 }
             });
             
-            // Wait longer for UI to update with duration (Tribal Wars needs time)
+            // Wait longer for UI to update with duration and resources (Tribal Wars needs time)
             setTimeout(function() {
-                // Get the actual duration (now that troops are filled)
-                var actualDuration = getActualDurationForMode(mode.modeIndex);
+                // Get the actual duration and resources (now that troops are filled)
+                var result = getActualDurationAndResourcesForMode(mode.modeIndex);
                 
                 // Debug: Log what we found
-                console.log('Found duration for mode ' + mode.modeIndex + ': ' + actualDuration);
+                console.log('Found for mode ' + mode.modeIndex + ': Duration=' + result.duration + ', Resources=' + result.totalResources);
                 
-                // CRITICAL: Update the duration in persistent storage
-                modeDurations[mode.modeIndex] = actualDuration;
-                console.log('Stored duration for mode ' + mode.modeIndex + ': ' + actualDuration);
+                // CRITICAL: Update the duration and resources in persistent storage
+                modeDurations[mode.modeIndex] = result.duration;
+                modeResources[mode.modeIndex] = result.totalResources;
+                
+                console.log('Stored for mode ' + mode.modeIndex + ': Duration=' + result.duration + ', Resources=' + result.totalResources);
                 
                 console.log('Mode ' + mode.modeName + ': ' + 
                           Object.keys(mode.troops)
                             .filter(t => troopSettings[t]) // Only show enabled troops
                             .map(t => t + ':' + mode.troops[t])
                             .join(', ') + 
-                          ' | Time: ' + actualDuration);
+                          ' | Time: ' + result.duration +
+                          ' | Resources: ' + result.totalResources);
                 
                 // Clear inputs for next mode
                 clearAllTroopInputs();
@@ -947,7 +1089,7 @@ function calculateAndFillSequentially() {
                 currentIndex++;
                 setTimeout(processNextMode, 1000);
                 
-            }, 1500); // Wait longer for Tribal Wars to update duration (1.5 seconds)
+            }, 1500); // Wait longer for Tribal Wars to update (1.5 seconds)
             
         }, 500); // Wait after clearing
     }
@@ -1023,21 +1165,6 @@ function sendAllAvailableModes() {
 }
 
 /**
- * Toggle control panel visibility
- */
-function toggleControlPanel() {
-    if (isPanelVisible) {
-        if (controlPanel) {
-            controlPanel.remove();
-            controlPanel = null;
-        }
-        isPanelVisible = false;
-    } else {
-        createControlPanel();
-    }
-}
-
-/**
  * Add toggle button to the page
  */
 function addToggleButton() {
@@ -1049,36 +1176,29 @@ function addToggleButton() {
     
     var toggleBtn = document.createElement('button');
     toggleBtn.id = 'scavengeToggleBtn';
-    toggleBtn.textContent = '🎯 Scavenge Control';
-    toggleBtn.style.cssText = `
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        padding: 10px 15px;
-        background: linear-gradient(135deg, #4CAF50, #2E7D32);
-        color: white;
-        border: none;
-        border-radius: 20px;
-        cursor: pointer;
-        z-index: 9999;
-        font-weight: bold;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-    `;
+    toggleBtn.textContent = 'AUTO';
+    toggleBtn.className = 'btn btn-default';
     
-    toggleBtn.onmouseover = function() {
-        this.style.transform = 'translateY(-2px)';
-        this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-    };
-    
-    toggleBtn.onmouseout = function() {
-        this.style.transform = 'translateY(0)';
-        this.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-    };
+    // Find the candidate squad container
+    var squadContainer = document.querySelector('div.candidate-squad-container');
+    if (squadContainer && squadContainer.parentNode) {
+        // Insert the button before the squad container
+        squadContainer.parentNode.insertBefore(toggleBtn, squadContainer);
+    } else {
+        // Fallback to original position if container not found
+        toggleBtn.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
+            font-size: 12px;
+            min-width: 60px;
+            z-index: 9999;
+        `;
+        document.body.appendChild(toggleBtn);
+    }
     
     toggleBtn.onclick = toggleControlPanel;
-    
-    document.body.appendChild(toggleBtn);
 }
 
 // Main execution function
@@ -1092,8 +1212,12 @@ function executeScavengeScript() {
             return;
         }
         
-        // Initialize mode durations storage
+        // Add styles to the page
+        addStyles();
+        
+        // Initialize storage
         modeDurations = {};
+        modeResources = {};
         
         // Initialize enabled modes (all enabled by default)
         enabledModes = [true, true, true, true];
@@ -1106,10 +1230,10 @@ function executeScavengeScript() {
         // Add toggle button
         addToggleButton();
         
-        // Create and show control panel automatically
+        // Create control panel (but don't show it yet)
         createControlPanel();
         
-        console.log('Control panel created. Click the button in top-right to toggle.');
+        console.log('Control panel created. Click the AUTO button to toggle.');
         
     } catch (error) {
         console.error('Script error:', error);
