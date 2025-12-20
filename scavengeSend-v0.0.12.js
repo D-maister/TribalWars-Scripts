@@ -116,7 +116,7 @@ function addStyles() {
             display: flex;
             align-items: center;
             gap: 10px;
-        }
+        }        
         
         .scavenge-slider-label {
             font-weight: bold;
@@ -133,7 +133,44 @@ function addStyles() {
         .scavenge-slider {
             flex: 1;
             margin: 0;
+            cursor: pointer;            
+            /* Webkit browsers (Chrome, Safari, Edge) */
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(to bottom, #b69471 0%,#9f764d 22%,#8f6133 30%,#6c4d2d 100%);
+        }
+
+        /* Thumb for Webkit */
+        .scavenge-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
             cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        /* Firefox */
+        .scavenge-slider::-moz-range-track {
+            background: linear-gradient(to bottom, #b69471 0%,#9f764d 22%,#8f6133 30%,#6c4d2d 100%);
+            height: 6px;
+            border-radius: 3px;
+            border: none;
+        }
+        
+        .scavenge-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
         .scavenge-troop-checkboxes {
