@@ -212,7 +212,7 @@ function addStyles() {
         .scavenge-mode-title {
             font-weight: bold;
             margin-bottom: 10px;
-            color: #6C4D2D;
+            color: #000;
         }
         
         .scavenge-mode-controls-container {
