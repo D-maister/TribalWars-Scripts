@@ -1495,20 +1495,30 @@ class ExchangeTracker {
             
             const rowCountText = this.hideDuplicates ? `${visibleRows}/${this.data.length} records` : `${this.data.length} records`;
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
+            
+        }
+
+       // Always ensure charts container exists when stats are visible
+        let chartsContainer = container.querySelector('.tw-charts-container');
+        if (!chartsContainer) {
+            chartsContainer = this.createChartsContainer();
+            container.appendChild(chartsContainer);
         }
         
-        // Update charts if they exist and are enabled
-        if (this.showCharts) {
-            const chartsContainer = container.querySelector('.tw-charts-container');
-            if (chartsContainer) {
+        // Update the toggle button text
+        const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        }
+        
+        // Only show charts if enabled
+        const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
+        if (chartsGrid) {
+            if (this.showCharts && this.data.length > 0) {
+                chartsGrid.style.display = 'grid';
                 this.updateCharts();
             } else {
-                // Add charts container if it doesn't exist
-                const statsContainer = document.querySelector('.tw-exchange-stats-container');
-                if (statsContainer) {
-                    statsContainer.appendChild(this.createChartsContainer());
-                    this.updateCharts();
-                }
+                chartsGrid.style.display = 'none';
             }
         }
     }
@@ -1743,22 +1753,27 @@ class ExchangeTracker {
         this.showCharts = !this.showCharts;
         this.saveSettings();
         
-        const toggleBtn = document.querySelector('.tw-charts-toggle');
-        if (toggleBtn) {
-            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
-        }
-        
         const container = document.querySelector('.tw-exchange-stats-container');
         if (!container) return;
         
         const chartsContainer = container.querySelector('.tw-charts-container');
-        if (chartsContainer) {
-            chartsContainer.remove();
+        if (!chartsContainer) return;
+        
+        // Update toggle button
+        const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
         }
         
-        if (this.showCharts) {
-            container.appendChild(this.createChartsContainer());
-            this.updateCharts();
+        // Show/hide charts grid
+        const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
+        if (chartsGrid) {
+            if (this.showCharts && this.data.length > 0) {
+                chartsGrid.style.display = 'grid';
+                this.updateCharts();
+            } else {
+                chartsGrid.style.display = 'none';
+            }
         }
     }
 
@@ -1808,6 +1823,8 @@ class ExchangeTracker {
         if (container) {
             container.style.display = 'block';
             this.isStatVisible = true;
+            
+            // Always call updateStatsUI which will handle charts based on showCharts setting
             this.updateStatsUI();
             
             // Start auto-refresh
