@@ -1,7 +1,7 @@
 class ExchangeTracker {
     constructor() {
-        this.storageKey = 'tw_exchange_data_v6';
-        this.settingsKey = 'tw_exchange_settings_v6';
+        this.storageKey = 'tw_exchange_data_v7';
+        this.settingsKey = 'tw_exchange_settings_v7';
         this.updateInterval = 10000;
         this.collectionInterval = null;
         this.isStatVisible = false;
@@ -20,6 +20,7 @@ class ExchangeTracker {
             'iron': '#C0C0C0'
         };
         this.minMaxCache = {};
+        this.recentMinMaxCache = {};
         
         this.init();
     }
@@ -52,7 +53,7 @@ class ExchangeTracker {
             showCharts: this.showCharts,
             lastUpdated: new Date().toISOString()
         };
-        localStorage.setItem(this.storageKey, JSON.stringify(settings));
+        localStorage.setItem(this.settingsKey, JSON.stringify(settings));
     }
 
     addStyles() {
@@ -399,7 +400,8 @@ class ExchangeTracker {
             
             .tw-charts-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: repeat(2, auto);
                 gap: 15px;
                 margin-bottom: 20px;
             }
@@ -505,11 +507,13 @@ class ExchangeTracker {
                 pointer-events: none;
                 z-index: 1000;
                 display: none;
+                white-space: pre-line;
+                max-width: 200px;
             }
             
             .tw-bar-chart-container {
                 grid-column: 1 / -1;
-                height: 300px;
+                height: 250px;
             }
             
             .tw-bar-chart-bar {
@@ -650,6 +654,8 @@ class ExchangeTracker {
 
     calculateMinMaxValues() {
         this.minMaxCache = {};
+        this.recentMinMaxCache = {};
+        
         this.resourceTypes.forEach(resource => {
             const costs = this.data
                 .map(record => record.resources[resource].cost)
@@ -661,8 +667,42 @@ class ExchangeTracker {
                     max: Math.max(...costs),
                     current: this.data.length > 0 ? this.data[0].resources[resource].cost : 0
                 };
+                
+                // Calculate recent min/max (last 10, 50, 100 records)
+                const recent10 = this.data.slice(0, Math.min(10, this.data.length));
+                const recent50 = this.data.slice(0, Math.min(50, this.data.length));
+                const recent100 = this.data.slice(0, Math.min(100, this.data.length));
+                
+                const recent10Costs = recent10.map(r => r.resources[resource].cost).filter(c => c > 0);
+                const recent50Costs = recent50.map(r => r.resources[resource].cost).filter(c => c > 0);
+                const recent100Costs = recent100.map(r => r.resources[resource].cost).filter(c => c > 0);
+                
+                this.recentMinMaxCache[resource] = {
+                    allTime: {
+                        min: this.minMaxCache[resource].min,
+                        max: this.minMaxCache[resource].max
+                    },
+                    last10: {
+                        min: recent10Costs.length > 0 ? Math.min(...recent10Costs) : 0,
+                        max: recent10Costs.length > 0 ? Math.max(...recent10Costs) : 0
+                    },
+                    last50: {
+                        min: recent50Costs.length > 0 ? Math.min(...recent50Costs) : 0,
+                        max: recent50Costs.length > 0 ? Math.max(...recent50Costs) : 0
+                    },
+                    last100: {
+                        min: recent100Costs.length > 0 ? Math.min(...recent100Costs) : 0,
+                        max: recent100Costs.length > 0 ? Math.max(...recent100Costs) : 0
+                    }
+                };
             } else {
                 this.minMaxCache[resource] = { min: 0, max: 0, current: 0 };
+                this.recentMinMaxCache[resource] = {
+                    allTime: { min: 0, max: 0 },
+                    last10: { min: 0, max: 0 },
+                    last50: { min: 0, max: 0 },
+                    last100: { min: 0, max: 0 }
+                };
             }
         });
     }
@@ -784,27 +824,54 @@ class ExchangeTracker {
         table.className = 'tw-summary-table';
         
         const thead = document.createElement('thead');
-        const headerRow = document.createElement('tr');
+        
+        // First header row
+        const headerRow1 = document.createElement('tr');
         
         const resourceHeader = document.createElement('th');
         resourceHeader.textContent = 'Resource';
-        headerRow.appendChild(resourceHeader);
+        resourceHeader.rowSpan = 2;
+        resourceHeader.style.width = '80px';
+        headerRow1.appendChild(resourceHeader);
         
-        // Updated tag order as requested
-        const tagTypes = ['min', 'min-10', 'min-50', 'min-100', 'max-100', 'max-50', 'max-10', 'max'];
+        const minHeader = document.createElement('th');
+        minHeader.textContent = 'MIN';
+        minHeader.colSpan = 4;
+        minHeader.className = 'min-col';
+        headerRow1.appendChild(minHeader);
         
-        tagTypes.forEach(tagType => {
+        const maxHeader = document.createElement('th');
+        maxHeader.textContent = 'MAX';
+        maxHeader.colSpan = 4;
+        maxHeader.className = 'max-col';
+        headerRow1.appendChild(maxHeader);
+        
+        thead.appendChild(headerRow1);
+        
+        // Second header row
+        const headerRow2 = document.createElement('tr');
+        
+        // Min sub-headers
+        const minSubHeaders = ['All Time', 'Last 10', 'Last 50', 'Last 100'];
+        minSubHeaders.forEach(subHeader => {
             const th = document.createElement('th');
-            th.textContent = tagType;
-            if (tagType.includes('min')) {
-                th.className = 'min-col';
-            } else {
-                th.className = 'max-col';
-            }
-            headerRow.appendChild(th);
+            th.textContent = subHeader;
+            th.className = 'min-col';
+            th.style.fontSize = '10px';
+            headerRow2.appendChild(th);
         });
         
-        thead.appendChild(headerRow);
+        // Max sub-headers
+        const maxSubHeaders = ['All Time', 'Last 10', 'Last 50', 'Last 100'];
+        maxSubHeaders.forEach(subHeader => {
+            const th = document.createElement('th');
+            th.textContent = subHeader;
+            th.className = 'max-col';
+            th.style.fontSize = '10px';
+            headerRow2.appendChild(th);
+        });
+        
+        thead.appendChild(headerRow2);
         table.appendChild(thead);
         
         const tbody = document.createElement('tbody');
@@ -817,71 +884,54 @@ class ExchangeTracker {
             resourceCell.textContent = this.resourceNames[resource];
             row.appendChild(resourceCell);
             
-            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-            const minValue = cache.min;
-            const maxValue = cache.max;
-            
-            // Updated tag order as requested
-            const tagValues = {
-                'min': minValue,
-                'min-10': minValue > 0 ? minValue + 10 : 0,
-                'min-50': minValue > 0 ? minValue + 50 : 0,
-                'min-100': minValue > 0 ? minValue + 100 : 0,
-                'max-100': maxValue > 0 ? maxValue - 100 : 0,
-                'max-50': maxValue > 0 ? maxValue - 50 : 0,
-                'max-10': maxValue > 0 ? maxValue - 10 : 0,
-                'max': maxValue
+            const recentCache = this.recentMinMaxCache[resource] || {
+                allTime: { min: 0, max: 0 },
+                last10: { min: 0, max: 0 },
+                last50: { min: 0, max: 0 },
+                last100: { min: 0, max: 0 }
             };
             
-            tagTypes.forEach(tagType => {
+            // Min values cells
+            const minPeriods = ['allTime', 'last10', 'last50', 'last100'];
+            minPeriods.forEach(period => {
                 const cell = document.createElement('td');
-                const value = tagValues[tagType];
+                const value = recentCache[period]?.min || 0;
                 cell.textContent = value > 0 ? value : '—';
+                cell.className = 'min-col';
                 
                 if (value > 0) {
-                    const hasRecordsNearThreshold = this.data.some(record => {
-                        const recordCost = record.resources[resource].cost;
-                        if (recordCost === 0) return false;
-                        
-                        if (tagType.includes('min')) {
-                            const thresholdValue = tagValues[tagType];
-                            if (tagType === 'min') {
-                                return recordCost === thresholdValue;
-                            } else {
-                                return recordCost >= thresholdValue && recordCost < thresholdValue + 10;
-                            }
-                        } else {
-                            const thresholdValue = tagValues[tagType];
-                            if (tagType === 'max') {
-                                return recordCost === thresholdValue;
-                            } else {
-                                return recordCost <= thresholdValue && recordCost > thresholdValue - 10;
-                            }
-                        }
-                    });
-                    
-                    if (hasRecordsNearThreshold) {
+                    // Check if current value is close to this min
+                    const currentCost = this.minMaxCache[resource]?.current || 0;
+                    const diff = currentCost - value;
+                    if (diff <= 10 && diff >= 0) {
                         cell.style.fontWeight = 'bold';
-                        if (tagType.includes('min')) {
-                            cell.style.backgroundColor = '#C8E6C9';
-                        } else {
-                            cell.style.backgroundColor = '#FFCDD2';
-                        }
+                        cell.style.backgroundColor = '#C8E6C9';
                     }
+                    
+                    cell.title = `${this.resourceNames[resource]} min in ${period.replace('last', 'last ').replace('allTime', 'all time')}: ${value}`;
                 }
                 
+                row.appendChild(cell);
+            });
+            
+            // Max values cells
+            const maxPeriods = ['allTime', 'last10', 'last50', 'last100'];
+            maxPeriods.forEach(period => {
+                const cell = document.createElement('td');
+                const value = recentCache[period]?.max || 0;
+                cell.textContent = value > 0 ? value : '—';
+                cell.className = 'max-col';
+                
                 if (value > 0) {
-                    let tooltip = '';
-                    if (tagType === 'min') {
-                        tooltip = `Minimum value: ${value}`;
-                    } else if (tagType === 'max') {
-                        tooltip = `Maximum value: ${value}`;
-                    } else if (tagType.includes('min')) {
-                        tooltip = `Value ${value} (min + ${parseInt(tagType.split('-')[1])})`;
-                    } else if (tagType.includes('max')) {
-                        tooltip = `Value ${value} (max - ${parseInt(tagType.split('-')[1])})`;
+                    // Check if current value is close to this max
+                    const currentCost = this.minMaxCache[resource]?.current || 0;
+                    const diff = value - currentCost;
+                    if (diff <= 10 && diff >= 0) {
+                        cell.style.fontWeight = 'bold';
+                        cell.style.backgroundColor = '#FFCDD2';
                     }
-                    cell.title = tooltip;
+                    
+                    cell.title = `${this.resourceNames[resource]} max in ${period.replace('last', 'last ').replace('allTime', 'all time')}: ${value}`;
                 }
                 
                 row.appendChild(cell);
@@ -1005,20 +1055,22 @@ class ExchangeTracker {
             circle.setAttribute('cx', x);
             circle.setAttribute('cy', y);
             circle.setAttribute('fill', this.chartColors[resource]);
-            circle.setAttribute('data-value', point.value);
-            circle.setAttribute('data-time', point.date);
             
             circle.addEventListener('mouseenter', (e) => {
                 const tooltip = svgContainer.querySelector('.tw-chart-tooltip');
-                tooltip.style.display = 'block';
-                tooltip.style.left = (e.clientX - svgContainer.getBoundingClientRect().left + 10) + 'px';
-                tooltip.style.top = (e.clientY - svgContainer.getBoundingClientRect().top - 30) + 'px';
-                tooltip.textContent = `${point.date}\nPrice: ${point.value}`;
+                if (tooltip) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (e.clientX - svgContainer.getBoundingClientRect().left + 10) + 'px';
+                    tooltip.style.top = (e.clientY - svgContainer.getBoundingClientRect().top - 30) + 'px';
+                    tooltip.textContent = `${point.date}\nPrice: ${point.value}`;
+                }
             });
             
             circle.addEventListener('mouseleave', () => {
                 const tooltip = svgContainer.querySelector('.tw-chart-tooltip');
-                tooltip.style.display = 'none';
+                if (tooltip) {
+                    tooltip.style.display = 'none';
+                }
             });
             
             svg.appendChild(circle);
@@ -1064,12 +1116,12 @@ class ExchangeTracker {
         // Create SVG
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'tw-chart-svg');
-        svg.setAttribute('viewBox', '0 0 400 250');
+        svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        const padding = { top: 30, right: 30, bottom: 60, left: 60 };
+        const padding = { top: 30, right: 30, bottom: 40, left: 60 };
         const width = 400 - padding.left - padding.right;
-        const height = 250 - padding.top - padding.bottom;
+        const height = 200 - padding.top - padding.bottom;
         
         // Calculate max value for scaling
         const allValues = [];
@@ -1104,13 +1156,14 @@ class ExchangeTracker {
         }
         
         // Create bars
-        const barWidth = 60;
-        const groupSpacing = 20;
-        const barSpacing = 10;
+        const barWidth = 25;
+        const groupSpacing = 15;
+        const barSpacing = 8;
+        const totalGroupWidth = barWidth * 3 + barSpacing * 2;
         
         this.resourceTypes.forEach((resource, resourceIndex) => {
             const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
-            const groupX = padding.left + resourceIndex * (barWidth * 3 + groupSpacing * 2);
+            const groupX = padding.left + resourceIndex * (totalGroupWidth + groupSpacing);
             
             // Min bar (green)
             const minHeight = (cache.min / maxValue) * height;
@@ -1122,9 +1175,6 @@ class ExchangeTracker {
             minBar.setAttribute('width', barWidth);
             minBar.setAttribute('height', minHeight);
             minBar.setAttribute('fill', '#4CAF50');
-            minBar.setAttribute('data-value', cache.min);
-            minBar.setAttribute('data-type', 'min');
-            minBar.setAttribute('data-resource', this.resourceNames[resource]);
             svg.appendChild(minBar);
             
             // Current bar (blue)
@@ -1137,9 +1187,6 @@ class ExchangeTracker {
             currentBar.setAttribute('width', barWidth);
             currentBar.setAttribute('height', currentHeight);
             currentBar.setAttribute('fill', '#2196F3');
-            currentBar.setAttribute('data-value', cache.current);
-            currentBar.setAttribute('data-type', 'current');
-            currentBar.setAttribute('data-resource', this.resourceNames[resource]);
             svg.appendChild(currentBar);
             
             // Max bar (red)
@@ -1152,24 +1199,21 @@ class ExchangeTracker {
             maxBar.setAttribute('width', barWidth);
             maxBar.setAttribute('height', maxHeight);
             maxBar.setAttribute('fill', '#f44336');
-            maxBar.setAttribute('data-value', cache.max);
-            maxBar.setAttribute('data-type', 'max');
-            maxBar.setAttribute('data-resource', this.resourceNames[resource]);
             svg.appendChild(maxBar);
             
             // Add value labels on bars
             [minBar, currentBar, maxBar].forEach((bar, barIndex) => {
-                const value = bar.getAttribute('data-value');
                 const barX = parseFloat(bar.getAttribute('x'));
                 const barY = parseFloat(bar.getAttribute('y'));
                 const barHeight = parseFloat(bar.getAttribute('height'));
                 
                 if (barHeight > 15) {
+                    const values = [cache.min, cache.current, cache.max];
                     const valueText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     valueText.setAttribute('class', 'tw-bar-value');
                     valueText.setAttribute('x', barX + barWidth / 2);
                     valueText.setAttribute('y', barY + barHeight / 2 + 3);
-                    valueText.textContent = value;
+                    valueText.textContent = values[barIndex];
                     svg.appendChild(valueText);
                 }
             });
@@ -1177,8 +1221,8 @@ class ExchangeTracker {
             // Add resource label
             const resourceLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             resourceLabel.setAttribute('class', 'tw-bar-label');
-            resourceLabel.setAttribute('x', groupX + (barWidth * 3 + groupSpacing * 2) / 2);
-            resourceLabel.setAttribute('y', 250 - padding.bottom + 20);
+            resourceLabel.setAttribute('x', groupX + totalGroupWidth / 2);
+            resourceLabel.setAttribute('y', 200 - padding.bottom + 15);
             resourceLabel.textContent = this.resourceNames[resource];
             svg.appendChild(resourceLabel);
         });
@@ -1205,31 +1249,6 @@ class ExchangeTracker {
             text.setAttribute('y', item.y + 10);
             text.textContent = item.label;
             svg.appendChild(text);
-        });
-        
-        // Add tooltip
-        const tooltip = document.createElement('div');
-        tooltip.className = 'tw-chart-tooltip';
-        svgContainer.appendChild(tooltip);
-        
-        // Add hover events for bars
-        const bars = svg.querySelectorAll('.tw-bar-chart-bar');
-        bars.forEach(bar => {
-            bar.addEventListener('mouseenter', (e) => {
-                const rect = bar.getBoundingClientRect();
-                const value = bar.getAttribute('data-value');
-                const type = bar.getAttribute('data-type');
-                const resource = bar.getAttribute('data-resource');
-                
-                tooltip.style.display = 'block';
-                tooltip.style.left = (e.clientX - svgContainer.getBoundingClientRect().left + 10) + 'px';
-                tooltip.style.top = (e.clientY - svgContainer.getBoundingClientRect().top - 30) + 'px';
-                tooltip.textContent = `${resource} - ${type}: ${value}`;
-            });
-            
-            bar.addEventListener('mouseleave', () => {
-                tooltip.style.display = 'none';
-            });
         });
         
         svgContainer.appendChild(svg);
@@ -1260,43 +1279,42 @@ class ExchangeTracker {
             grid.className = 'tw-charts-grid';
             grid.id = 'tw-charts-grid';
             
-            // Line charts for each resource
-            this.resourceTypes.forEach(resource => {
+            // Create 2x2 grid: 3 line charts + 1 bar chart
+            const chartOrder = ['wood', 'stone', 'iron', 'bar'];
+            
+            chartOrder.forEach((chartType, index) => {
                 const chartContainer = document.createElement('div');
                 chartContainer.className = 'tw-chart-container';
-                chartContainer.id = `tw-chart-${resource}`;
                 
-                const chartTitle = document.createElement('h4');
-                chartTitle.className = 'tw-chart-title';
-                chartTitle.textContent = `${this.resourceNames[resource]} Price History`;
-                chartContainer.appendChild(chartTitle);
-                
-                const svgContainer = document.createElement('div');
-                svgContainer.className = 'tw-chart-svg-container';
-                chartContainer.appendChild(svgContainer);
-                
-                const minMaxDiv = document.createElement('div');
-                minMaxDiv.className = 'tw-chart-minmax';
-                chartContainer.appendChild(minMaxDiv);
+                if (chartType === 'bar') {
+                    chartContainer.id = 'tw-bar-chart';
+                    const chartTitle = document.createElement('h4');
+                    chartTitle.className = 'tw-chart-title';
+                    chartTitle.textContent = 'Min/Current/Max Comparison';
+                    chartContainer.appendChild(chartTitle);
+                    
+                    const svgContainer = document.createElement('div');
+                    svgContainer.className = 'tw-chart-svg-container';
+                    chartContainer.appendChild(svgContainer);
+                } else {
+                    chartContainer.id = `tw-chart-${chartType}`;
+                    const chartTitle = document.createElement('h4');
+                    chartTitle.className = 'tw-chart-title';
+                    chartTitle.textContent = `${this.resourceNames[chartType]} Price History`;
+                    chartContainer.appendChild(chartTitle);
+                    
+                    const svgContainer = document.createElement('div');
+                    svgContainer.className = 'tw-chart-svg-container';
+                    chartContainer.appendChild(svgContainer);
+                    
+                    const minMaxDiv = document.createElement('div');
+                    minMaxDiv.className = 'tw-chart-minmax';
+                    chartContainer.appendChild(minMaxDiv);
+                }
                 
                 grid.appendChild(chartContainer);
             });
             
-            // Bar chart (4th chart)
-            const barChartContainer = document.createElement('div');
-            barChartContainer.className = 'tw-chart-container tw-bar-chart-container';
-            barChartContainer.id = 'tw-bar-chart';
-            
-            const barChartTitle = document.createElement('h4');
-            barChartTitle.className = 'tw-chart-title';
-            barChartTitle.textContent = 'Min/Current/Max Comparison';
-            barChartContainer.appendChild(barChartTitle);
-            
-            const barSvgContainer = document.createElement('div');
-            barSvgContainer.className = 'tw-chart-svg-container';
-            barChartContainer.appendChild(barSvgContainer);
-            
-            grid.appendChild(barChartContainer);
             container.appendChild(grid);
         }
         
@@ -1479,7 +1497,7 @@ class ExchangeTracker {
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
         }
         
-        // Update charts if they exist
+        // Update charts if they exist and are enabled
         if (this.showCharts) {
             const chartsContainer = container.querySelector('.tw-charts-container');
             if (chartsContainer) {
@@ -1730,17 +1748,17 @@ class ExchangeTracker {
             toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
         }
         
-        const chartsContainer = document.querySelector('.tw-charts-container');
+        const container = document.querySelector('.tw-exchange-stats-container');
+        if (!container) return;
+        
+        const chartsContainer = container.querySelector('.tw-charts-container');
         if (chartsContainer) {
             chartsContainer.remove();
         }
         
-        if (this.showCharts && this.isStatVisible) {
-            const statsContainer = document.querySelector('.tw-exchange-stats-container');
-            if (statsContainer) {
-                statsContainer.appendChild(this.createChartsContainer());
-                this.updateCharts();
-            }
+        if (this.showCharts) {
+            container.appendChild(this.createChartsContainer());
+            this.updateCharts();
         }
     }
 
@@ -1792,15 +1810,7 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
-            // Add charts if enabled
-            if (this.showCharts) {
-                const existingCharts = container.querySelector('.tw-charts-container');
-                if (!existingCharts) {
-                    container.appendChild(this.createChartsContainer());
-                    this.updateCharts();
-                }
-            }
-            
+            // Start auto-refresh
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
