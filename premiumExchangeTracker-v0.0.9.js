@@ -3,6 +3,7 @@ class ExchangeTracker {
         this.storageKey = 'tw_exchange_data_v4';
         this.settingsKey = 'tw_exchange_settings_v4';
         this.updateInterval = 10000;
+        this.hideDuplicates = false;
         this.collectionInterval = null;
         this.isStatVisible = false;
         this.data = [];
@@ -858,6 +859,34 @@ class ExchangeTracker {
         if (tableContainer) {
             tableContainer.innerHTML = '';
             tableContainer.appendChild(this.createStatTable());
+            
+            // Calculate visible rows count
+            let visibleRows = 0;
+            let previousRecord = null;
+            
+            this.data.forEach((record, index) => {
+                if (index === 0) {
+                    visibleRows++;
+                    previousRecord = record;
+                    return;
+                }
+                
+                if (this.hideDuplicates) {
+                    let allDiffsZero = true;
+                    this.resourceTypes.forEach(resource => {
+                        if (record.resources[resource].diff !== 0) {
+                            allDiffsZero = false;
+                        }
+                    });
+                    
+                    if (!allDiffsZero) {
+                        visibleRows++;
+                        previousRecord = record;
+                    }
+                } else {
+                    visibleRows++;
+                }
+            });
         }
         
         // Update status
@@ -868,7 +897,38 @@ class ExchangeTracker {
                 return `${this.resourceNames[resource]}: ${cache.min}-${cache.max}`;
             }).join(' | ');
             
-            status.textContent = `Showing ${this.data.length} records | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
+            let rowCountText = '';
+            if (this.hideDuplicates && this.data.length > 0) {
+                // Calculate visible rows
+                let visibleRows = 0;
+                let previousRecord = null;
+                
+                this.data.forEach((record, index) => {
+                    if (index === 0) {
+                        visibleRows++;
+                        previousRecord = record;
+                        return;
+                    }
+                    
+                    let allDiffsZero = true;
+                    this.resourceTypes.forEach(resource => {
+                        if (record.resources[resource].diff !== 0) {
+                            allDiffsZero = false;
+                        }
+                    });
+                    
+                    if (!allDiffsZero) {
+                        visibleRows++;
+                        previousRecord = record;
+                    }
+                });
+                
+                rowCountText = `${visibleRows}/${this.data.length} records`;
+            } else {
+                rowCountText = `${this.data.length} records`;
+            }
+            
+            status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
         }
     }
 
@@ -939,14 +999,75 @@ class ExchangeTracker {
             return;
         }
         
+        let visibleRows = 0;
+        let previousRecord = null;
+        
         this.data.forEach((record, index) => {
+            // Check if we should hide this row (if hideDuplicates is enabled)
+            let shouldHide = false;
+            
+            if (this.hideDuplicates && previousRecord !== null && index > 0) {
+                // Check if all 3 resources have diff = 0 (no change from previous)
+                let allDiffsZero = true;
+                
+                this.resourceTypes.forEach(resource => {
+                    const currentDiff = record.resources[resource].diff;
+                    if (currentDiff !== 0) {
+                        allDiffsZero = false;
+                    }
+                });
+                
+                shouldHide = allDiffsZero;
+            }
+            
+            // Always show the first record
+            if (index === 0) {
+                shouldHide = false;
+            }
+            
+            // Skip hidden rows
+            if (shouldHide) {
+                return;
+            }
+            
             const row = document.createElement('tr');
+            if (visibleRows % 2 === 0) {
+                row.style.backgroundColor = '#f9f9f9';
+            }
+            
+            // Add indicator for hidden rows
+            if (this.hideDuplicates && previousRecord !== null) {
+                // Check if we skipped any rows between this and previous shown record
+                const currentIndex = this.data.indexOf(record);
+                const prevIndex = this.data.indexOf(previousRecord);
+                const skippedCount = prevIndex - currentIndex - 1;
+                
+                if (skippedCount > 0) {
+                    row.style.borderTop = '2px dashed #999';
+                }
+            }
             
             // Time cell with full datetime
             const timeCell = document.createElement('td');
             timeCell.className = 'tw-exchange-stat-timestamp';
             timeCell.textContent = record.timestamp;
-            timeCell.title = `Recorded at: ${record.timestamp}`;
+            
+            // Add indicator for skipped records
+            if (this.hideDuplicates && previousRecord !== null) {
+                const currentIndex = this.data.indexOf(record);
+                const prevIndex = this.data.indexOf(previousRecord);
+                const skippedCount = prevIndex - currentIndex - 1;
+                
+                if (skippedCount > 0) {
+                    timeCell.style.color = '#666';
+                    timeCell.title = `Recorded at: ${record.timestamp}\n(${skippedCount} duplicate records hidden)`;
+                } else {
+                    timeCell.title = `Recorded at: ${record.timestamp}`;
+                }
+            } else {
+                timeCell.title = `Recorded at: ${record.timestamp}`;
+            }
+            
             row.appendChild(timeCell);
             
             // Resource cells
@@ -1018,7 +1139,30 @@ class ExchangeTracker {
             });
             
             tbody.appendChild(row);
+            visibleRows++;
+            previousRecord = record;
         });
+        
+        // Add summary row if hiding duplicates
+        if (this.hideDuplicates && this.data.length > 0) {
+            const totalHidden = this.data.length - visibleRows;
+            if (totalHidden > 0) {
+                const summaryRow = document.createElement('tr');
+                summaryRow.style.backgroundColor = '#f0f0f0';
+                summaryRow.style.fontStyle = 'italic';
+                
+                const summaryCell = document.createElement('td');
+                summaryCell.colSpan = 16;
+                summaryCell.style.textAlign = 'center';
+                summaryCell.style.padding = '8px';
+                summaryCell.style.color = '#666';
+                summaryCell.textContent = `${totalHidden} duplicate record${totalHidden !== 1 ? 's' : ''} hidden (no price changes)`;
+                summaryCell.title = 'Records with no price changes from previous record are hidden';
+                
+                summaryRow.appendChild(summaryCell);
+                tbody.appendChild(summaryRow);
+            }
+        }
     }
 
     insertStatsContainer() {
@@ -1077,6 +1221,137 @@ class ExchangeTracker {
         }
     }
 }
+
+createStatsContainer() {
+    const container = document.createElement('div');
+    container.className = 'tw-exchange-stats-container';
+    container.style.display = 'none';
+    
+    // Header with title and close button
+    const header = document.createElement('div');
+    header.className = 'tw-exchange-stats-header';
+    
+    const title = document.createElement('h2');
+    title.className = 'tw-exchange-stats-title';
+    title.textContent = 'Premium Exchange Statistics';
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'tw-exchange-stats-close';
+    closeBtn.textContent = '×';
+    closeBtn.title = 'Close statistics';
+    closeBtn.onclick = () => this.hideStats();
+    
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    
+    // Controls
+    const controls = document.createElement('div');
+    controls.className = 'tw-exchange-stat-controls';
+    
+    const updateLabel = document.createElement('label');
+    updateLabel.textContent = 'Update every:';
+    updateLabel.htmlFor = 'tw-update-interval';
+    
+    const updateInput = document.createElement('input');
+    updateInput.id = 'tw-update-interval';
+    updateInput.type = 'number';
+    updateInput.min = '1';
+    updateInput.max = '3600';
+    updateInput.value = this.updateInterval / 1000;
+    updateInput.onchange = (e) => {
+        const value = parseInt(e.target.value);
+        if (value >= 1 && value <= 3600) {
+            this.updateCollectionInterval(value);
+            e.target.value = value;
+        } else {
+            e.target.value = this.updateInterval / 1000;
+        }
+    };
+    
+    const secLabel = document.createElement('label');
+    secLabel.textContent = 'seconds';
+    secLabel.style.color = '#666';
+    
+    // Add hide duplicates button
+    const hideDupesBtn = document.createElement('button');
+    hideDupesBtn.id = 'tw-hide-dupes-btn';
+    hideDupesBtn.textContent = 'Hide Duplicates';
+    hideDupesBtn.title = 'Hide rows with no changes from previous record';
+    hideDupesBtn.onclick = () => this.toggleHideDuplicates();
+    
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = 'Clear All Data';
+    clearBtn.onclick = () => {
+        if (confirm('Clear all saved data?')) {
+            localStorage.removeItem(this.storageKey);
+            this.data = [];
+            this.calculateMinMaxValues();
+            this.updateAllTags();
+            this.updateStatsUI();
+        }
+    };
+    
+    controls.appendChild(updateLabel);
+    controls.appendChild(updateInput);
+    controls.appendChild(secLabel);
+    controls.appendChild(hideDupesBtn);
+    controls.appendChild(clearBtn);
+    
+    // Current values summary
+    const currentSummary = document.createElement('div');
+    currentSummary.style.marginBottom = '15px';
+    currentSummary.style.padding = '10px';
+    currentSummary.style.backgroundColor = '#E3F2FD';
+    currentSummary.style.borderRadius = '4px';
+    currentSummary.style.fontSize = '12px';
+    currentSummary.id = 'tw-current-summary';
+    
+    // Summary table
+    const summaryTable = document.createElement('div');
+    summaryTable.id = 'tw-summary-table';
+    
+    // Data table container
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'tw-table-container';
+    tableContainer.id = 'tw-data-table';
+    
+    // Status
+    const status = document.createElement('div');
+    status.style.marginTop = '10px';
+    status.style.fontSize = '11px';
+    status.style.color = '#666';
+    status.style.textAlign = 'center';
+    status.id = 'tw-exchange-status';
+    
+    // Assemble container
+    container.appendChild(header);
+    container.appendChild(controls);
+    container.appendChild(currentSummary);
+    container.appendChild(summaryTable);
+    container.appendChild(tableContainer);
+    container.appendChild(status);
+    
+    return container;
+}
+
+toggleHideDuplicates() {
+        this.hideDuplicates = !this.hideDuplicates;
+        const button = document.querySelector('#tw-hide-dupes-btn');
+        if (button) {
+            button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
+            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record';
+            
+            // Add visual feedback
+            if (this.hideDuplicates) {
+                button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
+            } else {
+                button.style.background = 'linear-gradient(to bottom, #f44336, #d32f2f)';
+            }
+        }
+        
+        // Update the table
+        this.updateStatsUI();
+    }
 
 // Initialize when page loads
 function initTracker() {
