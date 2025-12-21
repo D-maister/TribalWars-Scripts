@@ -1,11 +1,12 @@
 class ExchangeTracker {
     constructor() {
-        this.storageKey = 'tw_exchange_data_v4';
-        this.settingsKey = 'tw_exchange_settings_v4';
+        this.storageKey = 'tw_exchange_data_v5';
+        this.settingsKey = 'tw_exchange_settings_v5';
         this.updateInterval = 10000;
         this.collectionInterval = null;
         this.isStatVisible = false;
         this.hideDuplicates = false;
+        this.showCharts = true;
         this.data = [];
         this.resourceTypes = ['wood', 'stone', 'iron'];
         this.resourceNames = {
@@ -13,7 +14,13 @@ class ExchangeTracker {
             'stone': 'Clay',
             'iron': 'Iron'
         };
+        this.chartColors = {
+            'wood': '#8B4513',
+            'stone': '#708090',
+            'iron': '#C0C0C0'
+        };
         this.minMaxCache = {};
+        this.charts = {};
         
         this.init();
     }
@@ -33,14 +40,17 @@ class ExchangeTracker {
         try {
             const settings = JSON.parse(localStorage.getItem(this.settingsKey) || '{}');
             this.updateInterval = settings.updateInterval || 10000;
+            this.showCharts = settings.showCharts !== undefined ? settings.showCharts : true;
         } catch (e) {
             this.updateInterval = 10000;
+            this.showCharts = true;
         }
     }
 
     saveSettings() {
         const settings = {
             updateInterval: this.updateInterval,
+            showCharts: this.showCharts,
             lastUpdated: new Date().toISOString()
         };
         localStorage.setItem(this.settingsKey, JSON.stringify(settings));
@@ -341,6 +351,7 @@ class ExchangeTracker {
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 margin-top: 10px;
+                margin-bottom: 20px;
             }
             
             .tw-hidden-rows-summary {
@@ -350,6 +361,87 @@ class ExchangeTracker {
                 color: #666;
                 padding: 8px;
                 border-top: 1px dashed #999;
+            }
+            
+            .tw-charts-container {
+                margin-top: 20px;
+                border-top: 1px solid #ddd;
+                padding-top: 20px;
+            }
+            
+            .tw-charts-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+            }
+            
+            .tw-charts-title {
+                color: #2196F3;
+                font-size: 16px;
+                font-weight: bold;
+                margin: 0;
+            }
+            
+            .tw-charts-toggle {
+                background: linear-gradient(to bottom, #2196F3, #1976D2);
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            
+            .tw-charts-toggle:hover {
+                background: linear-gradient(to bottom, #1976D2, #1565C0);
+            }
+            
+            .tw-charts-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .tw-chart-container {
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 10px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            
+            .tw-chart-title {
+                color: #333;
+                font-size: 14px;
+                font-weight: bold;
+                margin: 0 0 10px 0;
+                text-align: center;
+            }
+            
+            .tw-chart-canvas {
+                width: 100%;
+                height: 200px;
+            }
+            
+            .tw-chart-minmax {
+                display: flex;
+                justify-content: space-between;
+                font-size: 11px;
+                color: #666;
+                margin-top: 5px;
+            }
+            
+            .tw-chart-min {
+                color: #4CAF50;
+                font-weight: bold;
+            }
+            
+            .tw-chart-max {
+                color: #f44336;
+                font-weight: bold;
             }
         `;
         document.head.appendChild(style);
@@ -549,6 +641,9 @@ class ExchangeTracker {
             
             if (this.isStatVisible) {
                 this.updateStatsUI();
+                if (this.showCharts) {
+                    this.updateCharts();
+                }
             }
         } catch (e) {
             console.error('[TW Exchange Tracker] Error saving:', e);
@@ -605,7 +700,8 @@ class ExchangeTracker {
         resourceHeader.textContent = 'Resource';
         headerRow.appendChild(resourceHeader);
         
-        const tagTypes = ['min', 'min-10', 'min-50', 'min-100', 'max', 'max-10', 'max-50', 'max-100'];
+        // Updated tag order as requested
+        const tagTypes = ['min', 'min-10', 'min-50', 'min-100', 'max-100', 'max-50', 'max-10', 'max'];
         
         tagTypes.forEach(tagType => {
             const th = document.createElement('th');
@@ -635,15 +731,16 @@ class ExchangeTracker {
             const minValue = cache.min;
             const maxValue = cache.max;
             
+            // Updated tag order as requested
             const tagValues = {
                 'min': minValue,
                 'min-10': minValue > 0 ? minValue + 10 : 0,
                 'min-50': minValue > 0 ? minValue + 50 : 0,
                 'min-100': minValue > 0 ? minValue + 100 : 0,
-                'max': maxValue,
-                'max-10': maxValue > 0 ? maxValue - 10 : 0,
+                'max-100': maxValue > 0 ? maxValue - 100 : 0,
                 'max-50': maxValue > 0 ? maxValue - 50 : 0,
-                'max-100': maxValue > 0 ? maxValue - 100 : 0
+                'max-10': maxValue > 0 ? maxValue - 10 : 0,
+                'max': maxValue
             };
             
             tagTypes.forEach(tagType => {
@@ -705,6 +802,70 @@ class ExchangeTracker {
         
         table.appendChild(tbody);
         return table;
+    }
+
+    createChartsContainer() {
+        const container = document.createElement('div');
+        container.className = 'tw-charts-container';
+        
+        const header = document.createElement('div');
+        header.className = 'tw-charts-header';
+        
+        const title = document.createElement('h3');
+        title.className = 'tw-charts-title';
+        title.textContent = 'Price History Charts';
+        
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'tw-charts-toggle';
+        toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        toggleBtn.onclick = () => this.toggleCharts();
+        
+        header.appendChild(title);
+        header.appendChild(toggleBtn);
+        container.appendChild(header);
+        
+        if (this.showCharts) {
+            const grid = document.createElement('div');
+            grid.className = 'tw-charts-grid';
+            grid.id = 'tw-charts-grid';
+            
+            this.resourceTypes.forEach(resource => {
+                const chartContainer = document.createElement('div');
+                chartContainer.className = 'tw-chart-container';
+                
+                const chartTitle = document.createElement('h4');
+                chartTitle.className = 'tw-chart-title';
+                chartTitle.textContent = `${this.resourceNames[resource]} Price History`;
+                chartContainer.appendChild(chartTitle);
+                
+                const canvas = document.createElement('canvas');
+                canvas.id = `tw-chart-${resource}`;
+                canvas.className = 'tw-chart-canvas';
+                chartContainer.appendChild(canvas);
+                
+                const minMaxDiv = document.createElement('div');
+                minMaxDiv.className = 'tw-chart-minmax';
+                
+                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+                const minSpan = document.createElement('span');
+                minSpan.className = 'tw-chart-min';
+                minSpan.textContent = `Min: ${cache.min}`;
+                
+                const maxSpan = document.createElement('span');
+                maxSpan.className = 'tw-chart-max';
+                maxSpan.textContent = `Max: ${cache.max}`;
+                
+                minMaxDiv.appendChild(minSpan);
+                minMaxDiv.appendChild(maxSpan);
+                chartContainer.appendChild(minMaxDiv);
+                
+                grid.appendChild(chartContainer);
+            });
+            
+            container.appendChild(grid);
+        }
+        
+        return container;
     }
 
     createStatsContainer() {
@@ -770,6 +931,9 @@ class ExchangeTracker {
                 this.calculateMinMaxValues();
                 this.updateAllTags();
                 this.updateStatsUI();
+                if (this.showCharts) {
+                    this.updateCharts();
+                }
             }
         };
         
@@ -881,6 +1045,21 @@ class ExchangeTracker {
             
             const rowCountText = this.hideDuplicates ? `${visibleRows}/${this.data.length} records` : `${this.data.length} records`;
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        // Update charts if they exist
+        if (this.showCharts) {
+            const chartsContainer = document.querySelector('.tw-charts-container');
+            if (chartsContainer) {
+                this.updateCharts();
+            } else {
+                // Add charts container if it doesn't exist
+                const statsContainer = document.querySelector('.tw-exchange-stats-container');
+                if (statsContainer) {
+                    statsContainer.appendChild(this.createChartsContainer());
+                    this.initializeCharts();
+                }
+            }
         }
     }
 
@@ -1092,6 +1271,239 @@ class ExchangeTracker {
         }
     }
 
+    initializeCharts() {
+        if (!this.showCharts || this.data.length < 2) return;
+        
+        this.resourceTypes.forEach(resource => {
+            const canvas = document.getElementById(`tw-chart-${resource}`);
+            if (!canvas) return;
+            
+            const ctx = canvas.getContext('2d');
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+            
+            // Prepare data for chart
+            const labels = [];
+            const prices = [];
+            const minValues = [];
+            const maxValues = [];
+            
+            // Use limited data points for better performance
+            const maxPoints = 50;
+            const step = Math.max(1, Math.floor(this.data.length / maxPoints));
+            
+            for (let i = this.data.length - 1; i >= 0; i -= step) {
+                const record = this.data[i];
+                if (record.resources[resource].cost > 0) {
+                    labels.push(record.timestamp.split(' - ')[1]); // Just the time part
+                    prices.push(record.resources[resource].cost);
+                    minValues.push(cache.min);
+                    maxValues.push(cache.max);
+                }
+            }
+            
+            // Reverse to show chronological order
+            labels.reverse();
+            prices.reverse();
+            minValues.reverse();
+            maxValues.reverse();
+            
+            // Destroy existing chart if it exists
+            if (this.charts[resource]) {
+                this.charts[resource].destroy();
+            }
+            
+            this.charts[resource] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Price',
+                            data: prices,
+                            borderColor: this.chartColors[resource],
+                            backgroundColor: this.chartColors[resource] + '20',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Min',
+                            data: minValues,
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Max',
+                            data: maxValues,
+                            borderColor: '#f44336',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.parsed.y;
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Time',
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            ticks: {
+                                maxTicksLimit: 10,
+                                font: {
+                                    size: 8
+                                }
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: 'Price',
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 8
+                                }
+                            },
+                            suggestedMin: Math.max(0, cache.min - 10),
+                            suggestedMax: cache.max + 10
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    elements: {
+                        point: {
+                            radius: 2,
+                            hoverRadius: 4
+                        }
+                    }
+                }
+            });
+        });
+    }
+
+    updateCharts() {
+        if (!this.showCharts) return;
+        
+        this.resourceTypes.forEach(resource => {
+            const chart = this.charts[resource];
+            if (!chart) {
+                this.initializeCharts();
+                return;
+            }
+            
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+            
+            // Update data
+            const labels = [];
+            const prices = [];
+            const minValues = [];
+            const maxValues = [];
+            
+            const maxPoints = 50;
+            const step = Math.max(1, Math.floor(this.data.length / maxPoints));
+            
+            for (let i = this.data.length - 1; i >= 0; i -= step) {
+                const record = this.data[i];
+                if (record.resources[resource].cost > 0) {
+                    labels.push(record.timestamp.split(' - ')[1]);
+                    prices.push(record.resources[resource].cost);
+                    minValues.push(cache.min);
+                    maxValues.push(cache.max);
+                }
+            }
+            
+            labels.reverse();
+            prices.reverse();
+            minValues.reverse();
+            maxValues.reverse();
+            
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = prices;
+            chart.data.datasets[1].data = minValues;
+            chart.data.datasets[2].data = maxValues;
+            
+            // Update min/max display
+            const minMaxDiv = document.querySelector(`#tw-chart-${resource}`).parentNode.querySelector('.tw-chart-minmax');
+            if (minMaxDiv) {
+                const minSpan = minMaxDiv.querySelector('.tw-chart-min');
+                const maxSpan = minMaxDiv.querySelector('.tw-chart-max');
+                if (minSpan) minSpan.textContent = `Min: ${cache.min}`;
+                if (maxSpan) maxSpan.textContent = `Max: ${cache.max}`;
+            }
+            
+            chart.update();
+        });
+    }
+
+    toggleCharts() {
+        this.showCharts = !this.showCharts;
+        this.saveSettings();
+        
+        const toggleBtn = document.querySelector('.tw-charts-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        }
+        
+        const chartsContainer = document.querySelector('.tw-charts-container');
+        if (chartsContainer) {
+            chartsContainer.remove();
+        }
+        
+        if (this.showCharts && this.isStatVisible) {
+            const statsContainer = document.querySelector('.tw-exchange-stats-container');
+            if (statsContainer) {
+                statsContainer.appendChild(this.createChartsContainer());
+                this.initializeCharts();
+            }
+        }
+    }
+
     insertStatsContainer() {
         const visBlock = document.querySelector('div.vis');
         if (!visBlock) {
@@ -1140,6 +1552,15 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
+            // Add charts if enabled
+            if (this.showCharts) {
+                const existingCharts = container.querySelector('.tw-charts-container');
+                if (!existingCharts) {
+                    container.appendChild(this.createChartsContainer());
+                    this.initializeCharts();
+                }
+            }
+            
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
@@ -1154,6 +1575,12 @@ class ExchangeTracker {
         if (container) {
             container.style.display = 'none';
             this.isStatVisible = false;
+            
+            // Clean up charts
+            Object.values(this.charts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            this.charts = {};
             
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
