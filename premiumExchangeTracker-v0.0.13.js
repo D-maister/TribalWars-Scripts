@@ -1,7 +1,7 @@
 class ExchangeTracker {
     constructor() {
-        this.storageKey = 'tw_exchange_data_v5';
-        this.settingsKey = 'tw_exchange_settings_v5';
+        this.storageKey = 'tw_exchange_data_v6';
+        this.settingsKey = 'tw_exchange_settings_v6';
         this.updateInterval = 10000;
         this.collectionInterval = null;
         this.isStatVisible = false;
@@ -20,7 +20,6 @@ class ExchangeTracker {
             'iron': '#C0C0C0'
         };
         this.minMaxCache = {};
-        this.charts = {};
         
         this.init();
     }
@@ -53,7 +52,7 @@ class ExchangeTracker {
             showCharts: this.showCharts,
             lastUpdated: new Date().toISOString()
         };
-        localStorage.setItem(this.settingsKey, JSON.stringify(settings));
+        localStorage.setItem(this.storageKey, JSON.stringify(settings));
     }
 
     addStyles() {
@@ -411,6 +410,9 @@ class ExchangeTracker {
                 border-radius: 4px;
                 padding: 10px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                height: 250px;
+                display: flex;
+                flex-direction: column;
             }
             
             .tw-chart-title {
@@ -421,9 +423,15 @@ class ExchangeTracker {
                 text-align: center;
             }
             
-            .tw-chart-canvas {
+            .tw-chart-svg-container {
+                flex: 1;
                 width: 100%;
-                height: 200px;
+                position: relative;
+            }
+            
+            .tw-chart-svg {
+                width: 100%;
+                height: 100%;
             }
             
             .tw-chart-minmax {
@@ -441,6 +449,87 @@ class ExchangeTracker {
             
             .tw-chart-max {
                 color: #f44336;
+                font-weight: bold;
+            }
+            
+            .tw-chart-current {
+                color: #2196F3;
+                font-weight: bold;
+            }
+            
+            .tw-chart-axis-label {
+                font-size: 10px;
+                fill: #666;
+            }
+            
+            .tw-chart-grid-line {
+                stroke: #eee;
+                stroke-width: 1;
+            }
+            
+            .tw-chart-data-line {
+                fill: none;
+                stroke-width: 2;
+            }
+            
+            .tw-chart-min-line {
+                stroke: #4CAF50;
+                stroke-width: 1;
+                stroke-dasharray: 5,5;
+                opacity: 0.7;
+            }
+            
+            .tw-chart-max-line {
+                stroke: #f44336;
+                stroke-width: 1;
+                stroke-dasharray: 5,5;
+                opacity: 0.7;
+            }
+            
+            .tw-chart-point {
+                r: 3;
+                transition: r 0.2s;
+            }
+            
+            .tw-chart-point:hover {
+                r: 5;
+            }
+            
+            .tw-chart-tooltip {
+                position: absolute;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-size: 11px;
+                pointer-events: none;
+                z-index: 1000;
+                display: none;
+            }
+            
+            .tw-bar-chart-container {
+                grid-column: 1 / -1;
+                height: 300px;
+            }
+            
+            .tw-bar-chart-bar {
+                transition: height 0.3s, y 0.3s;
+            }
+            
+            .tw-bar-chart-bar:hover {
+                opacity: 0.8;
+            }
+            
+            .tw-bar-label {
+                font-size: 10px;
+                fill: #333;
+                text-anchor: middle;
+            }
+            
+            .tw-bar-value {
+                font-size: 9px;
+                fill: white;
+                text-anchor: middle;
                 font-weight: bold;
             }
         `;
@@ -569,10 +658,11 @@ class ExchangeTracker {
             if (costs.length > 0) {
                 this.minMaxCache[resource] = {
                     min: Math.min(...costs),
-                    max: Math.max(...costs)
+                    max: Math.max(...costs),
+                    current: this.data.length > 0 ? this.data[0].resources[resource].cost : 0
                 };
             } else {
-                this.minMaxCache[resource] = { min: 0, max: 0 };
+                this.minMaxCache[resource] = { min: 0, max: 0, current: 0 };
             }
         });
     }
@@ -804,6 +894,347 @@ class ExchangeTracker {
         return table;
     }
 
+    createLineChart(resource, container) {
+        if (!this.data.length) return;
+        
+        const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
+        const svgContainer = container.querySelector('.tw-chart-svg-container');
+        svgContainer.innerHTML = '';
+        
+        // Create SVG
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'tw-chart-svg');
+        svg.setAttribute('viewBox', '0 0 400 200');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        
+        // Get data points (limited for performance)
+        const maxPoints = 30;
+        const step = Math.max(1, Math.floor(this.data.length / maxPoints));
+        const points = [];
+        
+        for (let i = this.data.length - 1; i >= 0; i -= step) {
+            const record = this.data[i];
+            if (record.resources[resource].cost > 0) {
+                points.push({
+                    time: record.timestamp.split(' - ')[1],
+                    value: record.resources[resource].cost,
+                    date: record.timestamp
+                });
+            }
+        }
+        
+        points.reverse();
+        
+        if (points.length < 2) return;
+        
+        // Calculate scales
+        const padding = { top: 20, right: 30, bottom: 40, left: 50 };
+        const width = 400 - padding.left - padding.right;
+        const height = 200 - padding.top - padding.bottom;
+        
+        const minVal = Math.min(...points.map(p => p.value));
+        const maxVal = Math.max(...points.map(p => p.value));
+        const range = maxVal - minVal || 1;
+        
+        // Create grid
+        for (let i = 0; i <= 5; i++) {
+            const y = padding.top + (height * i / 5);
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('class', 'tw-chart-grid-line');
+            line.setAttribute('x1', padding.left);
+            line.setAttribute('x2', 400 - padding.right);
+            line.setAttribute('y1', y);
+            line.setAttribute('y2', y);
+            svg.appendChild(line);
+        }
+        
+        // Create Y-axis labels
+        for (let i = 0; i <= 5; i++) {
+            const value = minVal + (range * (5 - i) / 5);
+            const y = padding.top + (height * i / 5);
+            
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', padding.left - 5);
+            text.setAttribute('y', y + 3);
+            text.setAttribute('text-anchor', 'end');
+            text.textContent = Math.round(value);
+            svg.appendChild(text);
+        }
+        
+        // Create min line
+        const minY = padding.top + height * (1 - (cache.min - minVal) / range);
+        const minLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        minLine.setAttribute('class', 'tw-chart-min-line');
+        minLine.setAttribute('x1', padding.left);
+        minLine.setAttribute('x2', 400 - padding.right);
+        minLine.setAttribute('y1', minY);
+        minLine.setAttribute('y2', minY);
+        svg.appendChild(minLine);
+        
+        // Create max line
+        const maxY = padding.top + height * (1 - (cache.max - minVal) / range);
+        const maxLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        maxLine.setAttribute('class', 'tw-chart-max-line');
+        maxLine.setAttribute('x1', padding.left);
+        maxLine.setAttribute('x2', 400 - padding.right);
+        maxLine.setAttribute('y1', maxY);
+        maxLine.setAttribute('y2', maxY);
+        svg.appendChild(maxLine);
+        
+        // Create data line
+        const pathData = points.map((point, index) => {
+            const x = padding.left + (width * index / (points.length - 1));
+            const y = padding.top + height * (1 - (point.value - minVal) / range);
+            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+        }).join(' ');
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('class', 'tw-chart-data-line');
+        path.setAttribute('d', pathData);
+        path.setAttribute('stroke', this.chartColors[resource]);
+        svg.appendChild(path);
+        
+        // Create data points with tooltips
+        points.forEach((point, index) => {
+            const x = padding.left + (width * index / (points.length - 1));
+            const y = padding.top + height * (1 - (point.value - minVal) / range);
+            
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('class', 'tw-chart-point');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('fill', this.chartColors[resource]);
+            circle.setAttribute('data-value', point.value);
+            circle.setAttribute('data-time', point.date);
+            
+            circle.addEventListener('mouseenter', (e) => {
+                const tooltip = svgContainer.querySelector('.tw-chart-tooltip');
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX - svgContainer.getBoundingClientRect().left + 10) + 'px';
+                tooltip.style.top = (e.clientY - svgContainer.getBoundingClientRect().top - 30) + 'px';
+                tooltip.textContent = `${point.date}\nPrice: ${point.value}`;
+            });
+            
+            circle.addEventListener('mouseleave', () => {
+                const tooltip = svgContainer.querySelector('.tw-chart-tooltip');
+                tooltip.style.display = 'none';
+            });
+            
+            svg.appendChild(circle);
+        });
+        
+        // Create X-axis labels (every 5th point)
+        for (let i = 0; i < points.length; i += Math.floor(points.length / 5)) {
+            const point = points[i];
+            const x = padding.left + (width * i / (points.length - 1));
+            
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', x);
+            text.setAttribute('y', 200 - padding.bottom + 15);
+            text.setAttribute('text-anchor', 'middle');
+            text.textContent = point.time;
+            svg.appendChild(text);
+        }
+        
+        // Add tooltip element
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tw-chart-tooltip';
+        svgContainer.appendChild(tooltip);
+        svgContainer.appendChild(svg);
+        
+        // Update min/max display
+        const minMaxDiv = container.querySelector('.tw-chart-minmax');
+        if (minMaxDiv) {
+            minMaxDiv.innerHTML = `
+                <span class="tw-chart-min">Min: ${cache.min}</span>
+                <span class="tw-chart-current">Current: ${cache.current}</span>
+                <span class="tw-chart-max">Max: ${cache.max}</span>
+            `;
+        }
+    }
+
+    createBarChart(container) {
+        if (!this.data.length) return;
+        
+        const svgContainer = container.querySelector('.tw-chart-svg-container');
+        svgContainer.innerHTML = '';
+        
+        // Create SVG
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'tw-chart-svg');
+        svg.setAttribute('viewBox', '0 0 400 250');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        
+        const padding = { top: 30, right: 30, bottom: 60, left: 60 };
+        const width = 400 - padding.left - padding.right;
+        const height = 250 - padding.top - padding.bottom;
+        
+        // Calculate max value for scaling
+        const allValues = [];
+        this.resourceTypes.forEach(resource => {
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
+            allValues.push(cache.min, cache.current, cache.max);
+        });
+        const maxValue = Math.max(...allValues) || 1;
+        
+        // Create Y-axis grid and labels
+        for (let i = 0; i <= 5; i++) {
+            const y = padding.top + (height * i / 5);
+            const value = Math.round(maxValue * (5 - i) / 5);
+            
+            // Grid line
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('class', 'tw-chart-grid-line');
+            line.setAttribute('x1', padding.left);
+            line.setAttribute('x2', 400 - padding.right);
+            line.setAttribute('y1', y);
+            line.setAttribute('y2', y);
+            svg.appendChild(line);
+            
+            // Y-axis label
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', padding.left - 5);
+            text.setAttribute('y', y + 3);
+            text.setAttribute('text-anchor', 'end');
+            text.textContent = value;
+            svg.appendChild(text);
+        }
+        
+        // Create bars
+        const barWidth = 60;
+        const groupSpacing = 20;
+        const barSpacing = 10;
+        
+        this.resourceTypes.forEach((resource, resourceIndex) => {
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
+            const groupX = padding.left + resourceIndex * (barWidth * 3 + groupSpacing * 2);
+            
+            // Min bar (green)
+            const minHeight = (cache.min / maxValue) * height;
+            const minY = padding.top + height - minHeight;
+            const minBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            minBar.setAttribute('class', 'tw-bar-chart-bar');
+            minBar.setAttribute('x', groupX);
+            minBar.setAttribute('y', minY);
+            minBar.setAttribute('width', barWidth);
+            minBar.setAttribute('height', minHeight);
+            minBar.setAttribute('fill', '#4CAF50');
+            minBar.setAttribute('data-value', cache.min);
+            minBar.setAttribute('data-type', 'min');
+            minBar.setAttribute('data-resource', this.resourceNames[resource]);
+            svg.appendChild(minBar);
+            
+            // Current bar (blue)
+            const currentHeight = (cache.current / maxValue) * height;
+            const currentY = padding.top + height - currentHeight;
+            const currentBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            currentBar.setAttribute('class', 'tw-bar-chart-bar');
+            currentBar.setAttribute('x', groupX + barWidth + barSpacing);
+            currentBar.setAttribute('y', currentY);
+            currentBar.setAttribute('width', barWidth);
+            currentBar.setAttribute('height', currentHeight);
+            currentBar.setAttribute('fill', '#2196F3');
+            currentBar.setAttribute('data-value', cache.current);
+            currentBar.setAttribute('data-type', 'current');
+            currentBar.setAttribute('data-resource', this.resourceNames[resource]);
+            svg.appendChild(currentBar);
+            
+            // Max bar (red)
+            const maxHeight = (cache.max / maxValue) * height;
+            const maxY = padding.top + height - maxHeight;
+            const maxBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            maxBar.setAttribute('class', 'tw-bar-chart-bar');
+            maxBar.setAttribute('x', groupX + (barWidth + barSpacing) * 2);
+            maxBar.setAttribute('y', maxY);
+            maxBar.setAttribute('width', barWidth);
+            maxBar.setAttribute('height', maxHeight);
+            maxBar.setAttribute('fill', '#f44336');
+            maxBar.setAttribute('data-value', cache.max);
+            maxBar.setAttribute('data-type', 'max');
+            maxBar.setAttribute('data-resource', this.resourceNames[resource]);
+            svg.appendChild(maxBar);
+            
+            // Add value labels on bars
+            [minBar, currentBar, maxBar].forEach((bar, barIndex) => {
+                const value = bar.getAttribute('data-value');
+                const barX = parseFloat(bar.getAttribute('x'));
+                const barY = parseFloat(bar.getAttribute('y'));
+                const barHeight = parseFloat(bar.getAttribute('height'));
+                
+                if (barHeight > 15) {
+                    const valueText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    valueText.setAttribute('class', 'tw-bar-value');
+                    valueText.setAttribute('x', barX + barWidth / 2);
+                    valueText.setAttribute('y', barY + barHeight / 2 + 3);
+                    valueText.textContent = value;
+                    svg.appendChild(valueText);
+                }
+            });
+            
+            // Add resource label
+            const resourceLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            resourceLabel.setAttribute('class', 'tw-bar-label');
+            resourceLabel.setAttribute('x', groupX + (barWidth * 3 + groupSpacing * 2) / 2);
+            resourceLabel.setAttribute('y', 250 - padding.bottom + 20);
+            resourceLabel.textContent = this.resourceNames[resource];
+            svg.appendChild(resourceLabel);
+        });
+        
+        // Add legend
+        const legendData = [
+            { label: 'Min', color: '#4CAF50', x: padding.left, y: padding.top - 10 },
+            { label: 'Current', color: '#2196F3', x: padding.left + 80, y: padding.top - 10 },
+            { label: 'Max', color: '#f44336', x: padding.left + 180, y: padding.top - 10 }
+        ];
+        
+        legendData.forEach(item => {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', item.x);
+            rect.setAttribute('y', item.y);
+            rect.setAttribute('width', 12);
+            rect.setAttribute('height', 12);
+            rect.setAttribute('fill', item.color);
+            svg.appendChild(rect);
+            
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', item.x + 20);
+            text.setAttribute('y', item.y + 10);
+            text.textContent = item.label;
+            svg.appendChild(text);
+        });
+        
+        // Add tooltip
+        const tooltip = document.createElement('div');
+        tooltip.className = 'tw-chart-tooltip';
+        svgContainer.appendChild(tooltip);
+        
+        // Add hover events for bars
+        const bars = svg.querySelectorAll('.tw-bar-chart-bar');
+        bars.forEach(bar => {
+            bar.addEventListener('mouseenter', (e) => {
+                const rect = bar.getBoundingClientRect();
+                const value = bar.getAttribute('data-value');
+                const type = bar.getAttribute('data-type');
+                const resource = bar.getAttribute('data-resource');
+                
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX - svgContainer.getBoundingClientRect().left + 10) + 'px';
+                tooltip.style.top = (e.clientY - svgContainer.getBoundingClientRect().top - 30) + 'px';
+                tooltip.textContent = `${resource} - ${type}: ${value}`;
+            });
+            
+            bar.addEventListener('mouseleave', () => {
+                tooltip.style.display = 'none';
+            });
+        });
+        
+        svgContainer.appendChild(svg);
+    }
+
     createChartsContainer() {
         const container = document.createElement('div');
         container.className = 'tw-charts-container';
@@ -824,44 +1255,48 @@ class ExchangeTracker {
         header.appendChild(toggleBtn);
         container.appendChild(header);
         
-        if (this.showCharts) {
+        if (this.showCharts && this.data.length > 0) {
             const grid = document.createElement('div');
             grid.className = 'tw-charts-grid';
             grid.id = 'tw-charts-grid';
             
+            // Line charts for each resource
             this.resourceTypes.forEach(resource => {
                 const chartContainer = document.createElement('div');
                 chartContainer.className = 'tw-chart-container';
+                chartContainer.id = `tw-chart-${resource}`;
                 
                 const chartTitle = document.createElement('h4');
                 chartTitle.className = 'tw-chart-title';
                 chartTitle.textContent = `${this.resourceNames[resource]} Price History`;
                 chartContainer.appendChild(chartTitle);
                 
-                const canvas = document.createElement('canvas');
-                canvas.id = `tw-chart-${resource}`;
-                canvas.className = 'tw-chart-canvas';
-                chartContainer.appendChild(canvas);
+                const svgContainer = document.createElement('div');
+                svgContainer.className = 'tw-chart-svg-container';
+                chartContainer.appendChild(svgContainer);
                 
                 const minMaxDiv = document.createElement('div');
                 minMaxDiv.className = 'tw-chart-minmax';
-                
-                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                const minSpan = document.createElement('span');
-                minSpan.className = 'tw-chart-min';
-                minSpan.textContent = `Min: ${cache.min}`;
-                
-                const maxSpan = document.createElement('span');
-                maxSpan.className = 'tw-chart-max';
-                maxSpan.textContent = `Max: ${cache.max}`;
-                
-                minMaxDiv.appendChild(minSpan);
-                minMaxDiv.appendChild(maxSpan);
                 chartContainer.appendChild(minMaxDiv);
                 
                 grid.appendChild(chartContainer);
             });
             
+            // Bar chart (4th chart)
+            const barChartContainer = document.createElement('div');
+            barChartContainer.className = 'tw-chart-container tw-bar-chart-container';
+            barChartContainer.id = 'tw-bar-chart';
+            
+            const barChartTitle = document.createElement('h4');
+            barChartTitle.className = 'tw-chart-title';
+            barChartTitle.textContent = 'Min/Current/Max Comparison';
+            barChartContainer.appendChild(barChartTitle);
+            
+            const barSvgContainer = document.createElement('div');
+            barSvgContainer.className = 'tw-chart-svg-container';
+            barChartContainer.appendChild(barSvgContainer);
+            
+            grid.appendChild(barChartContainer);
             container.appendChild(grid);
         }
         
@@ -931,9 +1366,6 @@ class ExchangeTracker {
                 this.calculateMinMaxValues();
                 this.updateAllTags();
                 this.updateStatsUI();
-                if (this.showCharts) {
-                    this.updateCharts();
-                }
             }
         };
         
@@ -1049,7 +1481,7 @@ class ExchangeTracker {
         
         // Update charts if they exist
         if (this.showCharts) {
-            const chartsContainer = document.querySelector('.tw-charts-container');
+            const chartsContainer = container.querySelector('.tw-charts-container');
             if (chartsContainer) {
                 this.updateCharts();
             } else {
@@ -1057,7 +1489,7 @@ class ExchangeTracker {
                 const statsContainer = document.querySelector('.tw-exchange-stats-container');
                 if (statsContainer) {
                     statsContainer.appendChild(this.createChartsContainer());
-                    this.initializeCharts();
+                    this.updateCharts();
                 }
             }
         }
@@ -1271,214 +1703,22 @@ class ExchangeTracker {
         }
     }
 
-    initializeCharts() {
-        if (!this.showCharts || this.data.length < 2) return;
-        
-        this.resourceTypes.forEach(resource => {
-            const canvas = document.getElementById(`tw-chart-${resource}`);
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-            
-            // Prepare data for chart
-            const labels = [];
-            const prices = [];
-            const minValues = [];
-            const maxValues = [];
-            
-            // Use limited data points for better performance
-            const maxPoints = 50;
-            const step = Math.max(1, Math.floor(this.data.length / maxPoints));
-            
-            for (let i = this.data.length - 1; i >= 0; i -= step) {
-                const record = this.data[i];
-                if (record.resources[resource].cost > 0) {
-                    labels.push(record.timestamp.split(' - ')[1]); // Just the time part
-                    prices.push(record.resources[resource].cost);
-                    minValues.push(cache.min);
-                    maxValues.push(cache.max);
-                }
-            }
-            
-            // Reverse to show chronological order
-            labels.reverse();
-            prices.reverse();
-            minValues.reverse();
-            maxValues.reverse();
-            
-            // Destroy existing chart if it exists
-            if (this.charts[resource]) {
-                this.charts[resource].destroy();
-            }
-            
-            this.charts[resource] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Price',
-                            data: prices,
-                            borderColor: this.chartColors[resource],
-                            backgroundColor: this.chartColors[resource] + '20',
-                            borderWidth: 2,
-                            fill: true,
-                            tension: 0.1
-                        },
-                        {
-                            label: 'Min',
-                            data: minValues,
-                            borderColor: '#4CAF50',
-                            backgroundColor: 'transparent',
-                            borderWidth: 1,
-                            borderDash: [5, 5],
-                            fill: false,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Max',
-                            data: maxValues,
-                            borderColor: '#f44336',
-                            backgroundColor: 'transparent',
-                            borderWidth: 1,
-                            borderDash: [5, 5],
-                            fill: false,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'top',
-                            labels: {
-                                boxWidth: 12,
-                                font: {
-                                    size: 10
-                                }
-                            }
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: function(context) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
-                                    }
-                                    label += context.parsed.y;
-                                    return label;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Time',
-                                font: {
-                                    size: 10
-                                }
-                            },
-                            ticks: {
-                                maxTicksLimit: 10,
-                                font: {
-                                    size: 8
-                                }
-                            }
-                        },
-                        y: {
-                            display: true,
-                            title: {
-                                display: true,
-                                text: 'Price',
-                                font: {
-                                    size: 10
-                                }
-                            },
-                            ticks: {
-                                font: {
-                                    size: 8
-                                }
-                            },
-                            suggestedMin: Math.max(0, cache.min - 10),
-                            suggestedMax: cache.max + 10
-                        }
-                    },
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    elements: {
-                        point: {
-                            radius: 2,
-                            hoverRadius: 4
-                        }
-                    }
-                }
-            });
-        });
-    }
-
     updateCharts() {
-        if (!this.showCharts) return;
+        if (!this.showCharts || !this.data.length) return;
         
+        // Update line charts
         this.resourceTypes.forEach(resource => {
-            const chart = this.charts[resource];
-            if (!chart) {
-                this.initializeCharts();
-                return;
+            const chartContainer = document.querySelector(`#tw-chart-${resource}`);
+            if (chartContainer) {
+                this.createLineChart(resource, chartContainer);
             }
-            
-            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-            
-            // Update data
-            const labels = [];
-            const prices = [];
-            const minValues = [];
-            const maxValues = [];
-            
-            const maxPoints = 50;
-            const step = Math.max(1, Math.floor(this.data.length / maxPoints));
-            
-            for (let i = this.data.length - 1; i >= 0; i -= step) {
-                const record = this.data[i];
-                if (record.resources[resource].cost > 0) {
-                    labels.push(record.timestamp.split(' - ')[1]);
-                    prices.push(record.resources[resource].cost);
-                    minValues.push(cache.min);
-                    maxValues.push(cache.max);
-                }
-            }
-            
-            labels.reverse();
-            prices.reverse();
-            minValues.reverse();
-            maxValues.reverse();
-            
-            chart.data.labels = labels;
-            chart.data.datasets[0].data = prices;
-            chart.data.datasets[1].data = minValues;
-            chart.data.datasets[2].data = maxValues;
-            
-            // Update min/max display
-            const minMaxDiv = document.querySelector(`#tw-chart-${resource}`).parentNode.querySelector('.tw-chart-minmax');
-            if (minMaxDiv) {
-                const minSpan = minMaxDiv.querySelector('.tw-chart-min');
-                const maxSpan = minMaxDiv.querySelector('.tw-chart-max');
-                if (minSpan) minSpan.textContent = `Min: ${cache.min}`;
-                if (maxSpan) maxSpan.textContent = `Max: ${cache.max}`;
-            }
-            
-            chart.update();
         });
+        
+        // Update bar chart
+        const barChartContainer = document.querySelector('#tw-bar-chart');
+        if (barChartContainer) {
+            this.createBarChart(barChartContainer);
+        }
     }
 
     toggleCharts() {
@@ -1499,7 +1739,7 @@ class ExchangeTracker {
             const statsContainer = document.querySelector('.tw-exchange-stats-container');
             if (statsContainer) {
                 statsContainer.appendChild(this.createChartsContainer());
-                this.initializeCharts();
+                this.updateCharts();
             }
         }
     }
@@ -1557,7 +1797,7 @@ class ExchangeTracker {
                 const existingCharts = container.querySelector('.tw-charts-container');
                 if (!existingCharts) {
                     container.appendChild(this.createChartsContainer());
-                    this.initializeCharts();
+                    this.updateCharts();
                 }
             }
             
@@ -1575,12 +1815,6 @@ class ExchangeTracker {
         if (container) {
             container.style.display = 'none';
             this.isStatVisible = false;
-            
-            // Clean up charts
-            Object.values(this.charts).forEach(chart => {
-                if (chart) chart.destroy();
-            });
-            this.charts = {};
             
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
