@@ -3,9 +3,9 @@ class ExchangeTracker {
         this.storageKey = 'tw_exchange_data_v4';
         this.settingsKey = 'tw_exchange_settings_v4';
         this.updateInterval = 10000;
-        this.hideDuplicates = false;
         this.collectionInterval = null;
         this.isStatVisible = false;
+        this.hideDuplicates = false;
         this.data = [];
         this.resourceTypes = ['wood', 'stone', 'iron'];
         this.resourceNames = {
@@ -342,6 +342,15 @@ class ExchangeTracker {
                 border-radius: 4px;
                 margin-top: 10px;
             }
+            
+            .tw-hidden-rows-summary {
+                background-color: #f0f0f0;
+                font-style: italic;
+                text-align: center;
+                color: #666;
+                padding: 8px;
+                border-top: 1px dashed #999;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -448,7 +457,6 @@ class ExchangeTracker {
     }
 
     formatDateTime(date) {
-        // Format: DD/MM/YYYY - HH:MM:SS
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
@@ -503,7 +511,6 @@ class ExchangeTracker {
     }
 
     updateAllTags() {
-        // Update tags for all data based on current min/max
         this.data.forEach(record => {
             this.resourceTypes.forEach(resource => {
                 const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
@@ -516,7 +523,6 @@ class ExchangeTracker {
     saveData() {
         const currentData = this.getExchangeData();
         
-        // Calculate diff for each resource
         if (this.data.length > 0) {
             const previousData = this.data[0];
             
@@ -528,25 +534,19 @@ class ExchangeTracker {
             });
         }
         
-        // Add to data array
         this.data.unshift(currentData);
         
-        // Keep only last 500 records
         if (this.data.length > 500) {
             this.data = this.data.slice(0, 500);
         }
         
-        // Recalculate min/max after adding new data
         this.calculateMinMaxValues();
-        
-        // Update tags for ALL records
         this.updateAllTags();
         
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             console.log('[TW Exchange Tracker] Data saved, records:', this.data.length);
             
-            // Update UI if stats are visible
             if (this.isStatVisible) {
                 this.updateStatsUI();
             }
@@ -579,7 +579,6 @@ class ExchangeTracker {
             clearInterval(this.collectionInterval);
         }
         
-        // Initial save
         setTimeout(() => {
             this.saveData();
         }, 2000);
@@ -599,7 +598,6 @@ class ExchangeTracker {
         const table = document.createElement('table');
         table.className = 'tw-summary-table';
         
-        // Create header
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         
@@ -623,24 +621,20 @@ class ExchangeTracker {
         thead.appendChild(headerRow);
         table.appendChild(thead);
         
-        // Create body
         const tbody = document.createElement('tbody');
         
         this.resourceTypes.forEach(resource => {
             const row = document.createElement('tr');
             
-            // Resource name
             const resourceCell = document.createElement('td');
             resourceCell.className = 'resource-name';
             resourceCell.textContent = this.resourceNames[resource];
             row.appendChild(resourceCell);
             
-            // Get min and max values for this resource
             const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
             const minValue = cache.min;
             const maxValue = cache.max;
             
-            // Calculate values for each tag type
             const tagValues = {
                 'min': minValue,
                 'min-10': minValue > 0 ? minValue + 10 : 0,
@@ -652,22 +646,18 @@ class ExchangeTracker {
                 'max-100': maxValue > 0 ? maxValue - 100 : 0
             };
             
-            // Create cells for each tag type
             tagTypes.forEach(tagType => {
                 const cell = document.createElement('td');
                 const value = tagValues[tagType];
                 cell.textContent = value > 0 ? value : '—';
                 
-                // Highlight if this is an active threshold (there are records near this value)
                 if (value > 0) {
-                    // Check if there are records within this threshold
                     const hasRecordsNearThreshold = this.data.some(record => {
                         const recordCost = record.resources[resource].cost;
                         if (recordCost === 0) return false;
                         
                         if (tagType.includes('min')) {
                             const thresholdValue = tagValues[tagType];
-                            // For min thresholds, check if record is at or above this threshold
                             if (tagType === 'min') {
                                 return recordCost === thresholdValue;
                             } else {
@@ -675,7 +665,6 @@ class ExchangeTracker {
                             }
                         } else {
                             const thresholdValue = tagValues[tagType];
-                            // For max thresholds, check if record is at or below this threshold
                             if (tagType === 'max') {
                                 return recordCost === thresholdValue;
                             } else {
@@ -694,7 +683,6 @@ class ExchangeTracker {
                     }
                 }
                 
-                // Add tooltip
                 if (value > 0) {
                     let tooltip = '';
                     if (tagType === 'min') {
@@ -724,7 +712,6 @@ class ExchangeTracker {
         container.className = 'tw-exchange-stats-container';
         container.style.display = 'none';
         
-        // Header with title and close button
         const header = document.createElement('div');
         header.className = 'tw-exchange-stats-header';
         
@@ -741,7 +728,6 @@ class ExchangeTracker {
         header.appendChild(title);
         header.appendChild(closeBtn);
         
-        // Controls
         const controls = document.createElement('div');
         controls.className = 'tw-exchange-stat-controls';
         
@@ -769,6 +755,12 @@ class ExchangeTracker {
         secLabel.textContent = 'seconds';
         secLabel.style.color = '#666';
         
+        const hideDupesBtn = document.createElement('button');
+        hideDupesBtn.id = 'tw-hide-dupes-btn';
+        hideDupesBtn.textContent = 'Hide Duplicates';
+        hideDupesBtn.title = 'Hide rows with no changes from previous record';
+        hideDupesBtn.onclick = () => this.toggleHideDuplicates();
+        
         const clearBtn = document.createElement('button');
         clearBtn.textContent = 'Clear All Data';
         clearBtn.onclick = () => {
@@ -784,9 +776,9 @@ class ExchangeTracker {
         controls.appendChild(updateLabel);
         controls.appendChild(updateInput);
         controls.appendChild(secLabel);
+        controls.appendChild(hideDupesBtn);
         controls.appendChild(clearBtn);
         
-        // Current values summary
         const currentSummary = document.createElement('div');
         currentSummary.style.marginBottom = '15px';
         currentSummary.style.padding = '10px';
@@ -795,16 +787,13 @@ class ExchangeTracker {
         currentSummary.style.fontSize = '12px';
         currentSummary.id = 'tw-current-summary';
         
-        // Summary table
         const summaryTable = document.createElement('div');
         summaryTable.id = 'tw-summary-table';
         
-        // Data table container
         const tableContainer = document.createElement('div');
         tableContainer.className = 'tw-table-container';
         tableContainer.id = 'tw-data-table';
         
-        // Status
         const status = document.createElement('div');
         status.style.marginTop = '10px';
         status.style.fontSize = '11px';
@@ -812,7 +801,6 @@ class ExchangeTracker {
         status.style.textAlign = 'center';
         status.id = 'tw-exchange-status';
         
-        // Assemble container
         container.appendChild(header);
         container.appendChild(controls);
         container.appendChild(currentSummary);
@@ -829,7 +817,6 @@ class ExchangeTracker {
         const container = document.querySelector('.tw-exchange-stats-container');
         if (!container) return;
         
-        // Update current summary
         const currentSummary = container.querySelector('#tw-current-summary');
         if (currentSummary && this.data.length > 0) {
             const current = this.data[0];
@@ -847,49 +834,18 @@ class ExchangeTracker {
             currentSummary.innerHTML = summaryText;
         }
         
-        // Update summary table
         const summaryTable = container.querySelector('#tw-summary-table');
         if (summaryTable) {
             summaryTable.innerHTML = '';
             summaryTable.appendChild(this.createSummaryTable());
         }
         
-        // Update data table
         const tableContainer = container.querySelector('#tw-data-table');
         if (tableContainer) {
             tableContainer.innerHTML = '';
             tableContainer.appendChild(this.createStatTable());
-            
-            // Calculate visible rows count
-            let visibleRows = 0;
-            let previousRecord = null;
-            
-            this.data.forEach((record, index) => {
-                if (index === 0) {
-                    visibleRows++;
-                    previousRecord = record;
-                    return;
-                }
-                
-                if (this.hideDuplicates) {
-                    let allDiffsZero = true;
-                    this.resourceTypes.forEach(resource => {
-                        if (record.resources[resource].diff !== 0) {
-                            allDiffsZero = false;
-                        }
-                    });
-                    
-                    if (!allDiffsZero) {
-                        visibleRows++;
-                        previousRecord = record;
-                    }
-                } else {
-                    visibleRows++;
-                }
-            });
         }
         
-        // Update status
         const status = container.querySelector('#tw-exchange-status');
         if (status) {
             const ranges = this.resourceTypes.map(resource => {
@@ -897,37 +853,33 @@ class ExchangeTracker {
                 return `${this.resourceNames[resource]}: ${cache.min}-${cache.max}`;
             }).join(' | ');
             
-            let rowCountText = '';
-            if (this.hideDuplicates && this.data.length > 0) {
-                // Calculate visible rows
-                let visibleRows = 0;
-                let previousRecord = null;
+            let visibleRows = 0;
+            if (this.data.length > 0) {
+                visibleRows = 1;
+                let prevVisibleRecord = this.data[0];
                 
-                this.data.forEach((record, index) => {
-                    if (index === 0) {
-                        visibleRows++;
-                        previousRecord = record;
-                        return;
-                    }
+                for (let i = 1; i < this.data.length; i++) {
+                    const record = this.data[i];
                     
-                    let allDiffsZero = true;
-                    this.resourceTypes.forEach(resource => {
-                        if (record.resources[resource].diff !== 0) {
-                            allDiffsZero = false;
+                    if (this.hideDuplicates) {
+                        let allDiffsZero = true;
+                        this.resourceTypes.forEach(resource => {
+                            if (record.resources[resource].diff !== 0) {
+                                allDiffsZero = false;
+                            }
+                        });
+                        
+                        if (!allDiffsZero) {
+                            visibleRows++;
+                            prevVisibleRecord = record;
                         }
-                    });
-                    
-                    if (!allDiffsZero) {
+                    } else {
                         visibleRows++;
-                        previousRecord = record;
                     }
-                });
-                
-                rowCountText = `${visibleRows}/${this.data.length} records`;
-            } else {
-                rowCountText = `${this.data.length} records`;
+                }
             }
             
+            const rowCountText = this.hideDuplicates ? `${visibleRows}/${this.data.length} records` : `${this.data.length} records`;
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
         }
     }
@@ -936,10 +888,8 @@ class ExchangeTracker {
         const table = document.createElement('table');
         table.className = 'tw-exchange-stat-table';
         
-        // Create two-level header
         const thead = document.createElement('thead');
         
-        // First header row
         const headerRow1 = document.createElement('tr');
         headerRow1.className = 'tw-exchange-stat-header';
         
@@ -952,14 +902,13 @@ class ExchangeTracker {
         this.resourceTypes.forEach(resource => {
             const resourceHeader = document.createElement('th');
             resourceHeader.textContent = this.resourceNames[resource];
-            resourceHeader.colSpan = 5; // Amount, Capacity, Cost, Diff, Tag
+            resourceHeader.colSpan = 5;
             resourceHeader.className = `tw-exchange-stat-resource-header tw-exchange-stat-${resource}`;
             headerRow1.appendChild(resourceHeader);
         });
         
         thead.appendChild(headerRow1);
         
-        // Second header row
         const headerRow2 = document.createElement('tr');
         
         this.resourceTypes.forEach(resource => {
@@ -975,7 +924,6 @@ class ExchangeTracker {
         thead.appendChild(headerRow2);
         table.appendChild(thead);
         
-        // Table body
         const tbody = document.createElement('tbody');
         this.updateTableBody(tbody);
         table.appendChild(tbody);
@@ -989,7 +937,7 @@ class ExchangeTracker {
         if (this.data.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 16; // 1 time + (5 columns * 3 resources)
+            emptyCell.colSpan = 16;
             emptyCell.textContent = 'No data collected yet. Data is saved every ' + (this.updateInterval / 1000) + ' seconds.';
             emptyCell.style.textAlign = 'center';
             emptyCell.style.padding = '20px';
@@ -1000,14 +948,13 @@ class ExchangeTracker {
         }
         
         let visibleRows = 0;
-        let previousRecord = null;
+        let prevVisibleRecord = null;
+        let totalHidden = 0;
         
         this.data.forEach((record, index) => {
-            // Check if we should hide this row (if hideDuplicates is enabled)
             let shouldHide = false;
             
-            if (this.hideDuplicates && previousRecord !== null && index > 0) {
-                // Check if all 3 resources have diff = 0 (no change from previous)
+            if (this.hideDuplicates && prevVisibleRecord !== null && index > 0) {
                 let allDiffsZero = true;
                 
                 this.resourceTypes.forEach(resource => {
@@ -1020,13 +967,12 @@ class ExchangeTracker {
                 shouldHide = allDiffsZero;
             }
             
-            // Always show the first record
             if (index === 0) {
                 shouldHide = false;
             }
             
-            // Skip hidden rows
             if (shouldHide) {
+                totalHidden++;
                 return;
             }
             
@@ -1035,11 +981,9 @@ class ExchangeTracker {
                 row.style.backgroundColor = '#f9f9f9';
             }
             
-            // Add indicator for hidden rows
-            if (this.hideDuplicates && previousRecord !== null) {
-                // Check if we skipped any rows between this and previous shown record
+            if (this.hideDuplicates && prevVisibleRecord !== null) {
                 const currentIndex = this.data.indexOf(record);
-                const prevIndex = this.data.indexOf(previousRecord);
+                const prevIndex = this.data.indexOf(prevVisibleRecord);
                 const skippedCount = prevIndex - currentIndex - 1;
                 
                 if (skippedCount > 0) {
@@ -1047,15 +991,13 @@ class ExchangeTracker {
                 }
             }
             
-            // Time cell with full datetime
             const timeCell = document.createElement('td');
             timeCell.className = 'tw-exchange-stat-timestamp';
             timeCell.textContent = record.timestamp;
             
-            // Add indicator for skipped records
-            if (this.hideDuplicates && previousRecord !== null) {
+            if (this.hideDuplicates && prevVisibleRecord !== null) {
                 const currentIndex = this.data.indexOf(record);
-                const prevIndex = this.data.indexOf(previousRecord);
+                const prevIndex = this.data.indexOf(prevVisibleRecord);
                 const skippedCount = prevIndex - currentIndex - 1;
                 
                 if (skippedCount > 0) {
@@ -1070,17 +1012,14 @@ class ExchangeTracker {
             
             row.appendChild(timeCell);
             
-            // Resource cells
             this.resourceTypes.forEach(resource => {
                 const resData = record.resources[resource];
                 
-                // Amount cell
                 const amountCell = document.createElement('td');
                 amountCell.className = 'tw-exchange-stat-amount';
                 amountCell.textContent = resData.amount.toLocaleString();
                 row.appendChild(amountCell);
                 
-                // Capacity cell
                 const capacityCell = document.createElement('td');
                 capacityCell.className = 'tw-exchange-stat-capacity';
                 capacityCell.textContent = resData.capacity.toLocaleString();
@@ -1096,13 +1035,11 @@ class ExchangeTracker {
                 
                 row.appendChild(capacityCell);
                 
-                // Cost cell
                 const costCell = document.createElement('td');
                 costCell.className = 'tw-exchange-stat-cost';
                 costCell.textContent = resData.cost;
                 row.appendChild(costCell);
                 
-                // Diff cell
                 const diffCell = document.createElement('td');
                 diffCell.className = `tw-exchange-stat-diff ${resData.diff > 0 ? 'positive' : resData.diff < 0 ? 'negative' : 'neutral'}`;
                 
@@ -1122,7 +1059,6 @@ class ExchangeTracker {
                 
                 row.appendChild(diffCell);
                 
-                // Tag cell
                 const tagCell = document.createElement('td');
                 if (resData.tag) {
                     tagCell.textContent = resData.tag;
@@ -1140,40 +1076,29 @@ class ExchangeTracker {
             
             tbody.appendChild(row);
             visibleRows++;
-            previousRecord = record;
+            prevVisibleRecord = record;
         });
         
-        // Add summary row if hiding duplicates
-        if (this.hideDuplicates && this.data.length > 0) {
-            const totalHidden = this.data.length - visibleRows;
-            if (totalHidden > 0) {
-                const summaryRow = document.createElement('tr');
-                summaryRow.style.backgroundColor = '#f0f0f0';
-                summaryRow.style.fontStyle = 'italic';
-                
-                const summaryCell = document.createElement('td');
-                summaryCell.colSpan = 16;
-                summaryCell.style.textAlign = 'center';
-                summaryCell.style.padding = '8px';
-                summaryCell.style.color = '#666';
-                summaryCell.textContent = `${totalHidden} duplicate record${totalHidden !== 1 ? 's' : ''} hidden (no price changes)`;
-                summaryCell.title = 'Records with no price changes from previous record are hidden';
-                
-                summaryRow.appendChild(summaryCell);
-                tbody.appendChild(summaryRow);
-            }
+        if (this.hideDuplicates && totalHidden > 0) {
+            const summaryRow = document.createElement('tr');
+            const summaryCell = document.createElement('td');
+            summaryCell.colSpan = 16;
+            summaryCell.className = 'tw-hidden-rows-summary';
+            summaryCell.textContent = `${totalHidden} duplicate record${totalHidden !== 1 ? 's' : ''} hidden (no price changes)`;
+            summaryCell.title = 'Records with no price changes from previous record are hidden';
+            
+            summaryRow.appendChild(summaryCell);
+            tbody.appendChild(summaryRow);
         }
     }
 
     insertStatsContainer() {
-        // Find the vis block to insert before
         const visBlock = document.querySelector('div.vis');
         if (!visBlock) {
             console.error('[TW Exchange Tracker] Could not find div.vis block');
             return;
         }
         
-        // Check if container already exists
         let container = document.querySelector('.tw-exchange-stats-container');
         if (!container) {
             container = this.createStatsContainer();
@@ -1181,6 +1106,23 @@ class ExchangeTracker {
         }
         
         return container;
+    }
+
+    toggleHideDuplicates() {
+        this.hideDuplicates = !this.hideDuplicates;
+        const button = document.querySelector('#tw-hide-dupes-btn');
+        if (button) {
+            button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
+            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record';
+            
+            if (this.hideDuplicates) {
+                button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
+            } else {
+                button.style.background = 'linear-gradient(to bottom, #f44336, #d32f2f)';
+            }
+        }
+        
+        this.updateStatsUI();
     }
 
     toggleStats() {
@@ -1198,7 +1140,6 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
-            // Auto-refresh when stats are visible
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
@@ -1222,142 +1163,9 @@ class ExchangeTracker {
     }
 }
 
-createStatsContainer() {
-    const container = document.createElement('div');
-    container.className = 'tw-exchange-stats-container';
-    container.style.display = 'none';
-    
-    // Header with title and close button
-    const header = document.createElement('div');
-    header.className = 'tw-exchange-stats-header';
-    
-    const title = document.createElement('h2');
-    title.className = 'tw-exchange-stats-title';
-    title.textContent = 'Premium Exchange Statistics';
-    
-    const closeBtn = document.createElement('button');
-    closeBtn.className = 'tw-exchange-stats-close';
-    closeBtn.textContent = '×';
-    closeBtn.title = 'Close statistics';
-    closeBtn.onclick = () => this.hideStats();
-    
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-    
-    // Controls
-    const controls = document.createElement('div');
-    controls.className = 'tw-exchange-stat-controls';
-    
-    const updateLabel = document.createElement('label');
-    updateLabel.textContent = 'Update every:';
-    updateLabel.htmlFor = 'tw-update-interval';
-    
-    const updateInput = document.createElement('input');
-    updateInput.id = 'tw-update-interval';
-    updateInput.type = 'number';
-    updateInput.min = '1';
-    updateInput.max = '3600';
-    updateInput.value = this.updateInterval / 1000;
-    updateInput.onchange = (e) => {
-        const value = parseInt(e.target.value);
-        if (value >= 1 && value <= 3600) {
-            this.updateCollectionInterval(value);
-            e.target.value = value;
-        } else {
-            e.target.value = this.updateInterval / 1000;
-        }
-    };
-    
-    const secLabel = document.createElement('label');
-    secLabel.textContent = 'seconds';
-    secLabel.style.color = '#666';
-    
-    // Add hide duplicates button
-    const hideDupesBtn = document.createElement('button');
-    hideDupesBtn.id = 'tw-hide-dupes-btn';
-    hideDupesBtn.textContent = 'Hide Duplicates';
-    hideDupesBtn.title = 'Hide rows with no changes from previous record';
-    hideDupesBtn.onclick = () => this.toggleHideDuplicates();
-    
-    const clearBtn = document.createElement('button');
-    clearBtn.textContent = 'Clear All Data';
-    clearBtn.onclick = () => {
-        if (confirm('Clear all saved data?')) {
-            localStorage.removeItem(this.storageKey);
-            this.data = [];
-            this.calculateMinMaxValues();
-            this.updateAllTags();
-            this.updateStatsUI();
-        }
-    };
-    
-    controls.appendChild(updateLabel);
-    controls.appendChild(updateInput);
-    controls.appendChild(secLabel);
-    controls.appendChild(hideDupesBtn);
-    controls.appendChild(clearBtn);
-    
-    // Current values summary
-    const currentSummary = document.createElement('div');
-    currentSummary.style.marginBottom = '15px';
-    currentSummary.style.padding = '10px';
-    currentSummary.style.backgroundColor = '#E3F2FD';
-    currentSummary.style.borderRadius = '4px';
-    currentSummary.style.fontSize = '12px';
-    currentSummary.id = 'tw-current-summary';
-    
-    // Summary table
-    const summaryTable = document.createElement('div');
-    summaryTable.id = 'tw-summary-table';
-    
-    // Data table container
-    const tableContainer = document.createElement('div');
-    tableContainer.className = 'tw-table-container';
-    tableContainer.id = 'tw-data-table';
-    
-    // Status
-    const status = document.createElement('div');
-    status.style.marginTop = '10px';
-    status.style.fontSize = '11px';
-    status.style.color = '#666';
-    status.style.textAlign = 'center';
-    status.id = 'tw-exchange-status';
-    
-    // Assemble container
-    container.appendChild(header);
-    container.appendChild(controls);
-    container.appendChild(currentSummary);
-    container.appendChild(summaryTable);
-    container.appendChild(tableContainer);
-    container.appendChild(status);
-    
-    return container;
-}
-
-toggleHideDuplicates() {
-        this.hideDuplicates = !this.hideDuplicates;
-        const button = document.querySelector('#tw-hide-dupes-btn');
-        if (button) {
-            button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
-            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record';
-            
-            // Add visual feedback
-            if (this.hideDuplicates) {
-                button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
-            } else {
-                button.style.background = 'linear-gradient(to bottom, #f44336, #d32f2f)';
-            }
-        }
-        
-        // Update the table
-        this.updateStatsUI();
-    }
-
-// Initialize when page loads
 function initTracker() {
     if (!window.location.href.includes('mode=exchange')) return;
     
-    // Check if already initialized
     if (window.twExchangeTracker) return;
     
     if (document.readyState === 'loading') {
@@ -1373,10 +1181,8 @@ function initTracker() {
     }
 }
 
-// Start initialization
 initTracker();
 
-// Backup initialization after 5 seconds
 setTimeout(() => {
     if (!window.twExchangeTracker) {
         console.log('[TW Exchange Tracker] Retrying initialization...');
