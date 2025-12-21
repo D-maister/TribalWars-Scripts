@@ -12,19 +12,41 @@ class ExchangeTracker {
             'stone': 'Clay',
             'iron': 'Iron'
         };
-        this.minMaxCache = {}; // Cache for min/max values per resource
+        this.minMaxCache = {};
+        this.isInitialized = false;
         
-        this.init();
+        // Use passive event listeners to avoid blocking
+        this.eventOptions = { passive: true, capture: false };
+        
+        // Initialize with a small delay to avoid conflicts
+        setTimeout(() => this.init(), 100);
     }
 
     init() {
+        if (this.isInitialized) return;
+        
         console.log('[TW Exchange Tracker] Initializing...');
+        
+        // Check if we're on the right page
+        if (!window.location.href.includes('mode=exchange')) {
+            console.log('[TW Exchange Tracker] Not on exchange page');
+            return;
+        }
+        
         this.addStyles();
         this.loadSettings();
         this.tryAddButton();
-        this.startCollection();
+        this.loadData();
+        
+        // Start collection with delay to ensure page is fully loaded
+        setTimeout(() => {
+            this.startCollection();
+        }, 2000);
+        
         this.setupMutationObserver();
         this.bindEvents();
+        
+        this.isInitialized = true;
         console.log('[TW Exchange Tracker] Initialized');
     }
 
@@ -46,6 +68,9 @@ class ExchangeTracker {
     }
 
     addStyles() {
+        // Check if styles already exist
+        if (document.getElementById('tw-exchange-tracker-styles')) return;
+        
         const style = document.createElement('style');
         style.id = 'tw-exchange-tracker-styles';
         style.textContent = `
@@ -299,6 +324,7 @@ class ExchangeTracker {
                 font-weight: bold;
                 padding: 1px 4px;
                 border-radius: 3px;
+                vertical-align: middle;
             }
             
             .tw-cost-diff {
@@ -306,6 +332,7 @@ class ExchangeTracker {
                 margin-left: 5px;
                 font-size: 10px;
                 font-weight: bold;
+                vertical-align: middle;
             }
             
             .tw-cost-diff.positive {
@@ -339,6 +366,9 @@ class ExchangeTracker {
         
         if (submitBtn && submitBtn.parentNode) {
             this.addButtonToElement(submitBtn);
+        } else {
+            // Try again later if button not found
+            setTimeout(() => this.tryAddButton(), 1000);
         }
     }
 
@@ -350,11 +380,18 @@ class ExchangeTracker {
         statBtn.className = 'tw-exchange-stat-btn';
         statBtn.textContent = 'STAT';
         statBtn.title = 'Show exchange statistics';
-        statBtn.addEventListener('click', () => this.toggleStatWindow());
+        
+        // Use passive event listener
+        statBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            this.toggleStatWindow();
+        }, this.eventOptions);
         
         try {
             submitBtn.parentNode.insertBefore(statBtn, submitBtn);
         } catch (e) {
+            // Fallback to fixed position
             statBtn.style.position = 'fixed';
             statBtn.style.top = '10px';
             statBtn.style.right = '10px';
@@ -364,15 +401,24 @@ class ExchangeTracker {
     }
 
     setupMutationObserver() {
-        const observer = new MutationObserver(() => {
+        const observer = new MutationObserver((mutations) => {
+            // Only check for button if it doesn't exist
             if (!document.querySelector('.tw-exchange-stat-btn')) {
                 setTimeout(() => this.tryAddButton(), 500);
             }
-            // Update indicators on DOM changes
-            this.updateCostIndicators();
+            
+            // Update indicators when DOM changes
+            if (this.isInitialized && this.data.length > 0) {
+                this.updateCostIndicators();
+            }
         });
         
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, { 
+            childList: true, 
+            subtree: true,
+            attributes: false,
+            characterData: false
+        });
     }
 
     getExchangeData() {
@@ -414,8 +460,8 @@ class ExchangeTracker {
                 amount: amount,
                 capacity: capacity,
                 cost: cost,
-                diff: 0, // Will be calculated when saving
-                tag: ''  // Will be calculated when saving
+                diff: 0,
+                tag: ''
             };
         });
         
@@ -423,7 +469,6 @@ class ExchangeTracker {
     }
 
     calculateMinMaxValues() {
-        // Calculate min and max costs for each resource
         this.minMaxCache = {};
         this.resourceTypes.forEach(resource => {
             const costs = this.data
@@ -443,8 +488,6 @@ class ExchangeTracker {
 
     calculateTag(currentCost, previousCost, minCost, maxCost) {
         if (currentCost === 0 || previousCost === 0) return '';
-        
-        const diff = currentCost - previousCost;
         
         // Check for min/max
         if (currentCost === minCost) return 'min';
@@ -471,54 +514,66 @@ class ExchangeTracker {
     }
 
     saveData() {
-        const currentData = this.getExchangeData();
-        
-        // Calculate diff and tag for each resource
-        if (this.data.length > 0) {
-            const previousData = this.data[0]; // Get most recent record
-            
-            this.resourceTypes.forEach(resource => {
-                const prevCost = previousData.resources[resource].cost;
-                const currentCost = currentData.resources[resource].cost;
-                
-                // Calculate diff
-                currentData.resources[resource].diff = prevCost > 0 ? currentCost - prevCost : 0;
-            });
-        }
-        
-        // Add to data array
-        this.data.unshift(currentData);
-        
-        // Keep only last 500 records
-        if (this.data.length > 500) {
-            this.data = this.data.slice(0, 500);
-        }
-        
-        // Recalculate min/max after adding new data
-        this.calculateMinMaxValues();
-        
-        // Calculate tags based on updated min/max
-        currentData.resources = Object.fromEntries(
-            Object.entries(currentData.resources).map(([resource, values]) => {
-                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                const prevCost = this.data.length > 1 ? this.data[1].resources[resource].cost : values.cost;
-                
-                return [resource, {
-                    ...values,
-                    tag: this.calculateTag(values.cost, prevCost, cache.min, cache.max)
-                }];
-            })
-        );
-        
-        // Update the first record with tags
-        this.data[0] = currentData;
+        if (!this.isInitialized) return;
         
         try {
+            const currentData = this.getExchangeData();
+            
+            // Only save if we have valid cost data
+            const hasValidData = Object.values(currentData.resources).some(res => 
+                res.cost > 0
+            );
+            
+            if (!hasValidData) {
+                console.log('[TW Exchange Tracker] No valid data to save');
+                return;
+            }
+            
+            // Calculate diff and tag for each resource
+            if (this.data.length > 0) {
+                const previousData = this.data[0];
+                
+                this.resourceTypes.forEach(resource => {
+                    const prevCost = previousData.resources[resource].cost;
+                    const currentCost = currentData.resources[resource].cost;
+                    
+                    currentData.resources[resource].diff = prevCost > 0 ? currentCost - prevCost : 0;
+                });
+            }
+            
+            // Add to data array
+            this.data.unshift(currentData);
+            
+            // Keep only last 500 records
+            if (this.data.length > 500) {
+                this.data = this.data.slice(0, 500);
+            }
+            
+            // Recalculate min/max after adding new data
+            this.calculateMinMaxValues();
+            
+            // Calculate tags based on updated min/max
+            currentData.resources = Object.fromEntries(
+                Object.entries(currentData.resources).map(([resource, values]) => {
+                    const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+                    const prevCost = this.data.length > 1 ? this.data[1].resources[resource].cost : values.cost;
+                    
+                    return [resource, {
+                        ...values,
+                        tag: this.calculateTag(values.cost, prevCost, cache.min, cache.max)
+                    }];
+                })
+            );
+            
+            // Update the first record with tags
+            this.data[0] = currentData;
+            
             localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             console.log('[TW Exchange Tracker] Data saved, records:', this.data.length);
             
             // Update indicators on main page
             this.updateCostIndicators();
+            
         } catch (e) {
             console.error('[TW Exchange Tracker] Error saving:', e);
             if (e.name === 'QuotaExceededError') {
@@ -529,51 +584,66 @@ class ExchangeTracker {
     }
 
     updateCostIndicators() {
-        if (this.data.length < 2) return;
+        if (!this.isInitialized || this.data.length < 2) return;
         
-        const currentData = this.data[0];
-        const previousData = this.data[1];
-        
-        this.resourceTypes.forEach(resource => {
-            const rateElem = document.getElementById(`premium_exchange_rate_${resource}`);
-            if (!rateElem) return;
+        try {
+            const currentData = this.data[0];
+            const previousData = this.data[1];
             
-            const currentCost = currentData.resources[resource].cost;
-            const prevCost = previousData.resources[resource].cost;
-            const diff = currentCost - prevCost;
-            const tag = currentData.resources[resource].tag;
-            
-            // Remove existing indicators
-            const existingDiff = rateElem.querySelector('.tw-cost-diff');
-            const existingTag = rateElem.querySelector('.tw-cost-indicator');
-            if (existingDiff) existingDiff.remove();
-            if (existingTag) existingTag.remove();
-            
-            // Add diff indicator
-            if (diff !== 0 && prevCost > 0) {
-                const diffElem = document.createElement('span');
-                diffElem.className = `tw-cost-diff ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`;
-                diffElem.textContent = `${diff > 0 ? '+' : ''}${diff}`;
-                diffElem.title = `Change from previous: ${prevCost} → ${currentCost}`;
-                rateElem.appendChild(diffElem);
-            }
-            
-            // Add tag indicator
-            if (tag) {
-                const tagElem = document.createElement('span');
-                tagElem.className = `tw-cost-indicator tw-exchange-stat-tag ${tag}`;
-                tagElem.textContent = tag;
+            this.resourceTypes.forEach(resource => {
+                const rateElem = document.getElementById(`premium_exchange_rate_${resource}`);
+                if (!rateElem) return;
                 
-                // Set tooltip based on tag type
-                if (tag.includes('min')) {
-                    tagElem.title = `Close to minimum value (${this.minMaxCache[resource]?.min || '?'})`;
-                } else if (tag.includes('max')) {
-                    tagElem.title = `Close to maximum value (${this.minMaxCache[resource]?.max || '?'})`;
+                const currentCost = currentData.resources[resource].cost;
+                const prevCost = previousData.resources[resource].cost;
+                const diff = currentCost - prevCost;
+                const tag = currentData.resources[resource].tag;
+                
+                // Find the container for our indicators
+                let indicatorContainer = rateElem.querySelector('.tw-indicator-container');
+                if (!indicatorContainer) {
+                    indicatorContainer = document.createElement('div');
+                    indicatorContainer.className = 'tw-indicator-container';
+                    indicatorContainer.style.display = 'inline-block';
+                    indicatorContainer.style.marginLeft = '5px';
+                    indicatorContainer.style.verticalAlign = 'middle';
+                    rateElem.appendChild(indicatorContainer);
                 }
                 
-                rateElem.appendChild(tagElem);
-            }
-        });
+                // Clear existing indicators
+                indicatorContainer.innerHTML = '';
+                
+                // Add diff indicator
+                if (diff !== 0 && prevCost > 0) {
+                    const diffElem = document.createElement('span');
+                    diffElem.className = `tw-cost-diff ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`;
+                    diffElem.textContent = `${diff > 0 ? '+' : ''}${diff}`;
+                    diffElem.title = `Change from previous: ${prevCost} → ${currentCost}`;
+                    indicatorContainer.appendChild(diffElem);
+                }
+                
+                // Add tag indicator
+                if (tag) {
+                    const tagElem = document.createElement('span');
+                    tagElem.className = `tw-cost-indicator tw-exchange-stat-tag ${tag}`;
+                    tagElem.textContent = tag;
+                    
+                    // Set tooltip based on tag type
+                    if (tag.includes('min')) {
+                        tagElem.title = `Close to minimum value (${this.minMaxCache[resource]?.min || '?'})`;
+                    } else if (tag.includes('max')) {
+                        tagElem.title = `Close to maximum value (${this.minMaxCache[resource]?.max || '?'})`;
+                    }
+                    
+                    if (indicatorContainer.children.length > 0) {
+                        indicatorContainer.appendChild(document.createTextNode(' '));
+                    }
+                    indicatorContainer.appendChild(tagElem);
+                }
+            });
+        } catch (e) {
+            console.error('[TW Exchange Tracker] Error updating indicators:', e);
+        }
     }
 
     loadData() {
@@ -589,16 +659,18 @@ class ExchangeTracker {
     }
 
     startCollection() {
+        if (!this.isInitialized) return;
+        
         this.loadData();
         
         if (this.collectionInterval) {
             clearInterval(this.collectionInterval);
         }
         
-        // Initial save and indicator update
+        // Initial save
         setTimeout(() => {
             this.saveData();
-        }, 2000);
+        }, 3000);
         
         this.collectionInterval = setInterval(() => {
             this.saveData();
@@ -614,19 +686,30 @@ class ExchangeTracker {
     createStatWindow() {
         const overlay = document.createElement('div');
         overlay.className = 'tw-exchange-stat-overlay';
+        
+        // Use passive event listener for overlay
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) this.closeStatWindow();
-        });
+            if (e.target === overlay) {
+                this.closeStatWindow();
+            }
+        }, this.eventOptions);
         
         const container = document.createElement('div');
         container.className = 'tw-exchange-stat-container';
-        container.addEventListener('click', (e) => e.stopPropagation());
+        
+        // Stop propagation but don't prevent default
+        container.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
         
         // Close button
         const closeBtn = document.createElement('button');
         closeBtn.className = 'tw-exchange-stat-close';
         closeBtn.textContent = '×';
-        closeBtn.addEventListener('click', () => this.closeStatWindow());
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.closeStatWindow();
+        }, this.eventOptions);
         
         // Title
         const title = document.createElement('h2');
@@ -657,7 +740,7 @@ class ExchangeTracker {
             } else {
                 e.target.value = this.updateInterval / 1000;
             }
-        });
+        }, this.eventOptions);
         
         const secLabel = document.createElement('label');
         secLabel.textContent = 'seconds';
@@ -665,7 +748,8 @@ class ExchangeTracker {
         
         const clearBtn = document.createElement('button');
         clearBtn.textContent = 'Clear All Data';
-        clearBtn.addEventListener('click', () => {
+        clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             if (confirm('Clear all saved data?')) {
                 localStorage.removeItem(this.storageKey);
                 this.data = [];
@@ -673,7 +757,7 @@ class ExchangeTracker {
                 this.updateStatTable();
                 this.updateCostIndicators();
             }
-        });
+        }, this.eventOptions);
         
         controls.appendChild(updateLabel);
         controls.appendChild(updateInput);
@@ -730,7 +814,7 @@ class ExchangeTracker {
         this.resourceTypes.forEach(resource => {
             const resourceHeader = document.createElement('th');
             resourceHeader.textContent = this.resourceNames[resource];
-            resourceHeader.colSpan = 5; // Amount, Capacity, Cost, Diff, Tag
+            resourceHeader.colSpan = 5;
             resourceHeader.className = `tw-exchange-stat-resource-header tw-exchange-stat-${resource}`;
             headerRow1.appendChild(resourceHeader);
         });
@@ -767,7 +851,7 @@ class ExchangeTracker {
         if (this.data.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 16; // 1 time + (5 columns * 3 resources)
+            emptyCell.colSpan = 16;
             emptyCell.textContent = 'No data collected yet. Data is saved every ' + (this.updateInterval / 1000) + ' seconds.';
             emptyCell.style.textAlign = 'center';
             emptyCell.style.padding = '20px';
@@ -824,18 +908,15 @@ class ExchangeTracker {
                 diffCell.className = `tw-exchange-stat-diff ${resData.diff > 0 ? 'positive' : resData.diff < 0 ? 'negative' : 'neutral'}`;
                 
                 if (index === 0) {
-                    // For current record, show diff with previous
                     diffCell.textContent = resData.diff > 0 ? `+${resData.diff}` : resData.diff;
                     diffCell.title = `Change from previous record`;
                 } else if (index < this.data.length - 1) {
-                    // For historical records, calculate diff with next record (chronological order)
                     const nextData = this.data[index + 1];
                     const nextCost = nextData.resources[resource].cost;
                     const historicalDiff = resData.cost - nextCost;
                     diffCell.textContent = historicalDiff > 0 ? `+${historicalDiff}` : historicalDiff;
                     diffCell.title = `Change from ${nextData.timestamp}`;
                 } else {
-                    // Oldest record
                     diffCell.textContent = '—';
                     diffCell.className = 'tw-exchange-stat-diff neutral';
                 }
@@ -848,7 +929,6 @@ class ExchangeTracker {
                     tagCell.textContent = resData.tag;
                     tagCell.className = `tw-exchange-stat-tag ${resData.tag}`;
                     
-                    // Add tooltip
                     const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
                     if (resData.tag.includes('min')) {
                         tagCell.title = `Minimum: ${cache.min}`;
@@ -884,63 +964,85 @@ class ExchangeTracker {
     }
 
     openStatWindow() {
-        if (this.isStatOpen) return;
+        if (this.isStatOpen || !this.isInitialized) return;
         
-        this.loadData();
-        const statWindow = this.createStatWindow();
-        document.body.appendChild(statWindow);
-        this.isStatOpen = true;
-        
-        this.statRefreshInterval = setInterval(() => {
-            this.updateStatTable();
-        }, 3000);
+        try {
+            this.loadData();
+            const statWindow = this.createStatWindow();
+            document.body.appendChild(statWindow);
+            this.isStatOpen = true;
+            
+            this.statRefreshInterval = setInterval(() => {
+                this.updateStatTable();
+            }, 3000);
+        } catch (e) {
+            console.error('[TW Exchange Tracker] Error opening stat window:', e);
+        }
     }
 
     closeStatWindow() {
-        const overlay = document.querySelector('.tw-exchange-stat-overlay');
-        if (overlay) overlay.remove();
-        this.isStatOpen = false;
+        if (!this.isStatOpen) return;
         
-        if (this.statRefreshInterval) {
-            clearInterval(this.statRefreshInterval);
-            this.statRefreshInterval = null;
+        try {
+            const overlay = document.querySelector('.tw-exchange-stat-overlay');
+            if (overlay) overlay.remove();
+            this.isStatOpen = false;
+            
+            if (this.statRefreshInterval) {
+                clearInterval(this.statRefreshInterval);
+                this.statRefreshInterval = null;
+            }
+        } catch (e) {
+            console.error('[TW Exchange Tracker] Error closing stat window:', e);
         }
     }
 
     updateStatTable() {
-        const existingTable = document.querySelector('.tw-exchange-stat-table');
-        if (existingTable && this.isStatOpen) {
-            const tbody = existingTable.querySelector('tbody');
-            if (tbody) this.updateTableBody(tbody);
+        if (!this.isStatOpen) return;
+        
+        try {
+            const existingTable = document.querySelector('.tw-exchange-stat-table');
+            if (existingTable) {
+                const tbody = existingTable.querySelector('tbody');
+                if (tbody) this.updateTableBody(tbody);
+            }
+        } catch (e) {
+            console.error('[TW Exchange Tracker] Error updating table:', e);
         }
     }
 
     bindEvents() {
-        window.addEventListener('beforeunload', () => this.saveData());
+        // Use passive event listeners for all window events
+        window.addEventListener('beforeunload', () => {
+            this.saveData();
+        }, this.eventOptions);
         
+        // Don't interfere with form submission
         const form = document.getElementById('premium_exchange_form');
         if (form) {
+            // Only add a very lightweight listener
+            const originalSubmit = form.onsubmit;
             form.addEventListener('submit', () => {
                 setTimeout(() => {
                     this.saveData();
                     if (this.isStatOpen) this.updateStatTable();
                 }, 1500);
-            });
+            }, this.eventOptions);
         }
         
+        // Keyboard shortcut - but don't prevent default unless our shortcut
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.shiftKey && e.key === 'S') {
                 e.preventDefault();
                 this.toggleStatWindow();
             }
-        });
+        }, this.eventOptions);
     }
 }
 
-// Initialize
-function initTracker() {
-    if (!window.location.href.includes('mode=exchange')) return;
-    
+// Initialize only once and check for conflicts
+if (!window.twExchangeTracker) {
+    // Wait for page to be fully loaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
@@ -952,10 +1054,12 @@ function initTracker() {
             window.twExchangeTracker = new ExchangeTracker();
         }, 1000);
     }
+    
+    // Backup initialization after 5 seconds
+    setTimeout(() => {
+        if (!window.twExchangeTracker || !window.twExchangeTracker.isInitialized) {
+            console.log('[TW Exchange Tracker] Retrying initialization...');
+            window.twExchangeTracker = new ExchangeTracker();
+        }
+    }, 5000);
 }
-
-// Start
-initTracker();
-setTimeout(() => {
-    if (!window.twExchangeTracker) initTracker();
-}, 5000);
