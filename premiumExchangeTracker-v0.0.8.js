@@ -634,43 +634,78 @@ class ExchangeTracker {
             resourceCell.textContent = this.resourceNames[resource];
             row.appendChild(resourceCell);
             
-            // Count occurrences of each tag type for this resource
-            const tagCounts = {
-                'min': 0, 'min-10': 0, 'min-50': 0, 'min-100': 0,
-                'max': 0, 'max-10': 0, 'max-50': 0, 'max-100': 0
-            };
+            // Get min and max values for this resource
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+            const minValue = cache.min;
+            const maxValue = cache.max;
             
-            // Count tags in all data
-            this.data.forEach(record => {
-                const tag = record.resources[resource].tag;
-                if (tag && tagCounts[tag] !== undefined) {
-                    tagCounts[tag]++;
-                }
-            });
+            // Calculate values for each tag type
+            const tagValues = {
+                'min': minValue,
+                'min-10': minValue > 0 ? minValue + 10 : 0,
+                'min-50': minValue > 0 ? minValue + 50 : 0,
+                'min-100': minValue > 0 ? minValue + 100 : 0,
+                'max': maxValue,
+                'max-10': maxValue > 0 ? maxValue - 10 : 0,
+                'max-50': maxValue > 0 ? maxValue - 50 : 0,
+                'max-100': maxValue > 0 ? maxValue - 100 : 0
+            };
             
             // Create cells for each tag type
             tagTypes.forEach(tagType => {
                 const cell = document.createElement('td');
-                cell.textContent = tagCounts[tagType] || '0';
+                const value = tagValues[tagType];
+                cell.textContent = value > 0 ? value : '—';
                 
-                // Highlight if there are records with this tag
-                if (tagCounts[tagType] > 0) {
-                    cell.style.fontWeight = 'bold';
-                    if (tagType.includes('min')) {
-                        cell.style.backgroundColor = '#C8E6C9';
-                    } else {
-                        cell.style.backgroundColor = '#FFCDD2';
+                // Highlight if this is an active threshold (there are records near this value)
+                if (value > 0) {
+                    // Check if there are records within this threshold
+                    const hasRecordsNearThreshold = this.data.some(record => {
+                        const recordCost = record.resources[resource].cost;
+                        if (recordCost === 0) return false;
+                        
+                        if (tagType.includes('min')) {
+                            const thresholdValue = tagValues[tagType];
+                            // For min thresholds, check if record is at or above this threshold
+                            if (tagType === 'min') {
+                                return recordCost === thresholdValue;
+                            } else {
+                                return recordCost >= thresholdValue && recordCost < thresholdValue + 10;
+                            }
+                        } else {
+                            const thresholdValue = tagValues[tagType];
+                            // For max thresholds, check if record is at or below this threshold
+                            if (tagType === 'max') {
+                                return recordCost === thresholdValue;
+                            } else {
+                                return recordCost <= thresholdValue && recordCost > thresholdValue - 10;
+                            }
+                        }
+                    });
+                    
+                    if (hasRecordsNearThreshold) {
+                        cell.style.fontWeight = 'bold';
+                        if (tagType.includes('min')) {
+                            cell.style.backgroundColor = '#C8E6C9';
+                        } else {
+                            cell.style.backgroundColor = '#FFCDD2';
+                        }
                     }
                 }
                 
                 // Add tooltip
-                if (tagCounts[tagType] > 0) {
-                    const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                    if (tagType.includes('min')) {
-                        cell.title = `${tagCounts[tagType]} records near minimum (${cache.min})`;
-                    } else {
-                        cell.title = `${tagCounts[tagType]} records near maximum (${cache.max})`;
+                if (value > 0) {
+                    let tooltip = '';
+                    if (tagType === 'min') {
+                        tooltip = `Minimum value: ${value}`;
+                    } else if (tagType === 'max') {
+                        tooltip = `Maximum value: ${value}`;
+                    } else if (tagType.includes('min')) {
+                        tooltip = `Value ${value} (min + ${parseInt(tagType.split('-')[1])})`;
+                    } else if (tagType.includes('max')) {
+                        tooltip = `Value ${value} (max - ${parseInt(tagType.split('-')[1])})`;
                     }
+                    cell.title = tooltip;
                 }
                 
                 row.appendChild(cell);
@@ -806,7 +841,6 @@ class ExchangeTracker {
                 if (resData.tag) {
                     summaryText += `<span class="tw-current-tag tw-exchange-stat-tag ${resData.tag}">${resData.tag}</span>`;
                 }
-                summaryText += ` (min: ${cache.min}, max: ${cache.max})`;
                 if (idx < this.resourceTypes.length - 1) summaryText += ' | ';
             });
             currentSummary.innerHTML = summaryText;
@@ -829,7 +863,12 @@ class ExchangeTracker {
         // Update status
         const status = container.querySelector('#tw-exchange-status');
         if (status) {
-            status.textContent = `Showing ${this.data.length} records | Last update: ${new Date().toLocaleTimeString()}`;
+            const ranges = this.resourceTypes.map(resource => {
+                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+                return `${this.resourceNames[resource]}: ${cache.min}-${cache.max}`;
+            }).join(' | ');
+            
+            status.textContent = `Showing ${this.data.length} records | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
         }
     }
 
