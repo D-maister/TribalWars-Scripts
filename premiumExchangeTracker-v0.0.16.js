@@ -962,7 +962,8 @@ class ExchangeTracker {
         const step = Math.max(1, Math.floor(this.data.length / maxPoints));
         const points = [];
         
-        for (let i = this.data.length - 1; i >= 0; i -= step) {
+        // Take the most recent points (newest first in data array)
+        for (let i = 0; i < Math.min(this.data.length, maxPoints * step); i += step) {
             const record = this.data[i];
             if (record.resources[resource].cost > 0) {
                 points.push({
@@ -973,6 +974,7 @@ class ExchangeTracker {
             }
         }
         
+        // Reverse so newest is on the right
         points.reverse();
         
         if (points.length < 2) return;
@@ -1034,7 +1036,7 @@ class ExchangeTracker {
         
         // Create data line
         const pathData = points.map((point, index) => {
-            const x = padding.left + (width * index / (points.length - 1));
+            const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
         }).join(' ');
@@ -1047,7 +1049,7 @@ class ExchangeTracker {
         
         // Create data points with tooltips
         points.forEach((point, index) => {
-            const x = padding.left + (width * index / (points.length - 1));
+            const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -1076,10 +1078,23 @@ class ExchangeTracker {
             svg.appendChild(circle);
         });
         
-        // Create X-axis labels (every 5th point)
-        for (let i = 0; i < points.length; i += Math.floor(points.length / 5)) {
-            const point = points[i];
-            const x = padding.left + (width * i / (points.length - 1));
+        // Create X-axis labels (every 5th point) - show newest on right
+        const labelIndices = [];
+        if (points.length >= 5) {
+            labelIndices.push(0); // Oldest
+            labelIndices.push(Math.floor(points.length / 4));
+            labelIndices.push(Math.floor(points.length / 2));
+            labelIndices.push(Math.floor(points.length * 3 / 4));
+            labelIndices.push(points.length - 1); // Newest
+        } else {
+            for (let i = 0; i < points.length; i++) {
+                labelIndices.push(i);
+            }
+        }
+        
+        labelIndices.forEach(index => {
+            const point = points[index];
+            const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'tw-chart-axis-label');
@@ -1088,8 +1103,8 @@ class ExchangeTracker {
             text.setAttribute('text-anchor', 'middle');
             text.textContent = point.time;
             svg.appendChild(text);
-        }
-        
+        });
+            
         // Add tooltip element
         const tooltip = document.createElement('div');
         tooltip.className = 'tw-chart-tooltip';
