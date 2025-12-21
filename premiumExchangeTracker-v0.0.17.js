@@ -1,7 +1,7 @@
 class ExchangeTracker {
     constructor() {
-        this.storageKey = 'tw_exchange_data_v7';
-        this.settingsKey = 'tw_exchange_settings_v7';
+        this.storageKey = 'tw_exchange_data_v8';
+        this.settingsKey = 'tw_exchange_settings_v8';
         this.updateInterval = 10000;
         this.collectionInterval = null;
         this.isStatVisible = false;
@@ -155,7 +155,7 @@ class ExchangeTracker {
             }
             
             .tw-summary-table .max-col {
-                background-color: #FFEBEE;
+                background-color = '#FFEBEE';
             }
             
             .tw-summary-table .resource-name {
@@ -944,8 +944,38 @@ class ExchangeTracker {
         return table;
     }
 
+    getFilteredDataForCharts() {
+        if (!this.hideDuplicates) return this.data;
+        
+        const filteredData = [];
+        let prevVisibleRecord = null;
+        
+        this.data.forEach((record, index) => {
+            if (index === 0) {
+                filteredData.push(record);
+                prevVisibleRecord = record;
+                return;
+            }
+            
+            let allDiffsZero = true;
+            this.resourceTypes.forEach(resource => {
+                if (record.resources[resource].diff !== 0) {
+                    allDiffsZero = false;
+                }
+            });
+            
+            if (!allDiffsZero) {
+                filteredData.push(record);
+                prevVisibleRecord = record;
+            }
+        });
+        
+        return filteredData;
+    }
+
     createLineChart(resource, container) {
-        if (!this.data.length) return;
+        const filteredData = this.getFilteredDataForCharts();
+        if (!filteredData.length) return;
         
         const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
         const svgContainer = container.querySelector('.tw-chart-svg-container');
@@ -957,14 +987,14 @@ class ExchangeTracker {
         svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        // Get data points (limited for performance)
+        // Get data points (limited for performance) - NEWEST DATA FIRST
         const maxPoints = 30;
-        const step = Math.max(1, Math.floor(this.data.length / maxPoints));
+        const step = Math.max(1, Math.floor(filteredData.length / maxPoints));
         const points = [];
         
-        // Take the most recent points (newest first in data array)
-        for (let i = 0; i < Math.min(this.data.length, maxPoints * step); i += step) {
-            const record = this.data[i];
+        // Take the most recent points (newest first in filteredData array)
+        for (let i = 0; i < Math.min(filteredData.length, maxPoints * step); i += step) {
+            const record = filteredData[i];
             if (record.resources[resource].cost > 0) {
                 points.push({
                     time: record.timestamp.split(' - ')[1],
@@ -974,7 +1004,7 @@ class ExchangeTracker {
             }
         }
         
-        // Reverse so newest is on the right
+        // Reverse so newest is on the RIGHT
         points.reverse();
         
         if (points.length < 2) return;
@@ -1034,8 +1064,9 @@ class ExchangeTracker {
         maxLine.setAttribute('y2', maxY);
         svg.appendChild(maxLine);
         
-        // Create data line
+        // Create data line (REVERSED X-AXIS)
         const pathData = points.map((point, index) => {
+            // Reverse X coordinate: newest (index = points.length-1) goes to right
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1047,8 +1078,9 @@ class ExchangeTracker {
         path.setAttribute('stroke', this.chartColors[resource]);
         svg.appendChild(path);
         
-        // Create data points with tooltips
+        // Create data points with tooltips (REVERSED X-AXIS)
         points.forEach((point, index) => {
+            // Reverse X coordinate
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             
@@ -1078,14 +1110,14 @@ class ExchangeTracker {
             svg.appendChild(circle);
         });
         
-        // Create X-axis labels (every 5th point) - show newest on right
+        // Create X-axis labels (REVERSED X-AXIS) - show newest on right
         const labelIndices = [];
         if (points.length >= 5) {
-            labelIndices.push(0); // Oldest
+            labelIndices.push(0); // Oldest (left side)
             labelIndices.push(Math.floor(points.length / 4));
             labelIndices.push(Math.floor(points.length / 2));
             labelIndices.push(Math.floor(points.length * 3 / 4));
-            labelIndices.push(points.length - 1); // Newest
+            labelIndices.push(points.length - 1); // Newest (right side)
         } else {
             for (let i = 0; i < points.length; i++) {
                 labelIndices.push(i);
@@ -1094,6 +1126,7 @@ class ExchangeTracker {
         
         labelIndices.forEach(index => {
             const point = points[index];
+            // Reverse X coordinate for labels too
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1104,7 +1137,7 @@ class ExchangeTracker {
             text.textContent = point.time;
             svg.appendChild(text);
         });
-            
+        
         // Add tooltip element
         const tooltip = document.createElement('div');
         tooltip.className = 'tw-chart-tooltip';
@@ -1123,7 +1156,8 @@ class ExchangeTracker {
     }
 
     createBarChart(container) {
-        if (!this.data.length) return;
+        const filteredData = this.getFilteredDataForCharts();
+        if (!filteredData.length) return;
         
         const svgContainer = container.querySelector('.tw-chart-svg-container');
         svgContainer.innerHTML = '';
@@ -1289,7 +1323,7 @@ class ExchangeTracker {
         header.appendChild(toggleBtn);
         container.appendChild(header);
         
-        if (this.showCharts && this.data.length > 0) {
+        if (this.showCharts) {
             const grid = document.createElement('div');
             grid.className = 'tw-charts-grid';
             grid.id = 'tw-charts-grid';
@@ -1387,7 +1421,7 @@ class ExchangeTracker {
         const hideDupesBtn = document.createElement('button');
         hideDupesBtn.id = 'tw-hide-dupes-btn';
         hideDupesBtn.textContent = 'Hide Duplicates';
-        hideDupesBtn.title = 'Hide rows with no changes from previous record';
+        hideDupesBtn.title = 'Hide rows with no changes from previous record (applies to table and charts)';
         hideDupesBtn.onclick = () => this.toggleHideDuplicates();
         
         const clearBtn = document.createElement('button');
@@ -1510,10 +1544,9 @@ class ExchangeTracker {
             
             const rowCountText = this.hideDuplicates ? `${visibleRows}/${this.data.length} records` : `${this.data.length} records`;
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
-            
         }
-
-       // Always ensure charts container exists when stats are visible
+        
+        // Always ensure charts container exists when stats are visible
         let chartsContainer = container.querySelector('.tw-charts-container');
         if (!chartsContainer) {
             chartsContainer = this.createChartsContainer();
@@ -1813,7 +1846,7 @@ class ExchangeTracker {
         const button = document.querySelector('#tw-hide-dupes-btn');
         if (button) {
             button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
-            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record';
+            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record (applies to table and charts)';
             
             if (this.hideDuplicates) {
                 button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
@@ -1838,8 +1871,6 @@ class ExchangeTracker {
         if (container) {
             container.style.display = 'block';
             this.isStatVisible = true;
-            
-            // Always call updateStatsUI which will handle charts based on showCharts setting
             this.updateStatsUI();
             
             // Start auto-refresh
