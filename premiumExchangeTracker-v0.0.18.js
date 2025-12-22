@@ -1003,10 +1003,7 @@ class ExchangeTracker {
                 });
             }
         }
-        
-        // Reverse so newest is on the RIGHT
-        points.reverse();
-        
+               
         if (points.length < 2) return;
         
         // Calculate scales
