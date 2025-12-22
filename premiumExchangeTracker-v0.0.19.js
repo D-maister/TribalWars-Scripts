@@ -988,7 +988,7 @@ class ExchangeTracker {
         svg.setAttribute('preserveAspectRatio', 'none');
         
         // Get data points (limited for performance) - NEWEST DATA FIRST
-        const maxPoints = 30;
+        const maxPoints = 100;
         const step = Math.max(1, Math.floor(filteredData.length / maxPoints));
         const points = [];
         
