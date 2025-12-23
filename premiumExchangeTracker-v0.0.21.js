@@ -1215,7 +1215,129 @@ class ExchangeTracker {
         }
     }
 
-    // ... (keep the rest of the methods the same) ...
+ toggleCharts() {
+        this.showCharts = !this.showCharts;
+        this.saveSettings();
+        
+        const container = document.querySelector('.tw-exchange-stats-container');
+        if (!container) return;
+        
+        const chartsContainer = container.querySelector('.tw-charts-container');
+        if (!chartsContainer) return;
+        
+        // Update toggle button
+        const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        }
+        
+        // Show/hide charts grid
+        const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
+        if (chartsGrid) {
+            if (this.showCharts && this.data.length > 0) {
+                chartsGrid.style.display = 'grid';
+                this.updateCharts();
+            } else {
+                chartsGrid.style.display = 'none';
+            }
+        }
+    }
+
+    insertStatsContainer() {
+        const visBlock = document.querySelector('div.vis');
+        if (!visBlock) {
+            console.error('[TW Exchange Tracker] Could not find div.vis block');
+            return;
+        }
+        
+        let container = document.querySelector('.tw-exchange-stats-container');
+        if (!container) {
+            container = this.createStatsContainer();
+            visBlock.parentNode.insertBefore(container, visBlock);
+        }
+        
+        return container;
+    }
+
+    toggleHideDuplicates() {
+        this.hideDuplicates = !this.hideDuplicates;
+        const button = document.querySelector('#tw-hide-dupes-btn');
+        if (button) {
+            button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
+            button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record (applies to table and charts)';
+            
+            if (this.hideDuplicates) {
+                button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
+            } else {
+                button.style.background = 'linear-gradient(to bottom, #f44336, #d32f2f)';
+            }
+        }
+        
+        this.updateStatsUI();
+    }
+
+    toggleStats() {
+        if (this.isStatVisible) {
+            this.hideStats();
+        } else {
+            this.showStats();
+        }
+    }
+
+    showStats() {
+        const container = this.insertStatsContainer();
+        if (container) {
+            container.style.display = 'block';
+            this.isStatVisible = true;
+            this.updateStatsUI();
+            
+            // Start auto-refresh
+            if (this.statRefreshInterval) {
+                clearInterval(this.statRefreshInterval);
+            }
+            this.statRefreshInterval = setInterval(() => {
+                this.updateStatsUI();
+            }, 3000);
+        }
+    }
+
+    hideStats() {
+        const container = document.querySelector('.tw-exchange-stats-container');
+        if (container) {
+            container.style.display = 'none';
+            this.isStatVisible = false;
+            
+            if (this.statRefreshInterval) {
+                clearInterval(this.statRefreshInterval);
+                this.statRefreshInterval = null;
+            }
+        }
+    }
 }
 
-// ... (keep the rest of the script the same) ...
+function initTracker() {
+    if (!window.location.href.includes('mode=exchange')) return;
+    
+    if (window.twExchangeTracker) return;
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                window.twExchangeTracker = new ExchangeTracker();
+            }, 1000);
+        });
+    } else {
+        setTimeout(() => {
+            window.twExchangeTracker = new ExchangeTracker();
+        }, 1000);
+    }
+}
+
+initTracker();
+
+setTimeout(() => {
+    if (!window.twExchangeTracker) {
+        console.log('[TW Exchange Tracker] Retrying initialization...');
+        initTracker();
+    }
+}, 5000);
