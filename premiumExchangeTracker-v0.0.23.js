@@ -155,7 +155,7 @@ class ExchangeTracker {
             }
             
             .tw-summary-table .max-col {
-                background-color: #FFEBEE;
+                background-color = '#FFEBEE';
             }
             
             .tw-summary-table .resource-name {
@@ -346,7 +346,7 @@ class ExchangeTracker {
             }
             
             .tw-table-container {
-                height: 290px;
+                max-height: 400px;
                 overflow-y: auto;
                 border: 1px solid #ddd;
                 border-radius: 4px;
@@ -354,28 +354,13 @@ class ExchangeTracker {
                 margin-bottom: 20px;
             }
             
-            .tw-exchange-stat-table tbody tr {
-                height: 26px;
-                max-height: 26px;
-                overflow: hidden;
-            }
-            
-            .tw-exchange-stat-table tbody td {
-                line-height: 1.2;
-                padding: 2px 5px;
-                max-height: 24px;
-                overflow: hidden;
-                white-space: nowrap;
-            }
-            
             .tw-hidden-rows-summary {
                 background-color: #f0f0f0;
                 font-style: italic;
                 text-align: center;
                 color: #666;
-                padding: 4px;
+                padding: 8px;
                 border-top: 1px dashed #999;
-                font-size: 10px;
             }
             
             .tw-charts-container {
@@ -415,8 +400,9 @@ class ExchangeTracker {
             
             .tw-charts-grid {
                 display: grid;
-                grid-template-columns: 1fr;
-                gap: 20px;
+                grid-template-columns: repeat(2, 1fr);
+                grid-template-rows: repeat(2, auto);
+                gap: 15px;
                 margin-bottom: 20px;
             }
             
@@ -424,39 +410,19 @@ class ExchangeTracker {
                 background: white;
                 border: 1px solid #ddd;
                 border-radius: 4px;
-                padding: 15px;
+                padding: 10px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                height: 300px;
+                height: 250px;
                 display: flex;
                 flex-direction: column;
             }
             
             .tw-chart-title {
-                font-size: 16px;
+                color: #333;
+                font-size: 14px;
                 font-weight: bold;
-                margin: 0 0 15px 0;
+                margin: 0 0 10px 0;
                 text-align: center;
-                padding: 8px;
-                border-radius: 4px;
-                transition: all 0.3s;
-            }
-            
-            .tw-chart-title.min-price {
-                background-color: #E8F5E9;
-                color: #2E7D32;
-                border-left: 4px solid #4CAF50;
-            }
-            
-            .tw-chart-title.max-price {
-                background-color: #FFEBEE;
-                color: #D32F2F;
-                border-left: 4px solid #f44336;
-            }
-            
-            .tw-chart-title.normal-price {
-                background-color: #E3F2FD;
-                color: #1976D2;
-                border-left: 4px solid #2196F3;
             }
             
             .tw-chart-svg-container {
@@ -473,12 +439,9 @@ class ExchangeTracker {
             .tw-chart-minmax {
                 display: flex;
                 justify-content: space-between;
-                font-size: 12px;
+                font-size: 11px;
                 color: #666;
-                margin-top: 10px;
-                padding: 5px;
-                background-color: #f9f9f9;
-                border-radius: 3px;
+                margin-top: 5px;
             }
             
             .tw-chart-min {
@@ -494,7 +457,6 @@ class ExchangeTracker {
             .tw-chart-current {
                 color: #2196F3;
                 font-weight: bold;
-                font-size: 13px;
             }
             
             .tw-chart-axis-label {
@@ -509,30 +471,30 @@ class ExchangeTracker {
             
             .tw-chart-data-line {
                 fill: none;
-                stroke-width: 3;
+                stroke-width: 2;
             }
             
             .tw-chart-min-line {
                 stroke: #4CAF50;
-                stroke-width: 1.5;
+                stroke-width: 1;
                 stroke-dasharray: 5,5;
-                opacity: 0.8;
+                opacity: 0.7;
             }
             
             .tw-chart-max-line {
                 stroke: #f44336;
-                stroke-width: 1.5;
+                stroke-width: 1;
                 stroke-dasharray: 5,5;
-                opacity: 0.8;
+                opacity: 0.7;
             }
             
             .tw-chart-point {
-                r: 4;
+                r: 3;
                 transition: r 0.2s;
             }
             
             .tw-chart-point:hover {
-                r: 6;
+                r: 5;
             }
             
             .tw-chart-tooltip {
@@ -550,7 +512,8 @@ class ExchangeTracker {
             }
             
             .tw-bar-chart-container {
-                height: 300px;
+                grid-column: 1 / -1;
+                height: 250px;
             }
             
             .tw-bar-chart-bar {
@@ -705,6 +668,7 @@ class ExchangeTracker {
                     current: this.data.length > 0 ? this.data[0].resources[resource].cost : 0
                 };
                 
+                // Calculate recent min/max (last 10, 50, 100 records)
                 const recent10 = this.data.slice(0, Math.min(10, this.data.length));
                 const recent50 = this.data.slice(0, Math.min(50, this.data.length));
                 const recent100 = this.data.slice(0, Math.min(100, this.data.length));
@@ -861,6 +825,7 @@ class ExchangeTracker {
         
         const thead = document.createElement('thead');
         
+        // First header row
         const headerRow1 = document.createElement('tr');
         
         const resourceHeader = document.createElement('th');
@@ -883,8 +848,10 @@ class ExchangeTracker {
         
         thead.appendChild(headerRow1);
         
+        // Second header row
         const headerRow2 = document.createElement('tr');
         
+        // Min sub-headers
         const minSubHeaders = ['All Time', 'Last 10', 'Last 50', 'Last 100'];
         minSubHeaders.forEach(subHeader => {
             const th = document.createElement('th');
@@ -894,6 +861,7 @@ class ExchangeTracker {
             headerRow2.appendChild(th);
         });
         
+        // Max sub-headers
         const maxSubHeaders = ['All Time', 'Last 10', 'Last 50', 'Last 100'];
         maxSubHeaders.forEach(subHeader => {
             const th = document.createElement('th');
@@ -923,6 +891,7 @@ class ExchangeTracker {
                 last100: { min: 0, max: 0 }
             };
             
+            // Min values cells
             const minPeriods = ['allTime', 'last10', 'last50', 'last100'];
             minPeriods.forEach(period => {
                 const cell = document.createElement('td');
@@ -931,6 +900,7 @@ class ExchangeTracker {
                 cell.className = 'min-col';
                 
                 if (value > 0) {
+                    // Check if current value is close to this min
                     const currentCost = this.minMaxCache[resource]?.current || 0;
                     const diff = currentCost - value;
                     if (diff <= 10 && diff >= 0) {
@@ -944,6 +914,7 @@ class ExchangeTracker {
                 row.appendChild(cell);
             });
             
+            // Max values cells
             const maxPeriods = ['allTime', 'last10', 'last50', 'last100'];
             maxPeriods.forEach(period => {
                 const cell = document.createElement('td');
@@ -952,6 +923,7 @@ class ExchangeTracker {
                 cell.className = 'max-col';
                 
                 if (value > 0) {
+                    // Check if current value is close to this max
                     const currentCost = this.minMaxCache[resource]?.current || 0;
                     const diff = value - currentCost;
                     if (diff <= 10 && diff >= 0) {
@@ -1009,15 +981,18 @@ class ExchangeTracker {
         const svgContainer = container.querySelector('.tw-chart-svg-container');
         svgContainer.innerHTML = '';
         
+        // Create SVG
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'tw-chart-svg');
-        svg.setAttribute('viewBox', '0 0 600 250');
+        svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        const maxPoints = 40;
+        // Get data points (limited for performance) - NEWEST DATA FIRST
+        const maxPoints = 30;
         const step = Math.max(1, Math.floor(filteredData.length / maxPoints));
         const points = [];
         
+        // Take the most recent points (newest first in filteredData array)
         for (let i = 0; i < Math.min(filteredData.length, maxPoints * step); i += step) {
             const record = filteredData[i];
             if (record.resources[resource].cost > 0) {
@@ -1029,61 +1004,69 @@ class ExchangeTracker {
             }
         }
         
+        // Reverse so newest is on the RIGHT
         points.reverse();
         
         if (points.length < 2) return;
         
-        const padding = { top: 25, right: 40, bottom: 50, left: 60 };
-        const width = 600 - padding.left - padding.right;
-        const height = 250 - padding.top - padding.bottom;
+        // Calculate scales
+        const padding = { top: 20, right: 30, bottom: 40, left: 50 };
+        const width = 400 - padding.left - padding.right;
+        const height = 200 - padding.top - padding.bottom;
         
         const minVal = Math.min(...points.map(p => p.value));
         const maxVal = Math.max(...points.map(p => p.value));
         const range = maxVal - minVal || 1;
         
+        // Create grid
         for (let i = 0; i <= 5; i++) {
             const y = padding.top + (height * i / 5);
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('class', 'tw-chart-grid-line');
             line.setAttribute('x1', padding.left);
-            line.setAttribute('x2', 600 - padding.right);
+            line.setAttribute('x2', 400 - padding.right);
             line.setAttribute('y1', y);
             line.setAttribute('y2', y);
             svg.appendChild(line);
         }
         
+        // Create Y-axis labels
         for (let i = 0; i <= 5; i++) {
             const value = minVal + (range * (5 - i) / 5);
             const y = padding.top + (height * i / 5);
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'tw-chart-axis-label');
-            text.setAttribute('x', padding.left - 10);
-            text.setAttribute('y', y + 4);
+            text.setAttribute('x', padding.left - 5);
+            text.setAttribute('y', y + 3);
             text.setAttribute('text-anchor', 'end');
             text.textContent = Math.round(value);
             svg.appendChild(text);
         }
         
+        // Create min line
         const minY = padding.top + height * (1 - (cache.min - minVal) / range);
         const minLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         minLine.setAttribute('class', 'tw-chart-min-line');
         minLine.setAttribute('x1', padding.left);
-        minLine.setAttribute('x2', 600 - padding.right);
+        minLine.setAttribute('x2', 400 - padding.right);
         minLine.setAttribute('y1', minY);
         minLine.setAttribute('y2', minY);
         svg.appendChild(minLine);
         
+        // Create max line
         const maxY = padding.top + height * (1 - (cache.max - minVal) / range);
         const maxLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         maxLine.setAttribute('class', 'tw-chart-max-line');
         maxLine.setAttribute('x1', padding.left);
-        maxLine.setAttribute('x2', 600 - padding.right);
+        maxLine.setAttribute('x2', 400 - padding.right);
         maxLine.setAttribute('y1', maxY);
         maxLine.setAttribute('y2', maxY);
         svg.appendChild(maxLine);
         
+        // Create data line (REVERSED X-AXIS)
         const pathData = points.map((point, index) => {
+            // Reverse X coordinate: newest (index = points.length-1) goes to right
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
@@ -1095,7 +1078,9 @@ class ExchangeTracker {
         path.setAttribute('stroke', this.chartColors[resource]);
         svg.appendChild(path);
         
+        // Create data points with tooltips (REVERSED X-AXIS)
         points.forEach((point, index) => {
+            // Reverse X coordinate
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
             
@@ -1125,15 +1110,14 @@ class ExchangeTracker {
             svg.appendChild(circle);
         });
         
+        // Create X-axis labels (REVERSED X-AXIS) - show newest on right
         const labelIndices = [];
-        if (points.length >= 6) {
-            labelIndices.push(0);
-            labelIndices.push(Math.floor(points.length / 5));
-            labelIndices.push(Math.floor(points.length * 2 / 5));
+        if (points.length >= 5) {
+            labelIndices.push(0); // Oldest (left side)
+            labelIndices.push(Math.floor(points.length / 4));
             labelIndices.push(Math.floor(points.length / 2));
-            labelIndices.push(Math.floor(points.length * 3 / 5));
-            labelIndices.push(Math.floor(points.length * 4 / 5));
-            labelIndices.push(points.length - 1);
+            labelIndices.push(Math.floor(points.length * 3 / 4));
+            labelIndices.push(points.length - 1); // Newest (right side)
         } else {
             for (let i = 0; i < points.length; i++) {
                 labelIndices.push(i);
@@ -1142,22 +1126,25 @@ class ExchangeTracker {
         
         labelIndices.forEach(index => {
             const point = points[index];
+            // Reverse X coordinate for labels too
             const x = padding.left + (width * (points.length - 1 - index) / (points.length - 1));
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'tw-chart-axis-label');
             text.setAttribute('x', x);
-            text.setAttribute('y', 250 - padding.bottom + 20);
+            text.setAttribute('y', 200 - padding.bottom + 15);
             text.setAttribute('text-anchor', 'middle');
             text.textContent = point.time;
             svg.appendChild(text);
         });
         
+        // Add tooltip element
         const tooltip = document.createElement('div');
         tooltip.className = 'tw-chart-tooltip';
         svgContainer.appendChild(tooltip);
         svgContainer.appendChild(svg);
         
+        // Update min/max display
         const minMaxDiv = container.querySelector('.tw-chart-minmax');
         if (minMaxDiv) {
             minMaxDiv.innerHTML = `
@@ -1165,21 +1152,6 @@ class ExchangeTracker {
                 <span class="tw-chart-current">Current: ${cache.current}</span>
                 <span class="tw-chart-max">Max: ${cache.max}</span>
             `;
-        }
-        
-        const chartTitle = container.querySelector('.tw-chart-title');
-        if (chartTitle) {
-            const currentCost = cache.current;
-            const minCost = cache.min;
-            const maxCost = cache.max;
-            
-            if (currentCost === minCost && currentCost > 0) {
-                chartTitle.className = 'tw-chart-title min-price';
-            } else if (currentCost === maxCost && currentCost > 0) {
-                chartTitle.className = 'tw-chart-title max-price';
-            } else {
-                chartTitle.className = 'tw-chart-title normal-price';
-            }
         }
     }
 
@@ -1190,15 +1162,17 @@ class ExchangeTracker {
         const svgContainer = container.querySelector('.tw-chart-svg-container');
         svgContainer.innerHTML = '';
         
+        // Create SVG
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'tw-chart-svg');
-        svg.setAttribute('viewBox', '0 0 600 250');
+        svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        const padding = { top: 35, right: 40, bottom: 50, left: 70 };
-        const width = 600 - padding.left - padding.right;
-        const height = 250 - padding.top - padding.bottom;
+        const padding = { top: 30, right: 30, bottom: 40, left: 60 };
+        const width = 400 - padding.left - padding.right;
+        const height = 200 - padding.top - padding.bottom;
         
+        // Calculate max value for scaling
         const allValues = [];
         this.resourceTypes.forEach(resource => {
             const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
@@ -1206,36 +1180,41 @@ class ExchangeTracker {
         });
         const maxValue = Math.max(...allValues) || 1;
         
+        // Create Y-axis grid and labels
         for (let i = 0; i <= 5; i++) {
             const y = padding.top + (height * i / 5);
             const value = Math.round(maxValue * (5 - i) / 5);
             
+            // Grid line
             const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             line.setAttribute('class', 'tw-chart-grid-line');
             line.setAttribute('x1', padding.left);
-            line.setAttribute('x2', 600 - padding.right);
+            line.setAttribute('x2', 400 - padding.right);
             line.setAttribute('y1', y);
             line.setAttribute('y2', y);
             svg.appendChild(line);
             
+            // Y-axis label
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'tw-chart-axis-label');
-            text.setAttribute('x', padding.left - 15);
-            text.setAttribute('y', y + 4);
+            text.setAttribute('x', padding.left - 5);
+            text.setAttribute('y', y + 3);
             text.setAttribute('text-anchor', 'end');
             text.textContent = value;
             svg.appendChild(text);
         }
         
-        const barWidth = 35;
-        const groupSpacing = 30;
-        const barSpacing = 12;
+        // Create bars
+        const barWidth = 25;
+        const groupSpacing = 15;
+        const barSpacing = 8;
         const totalGroupWidth = barWidth * 3 + barSpacing * 2;
         
         this.resourceTypes.forEach((resource, resourceIndex) => {
             const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
             const groupX = padding.left + resourceIndex * (totalGroupWidth + groupSpacing);
             
+            // Min bar (green)
             const minHeight = (cache.min / maxValue) * height;
             const minY = padding.top + height - minHeight;
             const minBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1247,6 +1226,7 @@ class ExchangeTracker {
             minBar.setAttribute('fill', '#4CAF50');
             svg.appendChild(minBar);
             
+            // Current bar (blue)
             const currentHeight = (cache.current / maxValue) * height;
             const currentY = padding.top + height - currentHeight;
             const currentBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1258,6 +1238,7 @@ class ExchangeTracker {
             currentBar.setAttribute('fill', '#2196F3');
             svg.appendChild(currentBar);
             
+            // Max bar (red)
             const maxHeight = (cache.max / maxValue) * height;
             const maxY = padding.top + height - maxHeight;
             const maxBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1269,6 +1250,7 @@ class ExchangeTracker {
             maxBar.setAttribute('fill', '#f44336');
             svg.appendChild(maxBar);
             
+            // Add value labels on bars
             [minBar, currentBar, maxBar].forEach((bar, barIndex) => {
                 const barX = parseFloat(bar.getAttribute('x'));
                 const barY = parseFloat(bar.getAttribute('y'));
@@ -1279,39 +1261,41 @@ class ExchangeTracker {
                     const valueText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     valueText.setAttribute('class', 'tw-bar-value');
                     valueText.setAttribute('x', barX + barWidth / 2);
-                    valueText.setAttribute('y', barY + barHeight / 2 + 4);
+                    valueText.setAttribute('y', barY + barHeight / 2 + 3);
                     valueText.textContent = values[barIndex];
                     svg.appendChild(valueText);
                 }
             });
             
+            // Add resource label
             const resourceLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             resourceLabel.setAttribute('class', 'tw-bar-label');
             resourceLabel.setAttribute('x', groupX + totalGroupWidth / 2);
-            resourceLabel.setAttribute('y', 250 - padding.bottom + 20);
+            resourceLabel.setAttribute('y', 200 - padding.bottom + 15);
             resourceLabel.textContent = this.resourceNames[resource];
             svg.appendChild(resourceLabel);
         });
         
+        // Add legend
         const legendData = [
-            { label: 'Min', color: '#4CAF50', x: padding.left, y: padding.top - 15 },
-            { label: 'Current', color: '#2196F3', x: padding.left + 100, y: padding.top - 15 },
-            { label: 'Max', color: '#f44336', x: padding.left + 220, y: padding.top - 15 }
+            { label: 'Min', color: '#4CAF50', x: padding.left, y: padding.top - 10 },
+            { label: 'Current', color: '#2196F3', x: padding.left + 80, y: padding.top - 10 },
+            { label: 'Max', color: '#f44336', x: padding.left + 180, y: padding.top - 10 }
         ];
         
         legendData.forEach(item => {
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             rect.setAttribute('x', item.x);
             rect.setAttribute('y', item.y);
-            rect.setAttribute('width', 15);
-            rect.setAttribute('height', 15);
+            rect.setAttribute('width', 12);
+            rect.setAttribute('height', 12);
             rect.setAttribute('fill', item.color);
             svg.appendChild(rect);
             
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'tw-chart-axis-label');
-            text.setAttribute('x', item.x + 25);
-            text.setAttribute('y', item.y + 12);
+            text.setAttribute('x', item.x + 20);
+            text.setAttribute('y', item.y + 10);
             text.textContent = item.label;
             svg.appendChild(text);
         });
@@ -1344,6 +1328,7 @@ class ExchangeTracker {
             grid.className = 'tw-charts-grid';
             grid.id = 'tw-charts-grid';
             
+            // Create 2x2 grid: 3 line charts + 1 bar chart
             const chartOrder = ['wood', 'stone', 'iron', 'bar'];
             
             chartOrder.forEach((chartType, index) => {
@@ -1352,10 +1337,8 @@ class ExchangeTracker {
                 
                 if (chartType === 'bar') {
                     chartContainer.id = 'tw-bar-chart';
-                    chartContainer.className += ' tw-bar-chart-container';
-                    
                     const chartTitle = document.createElement('h4');
-                    chartTitle.className = 'tw-chart-title normal-price';
+                    chartTitle.className = 'tw-chart-title';
                     chartTitle.textContent = 'Min/Current/Max Comparison';
                     chartContainer.appendChild(chartTitle);
                     
@@ -1364,21 +1347,8 @@ class ExchangeTracker {
                     chartContainer.appendChild(svgContainer);
                 } else {
                     chartContainer.id = `tw-chart-${chartType}`;
-                    
-                    const cache = this.minMaxCache[chartType] || { min: 0, max: 0, current: 0 };
-                    const currentCost = cache.current;
-                    const minCost = cache.min;
-                    const maxCost = cache.max;
-                    
-                    let titleClass = 'tw-chart-title normal-price';
-                    if (currentCost === minCost && currentCost > 0) {
-                        titleClass = 'tw-chart-title min-price';
-                    } else if (currentCost === maxCost && currentCost > 0) {
-                        titleClass = 'tw-chart-title max-price';
-                    }
-                    
                     const chartTitle = document.createElement('h4');
-                    chartTitle.className = titleClass;
+                    chartTitle.className = 'tw-chart-title';
                     chartTitle.textContent = `${this.resourceNames[chartType]} Price History`;
                     chartContainer.appendChild(chartTitle);
                     
@@ -1576,17 +1546,20 @@ class ExchangeTracker {
             status.textContent = `Showing ${rowCountText} | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
         }
         
+        // Always ensure charts container exists when stats are visible
         let chartsContainer = container.querySelector('.tw-charts-container');
         if (!chartsContainer) {
             chartsContainer = this.createChartsContainer();
             container.appendChild(chartsContainer);
         }
         
+        // Update the toggle button text
         const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
         if (toggleBtn) {
             toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
         }
         
+        // Only show charts if enabled
         const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
         if (chartsGrid) {
             if (this.showCharts && this.data.length > 0) {
@@ -1665,11 +1638,7 @@ class ExchangeTracker {
         let prevVisibleRecord = null;
         let totalHidden = 0;
         
-        const maxVisibleRows = 10;
-        
         this.data.forEach((record, index) => {
-            if (visibleRows >= maxVisibleRows) return;
-            
             let shouldHide = false;
             
             if (this.hideDuplicates && prevVisibleRecord !== null && index > 0) {
@@ -1695,8 +1664,6 @@ class ExchangeTracker {
             }
             
             const row = document.createElement('tr');
-            row.style.height = '26px';
-            
             if (visibleRows % 2 === 0) {
                 row.style.backgroundColor = '#f9f9f9';
             }
@@ -1714,9 +1681,6 @@ class ExchangeTracker {
             const timeCell = document.createElement('td');
             timeCell.className = 'tw-exchange-stat-timestamp';
             timeCell.textContent = record.timestamp;
-            timeCell.style.whiteSpace = 'nowrap';
-            timeCell.style.overflow = 'hidden';
-            timeCell.style.textOverflow = 'ellipsis';
             
             if (this.hideDuplicates && prevVisibleRecord !== null) {
                 const currentIndex = this.data.indexOf(record);
@@ -1741,17 +1705,11 @@ class ExchangeTracker {
                 const amountCell = document.createElement('td');
                 amountCell.className = 'tw-exchange-stat-amount';
                 amountCell.textContent = resData.amount.toLocaleString();
-                amountCell.style.whiteSpace = 'nowrap';
-                amountCell.style.overflow = 'hidden';
-                amountCell.style.textOverflow = 'ellipsis';
                 row.appendChild(amountCell);
                 
                 const capacityCell = document.createElement('td');
                 capacityCell.className = 'tw-exchange-stat-capacity';
                 capacityCell.textContent = resData.capacity.toLocaleString();
-                capacityCell.style.whiteSpace = 'nowrap';
-                capacityCell.style.overflow = 'hidden';
-                capacityCell.style.textOverflow = 'ellipsis';
                 
                 if (resData.capacity > 0) {
                     const percentage = Math.round((resData.amount / resData.capacity) * 100);
@@ -1767,12 +1725,10 @@ class ExchangeTracker {
                 const costCell = document.createElement('td');
                 costCell.className = 'tw-exchange-stat-cost';
                 costCell.textContent = resData.cost;
-                costCell.style.whiteSpace = 'nowrap';
                 row.appendChild(costCell);
                 
                 const diffCell = document.createElement('td');
                 diffCell.className = `tw-exchange-stat-diff ${resData.diff > 0 ? 'positive' : resData.diff < 0 ? 'negative' : 'neutral'}`;
-                diffCell.style.whiteSpace = 'nowrap';
                 
                 if (index === 0) {
                     diffCell.textContent = resData.diff > 0 ? `+${resData.diff}` : resData.diff;
@@ -1791,7 +1747,6 @@ class ExchangeTracker {
                 row.appendChild(diffCell);
                 
                 const tagCell = document.createElement('td');
-                tagCell.style.whiteSpace = 'nowrap';
                 if (resData.tag) {
                     tagCell.textContent = resData.tag;
                     tagCell.className = `tw-exchange-stat-tag ${resData.tag}`;
@@ -1827,6 +1782,7 @@ class ExchangeTracker {
     updateCharts() {
         if (!this.showCharts || !this.data.length) return;
         
+        // Update line charts
         this.resourceTypes.forEach(resource => {
             const chartContainer = document.querySelector(`#tw-chart-${resource}`);
             if (chartContainer) {
@@ -1834,6 +1790,7 @@ class ExchangeTracker {
             }
         });
         
+        // Update bar chart
         const barChartContainer = document.querySelector('#tw-bar-chart');
         if (barChartContainer) {
             this.createBarChart(barChartContainer);
@@ -1850,11 +1807,13 @@ class ExchangeTracker {
         const chartsContainer = container.querySelector('.tw-charts-container');
         if (!chartsContainer) return;
         
+        // Update toggle button
         const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
         if (toggleBtn) {
             toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
         }
         
+        // Show/hide charts grid
         const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
         if (chartsGrid) {
             if (this.showCharts && this.data.length > 0) {
@@ -1914,6 +1873,7 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
+            // Start auto-refresh
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
