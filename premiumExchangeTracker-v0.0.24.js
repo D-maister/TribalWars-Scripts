@@ -352,6 +352,7 @@ class ExchangeTracker {
                 border-radius: 4px;
                 margin-top: 10px;
                 margin-bottom: 20px;
+                height: 350px;
             }
             
             .tw-hidden-rows-summary {
