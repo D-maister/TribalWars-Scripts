@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Precision attack timer with server time synchronization
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -52,9 +52,64 @@
         }, 1000);
     }
     
+    // Get duration time from the page
+    function getDurationTime() {
+        try {
+            // Try the specific selector first
+            const durationElement = document.querySelector("#command-data-form > div:nth-child(9) > table > tbody > tr:nth-child(4) > td:nth-child(2)");
+            if (durationElement) {
+                const text = durationElement.textContent.trim();
+                console.log('Duration element found:', text);
+                
+                // Parse duration like "0:05:23"
+                const parts = text.split(':');
+                if (parts.length === 3) {
+                    const hours = parseInt(parts[0], 10) || 0;
+                    const minutes = parseInt(parts[1], 10) || 0;
+                    const seconds = parseInt(parts[2], 10) || 0;
+                    
+                    return (hours * 3600 + minutes * 60 + seconds) * 1000; // Convert to milliseconds
+                }
+            }
+            
+            // Alternative selectors in case the first one doesn't work
+            const alternativeSelectors = [
+                'td[data-duration]',
+                '.duration',
+                'td:contains("Duration") + td',
+                'tr:contains("Duration") td:nth-child(2)'
+            ];
+            
+            for (const selector of alternativeSelectors) {
+                const element = document.querySelector(selector);
+                if (element) {
+                    const text = element.textContent.trim();
+                    const match = text.match(/(\d+):(\d+):(\d+)/);
+                    if (match) {
+                        const hours = parseInt(match[1], 10) || 0;
+                        const minutes = parseInt(match[2], 10) || 0;
+                        const seconds = parseInt(match[3], 10) || 0;
+                        return (hours * 3600 + minutes * 60 + seconds) * 1000;
+                    }
+                }
+            }
+            
+            console.warn('Could not find duration time element');
+            return 0;
+        } catch (error) {
+            console.error('Error getting duration time:', error);
+            return 0;
+        }
+    }
+    
     // Add main UI
     function addMainUI(attackBtn) {
         const current = getEstimatedServerTime();
+        const duration = getDurationTime();
+        
+        // Calculate times based on duration
+        const arriveTime = new Date(current.getTime() + duration);
+        const returnTime = new Date(arriveTime.getTime() + duration); // Return after reaching destination
         
         const div = document.createElement('div');
         div.id = 'tw-precision-main';
@@ -95,6 +150,83 @@
                     🔄 Calibrating server time...
                 </div>
                 
+                <!-- DURATION INFO -->
+                <div id="tw-duration-info" style="
+                    padding: 12px;
+                    background: rgba(0, 136, 255, 0.1);
+                    border: 1px solid #0088ff;
+                    border-radius: 6px;
+                    margin-bottom: 20px;
+                    color: #88ccff;
+                    font-size: 14px;
+                ">
+                    📊 Duration: ${formatDuration(duration)} (${duration}ms)
+                </div>
+                
+                <!-- DURATION TIMES -->
+                <div style="
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 15px;
+                    margin-bottom: 20px;
+                ">
+                    <!-- ARRIVE TO DESTINATION -->
+                    <div style="
+                        background: rgba(0, 255, 136, 0.05);
+                        border: 2px solid rgba(0, 255, 136, 0.3);
+                        border-radius: 8px;
+                        padding: 15px;
+                    ">
+                        <div style="
+                            color: #00ff88;
+                            margin-bottom: 8px;
+                            font-size: 14px;
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                        ">
+                            <span style="font-size: 20px;">📍</span>
+                            <span>Arrive to destination:</span>
+                        </div>
+                        <div id="tw-arrive-time" style="
+                            color: #00ff88;
+                            font-family: 'Courier New', monospace;
+                            font-size: 16px;
+                            font-weight: bold;
+                        ">
+                            ${formatTime(arriveTime)}
+                        </div>
+                    </div>
+                    
+                    <!-- RETURN IF NOT CANCEL -->
+                    <div style="
+                        background: rgba(255, 136, 0, 0.05);
+                        border: 2px solid rgba(255, 136, 0, 0.3);
+                        border-radius: 8px;
+                        padding: 15px;
+                    ">
+                        <div style="
+                            color: #ff8800;
+                            margin-bottom: 8px;
+                            font-size: 14px;
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                        ">
+                            <span style="font-size: 20px;">↩️</span>
+                            <span>Return if not cancel:</span>
+                        </div>
+                        <div id="tw-return-time" style="
+                            color: #ff8800;
+                            font-family: 'Courier New', monospace;
+                            font-size: 16px;
+                            font-weight: bold;
+                        ">
+                            ${formatTime(returnTime)}
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- TARGET TIME -->
                 <div style="margin-bottom: 20px;">
                     <div style="
@@ -105,7 +237,7 @@
                         justify-content: space-between;
                         align-items: center;
                     ">
-                        <span>🎯 Target Time (enemy arrival):</span>
+                        <span>🎯 Enemy Arrival Time:</span>
                         <span style="color: #00ff88; font-size: 12px; font-family: monospace;">HH:MM:SS:mmm</span>
                     </div>
                     <input type="text" 
@@ -268,7 +400,7 @@
                         margin-bottom: 15px;
                         display: none;
                     ">
-                        🎯 Target: <span id="tw-target-text">--:--:--:---</span>
+                        🎯 Enemy: <span id="tw-target-text">--:--:--:---</span>
                     </div>
                     
                     <div id="tw-click-display" style="
@@ -351,6 +483,15 @@
         const s = date.getSeconds().toString().padStart(2, '0');
         const ms = date.getMilliseconds().toString().padStart(3, '0');
         return `${h}:${m}:${s}:${ms}`;
+    }
+    
+    // Format duration
+    function formatDuration(ms) {
+        const hours = Math.floor(ms / 3600000);
+        const minutes = Math.floor((ms % 3600000) / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000);
+        
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
     
     // Calibrate server time
@@ -447,12 +588,40 @@
             const serverTime = getEstimatedServerTime();
             document.getElementById('tw-current-display').textContent = `⏰ Server: ${formatTime(serverTime)}`;
             
+            // Update duration times
+            updateDurationTimes(serverTime);
+            
             // Update target input if empty
             const targetInput = document.getElementById('tw-target-input');
             if (!targetInput.value || targetInput.value === '00:00:00:000') {
                 targetInput.value = formatTime(serverTime);
             }
         }, updateInterval);
+    }
+    
+    // Update duration times
+    function updateDurationTimes(currentTime) {
+        const duration = getDurationTime();
+        
+        // Update duration info
+        const durationInfo = document.getElementById('tw-duration-info');
+        if (durationInfo) {
+            durationInfo.textContent = `📊 Duration: ${formatDuration(duration)} (${duration}ms)`;
+        }
+        
+        // Calculate and update arrive time
+        const arriveTime = new Date(currentTime.getTime() + duration);
+        const arriveTimeElement = document.getElementById('tw-arrive-time');
+        if (arriveTimeElement) {
+            arriveTimeElement.textContent = formatTime(arriveTime);
+        }
+        
+        // Calculate and update return time
+        const returnTime = new Date(arriveTime.getTime() + duration);
+        const returnTimeElement = document.getElementById('tw-return-time');
+        if (returnTimeElement) {
+            returnTimeElement.textContent = formatTime(returnTime);
+        }
     }
     
     // Calculate attack time
@@ -477,7 +646,6 @@
         const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * CONFIG.maxCancelMultiplier);
         
         // Calculate click time: target time - attack delay (in milliseconds)
-        // Using target's milliseconds minus the configured delay
         const clickTime = new Date(latestAttackMs - attackDelay);
         
         return {
@@ -595,6 +763,9 @@
                 
                 document.getElementById('tw-current-display').textContent = `⏰ Server: ${formatTime(current)}`;
                 document.getElementById('tw-remaining-text').textContent = `${remaining}ms`;
+                
+                // Update duration times
+                updateDurationTimes(current);
                 
                 // Color coding
                 const el = document.getElementById('tw-remaining-text');
