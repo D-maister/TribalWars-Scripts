@@ -358,54 +358,48 @@
         const seconds = parseInt(parts[2], 10) || 0;
         const milliseconds = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
         
-        console.log('=== ATTACK TIMER DEBUG ===');
-        console.log('Input (local interpretation):', timeStr);
+        console.log('=== ATTACK TIMER START ===');
+        console.log('Input:', timeStr);
         console.log('Parsed:', {hours, minutes, seconds, milliseconds});
         
-        // GET SERVER TIME (which is UTC+0)
+        // Get CURRENT server time (with latency)
         const serverTime = getServerTime();
         const latency = getLatency();
         const now = addMilliseconds(serverTime, latency);
         
-        console.log('Server time (UTC):', serverTime);
-        console.log('Server time string:', serverTime.toUTCString());
+        console.log('Server time from element:', serverTime);
         console.log('Latency:', latency, 'ms');
         console.log('Now (server + latency):', now);
-        console.log('Now UTC string:', now.toUTCString());
         
-        // CRITICAL: The input time is LOCAL TIME (Moscow UTC+3)
-        // We need to convert it to UTC for comparison with server time
+        // Create TARGET time for TODAY
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const targetDate = new Date(today);
+        targetDate.setHours(hours, minutes, seconds, milliseconds);
         
-        // Method 1: Create date in local timezone, then convert to UTC
-        const localNow = new Date();
-        const todayLocal = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
-        const targetLocal = new Date(todayLocal);
-        targetLocal.setHours(hours, minutes, seconds, milliseconds);
+        console.log('Today (midnight):', today);
+        console.log('Target (before adjustment):', targetDate);
         
-        console.log('Target (local time):', targetLocal);
-        console.log('Target local toString:', targetLocal.toString());
-        console.log('Target UTC:', targetLocal.toUTCString());
-        
-        // Convert to UTC for comparison with server time
-        const targetUTC = new Date(targetLocal.toUTCString());
-        
-        console.log('Target (UTC):', targetUTC);
-        console.log('Now (UTC):', now);
-        console.log('Target < Now?', targetUTC < now);
-        console.log('Difference (ms):', targetUTC.getTime() - now.getTime());
-        
-        // If target is in the past, schedule for tomorrow
-        if (targetUTC <= now) {
+        // Check if target is in the PAST
+        if (targetDate <= now) {
             console.log('Target is in past, adding 1 day');
-            targetUTC.setDate(targetUTC.getDate() + 1);
+            targetDate.setDate(targetDate.getDate() + 1);
         }
         
-        console.log('Final target (UTC):', targetUTC);
-        console.log('Final target local:', new Date(targetUTC.getTime() + (3 * 60 * 60 * 1000))); // +3 hours for Moscow
-        console.log('Will wait (ms):', targetUTC.getTime() - now.getTime());
-        console.log('Will wait (hours):', (targetUTC.getTime() - now.getTime()) / (1000 * 60 * 60));
+        console.log('Final target:', targetDate);
         
-        attackTimer.targetTime = targetUTC;
+        const remaining = targetDate.getTime() - now.getTime();
+        console.log('Remaining ms:', remaining);
+        console.log('Remaining seconds:', remaining / 1000);
+        console.log('Remaining hours:', remaining / (1000 * 60 * 60));
+        
+        // SAFETY CHECK: If remaining is too small, abort
+        if (remaining <= 100) { // Less than 0.1 second
+            console.error('ABORT: Time difference too small!');
+            updateStatus('Error: Target time is in the past or too close!', 'error');
+            return;
+        }
+        
+        attackTimer.targetTime = targetDate;
         
         // Get max cancel time
         const maxCancelInput = document.getElementById('tw-max-cancel');
@@ -493,7 +487,7 @@
     
     function timerTick() {
         if (!attackTimer.running || !attackTimer.targetTime) return;
-        
+    
         // Use SERVER time, not local time!
         const serverTime = getServerTime();
         const latency = getLatency();
@@ -508,7 +502,7 @@
         console.log('Remaining:', remaining, 'ms');
         
         // Update displays
-        const currentTimeWithMs = addMilliseconds(now, latency);
+        const currentTimeWithMs = now;
         document.getElementById('tw-current-time').textContent = `Current: ${formatTimeWithMs(currentTimeWithMs)}`;
         
         const remainingEl = document.getElementById('tw-remaining-time');
