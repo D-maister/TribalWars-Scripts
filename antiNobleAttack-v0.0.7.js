@@ -358,13 +358,31 @@
         const seconds = parseInt(parts[2], 10) || 0;
         const milliseconds = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
         
+        // DEBUG: Log what we're parsing
+        console.log('Parsing time:', {hours, minutes, seconds, milliseconds});
+        
         const now = new Date();
-        const targetDate = new Date();
+        
+        // Create target date PROPERLY - start with today's date at midnight
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const targetDate = new Date(today);
         targetDate.setHours(hours, minutes, seconds, milliseconds);
         
-        // If target time is earlier than current time, assume it's tomorrow
-        if (targetDate < now) {
+        // DEBUG: Show calculations
+        console.log('Now:', now);
+        console.log('Today (midnight):', today);
+        console.log('Target before adjustment:', targetDate);
+        console.log('Target is earlier than now?', targetDate < now);
+        console.log('Difference in ms:', targetDate.getTime() - now.getTime());
+        console.log('Difference in hours:', (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+        
+        // If target time is earlier than current time OR if it's the same day but earlier today
+        // (which shouldn't happen for future attacks), add 1 day
+        if (targetDate <= now) {
+            console.log('Target is in the past, adding 1 day');
             targetDate.setDate(targetDate.getDate() + 1);
+            console.log('New target:', targetDate);
+            console.log('New difference in hours:', (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60));
         }
         
         attackTimer.targetTime = targetDate;
