@@ -745,21 +745,18 @@
         
         // Convert max cancel to ms
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
-        const twoTimesCancel = maxCancelMs * 2; // Always 2x for anti-noble
+        const twoTimesCancel = maxCancelMs * 2;
         
         // Calculate time available
         const timeAvailable = targetTime.getTime() - current.getTime();
         
         // Calculate adjusted cancel time
         let adjustedMaxCancelMs = maxCancelMs;
-        if (timeAvailable < twoTimesCancel) {
-            // Not enough time for full 2x cancel - use half of available time
-            adjustedMaxCancelMs = Math.floor(timeAvailable / 2);
-        }
         
-        // Ensure we have at least 100ms margin
-        if (adjustedMaxCancelMs * 2 > timeAvailable - CONFIG.minSafetyMargin) {
-            adjustedMaxCancelMs = Math.floor((timeAvailable - CONFIG.minSafetyMargin) / 2);
+        // If we don't have enough time for full 2x cancel
+        if (timeAvailable < twoTimesCancel) {
+            // Use half of available time
+            adjustedMaxCancelMs = Math.floor(timeAvailable / 2);
         }
         
         // Calculate latest attack time: target - 2x adjusted cancel
@@ -768,18 +765,12 @@
         // Calculate click time: latest attack - attack delay - latency
         const clickTime = new Date(latestAttackMs - attackDelay - latency);
         
+        const remaining = clickTime.getTime() - current.getTime();
+        
         console.log('=== CALCULATION DEBUG ===');
-        console.log('Target time:', formatTime(targetTime));
-        console.log('Current time:', formatTime(current));
-        console.log('Time available:', timeAvailable, 'ms');
-        console.log('Max cancel requested:', maxCancelMinutes, 'min =', maxCancelMs, 'ms');
-        console.log('2x cancel needed:', twoTimesCancel, 'ms');
-        console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(1), 'min');
-        console.log('Latest attack:', formatTime(new Date(latestAttackMs)));
-        console.log('Attack delay:', attackDelay, 'ms');
-        console.log('Latency:', latency, 'ms');
+        console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms');
         console.log('Click time:', formatTime(clickTime));
-        console.log('Remaining until click:', clickTime.getTime() - current.getTime(), 'ms');
+        console.log('Remaining:', remaining, 'ms');
         
         return {
             targetTime: targetTime,
@@ -787,7 +778,7 @@
             adjustedMaxCancel: adjustedMaxCancelMs / 60000,
             attackDelay: attackDelay,
             latency: latency,
-            remaining: clickTime.getTime() - current.getTime(),
+            remaining: remaining,
             current: current
         };
     }
