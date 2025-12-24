@@ -1,151 +1,29 @@
-<style id="tw-attack-timer-styles">
-/* Styles for Attack Timer Controls */
-.tw-attack-controls {
-    background: linear-gradient(to bottom, #2d2d2d, #1a1a1a);
-    border: 1px solid #444;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 15px 0;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-    color: #e0e0e0;
-    font-family: Arial, sans-serif;
-}
+// ==UserScript==
+// @name         Tribal Wars Anti Noble Attack
+// @namespace    http://tampermonkey.net/
+// @version      0.0.2
+// @description  Auto start and auto cancel attack execution for Tribal Wars
+// @author       D-maister
+// @match        *://*.tribalwars.*/*
+// @match        *://*.tribalwars.com.*/*
+// @match        *://*.die-staemme.de/*
+// @grant        none
+// ==/UserScript==
 
-.tw-attack-controls h3 {
-    margin: 0 0 15px 0;
-    padding: 0 0 10px 0;
-    border-bottom: 1px solid #555;
-    color: #ff8a00;
-    font-size: 16px;
-    font-weight: bold;
-}
-
-.tw-control-group {
-    margin-bottom: 12px;
-}
-
-.tw-control-group label {
-    display: inline-block;
-    width: 200px;
-    font-size: 12px;
-    color: #b0b0b0;
-    margin-bottom: 5px;
-}
-
-.tw-control-group input[type="text"],
-.tw-control-group input[type="number"] {
-    width: 250px;
-    padding: 6px 10px;
-    background: #333;
-    border: 1px solid #555;
-    border-radius: 3px;
-    color: #fff;
-    font-size: 12px;
-}
-
-.tw-control-group input[type="checkbox"] {
-    margin-right: 8px;
-    vertical-align: middle;
-}
-
-.tw-btn {
-    padding: 8px 20px;
-    background: linear-gradient(to bottom, #444, #333);
-    border: 1px solid #555;
-    border-radius: 3px;
-    color: #fff;
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: bold;
-    text-shadow: 0 -1px 0 rgba(0,0,0,0.5);
-    transition: all 0.2s;
-    margin-right: 10px;
-}
-
-.tw-btn:hover {
-    background: linear-gradient(to bottom, #555, #444);
-    border-color: #666;
-}
-
-.tw-btn-attack {
-    background: linear-gradient(to bottom, #d9534f, #c9302c);
-    border-color: #ac2925;
-}
-
-.tw-btn-attack:hover {
-    background: linear-gradient(to bottom, #ec7063, #d9534f);
-    border-color: #d43f3a;
-}
-
-.tw-btn-cancel {
-    background: linear-gradient(to bottom, #5bc0de, #46b8da);
-    border-color: #269abc;
-}
-
-.tw-btn-cancel:hover {
-    background: linear-gradient(to bottom, #7bd4ec, #5bc0de);
-    border-color: #46b8da;
-}
-
-.tw-btn-stop {
-    background: linear-gradient(to bottom, #f0ad4e, #eea236);
-    border-color: #ec971f;
-}
-
-.tw-btn-stop:hover {
-    background: linear-gradient(to bottom, #f7c477, #f0ad4e);
-    border-color: #eea236;
-}
-
-.tw-status {
-    margin-top: 15px;
-    padding: 10px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 3px;
-    font-size: 12px;
-    min-height: 20px;
-}
-
-.tw-status.running {
-    background: rgba(76, 174, 76, 0.2);
-    border-left: 3px solid #4cae4c;
-}
-
-.tw-status.error {
-    background: rgba(217, 83, 79, 0.2);
-    border-left: 3px solid #d9534f;
-}
-
-.tw-time-display {
-    font-family: monospace;
-    font-size: 14px;
-    color: #ff8a00;
-    font-weight: bold;
-}
-
-.tw-ms-checkbox {
-    margin-top: 8px;
-}
-
-.tw-timer-running {
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-}
-</style>
-
-<script id="tw-attack-timer-script">
 (function() {
     'use strict';
+    
+    // Wait for page to load
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        setTimeout(init, 1000);
+    }
     
     // Configuration
     const CONFIG = {
         updateInterval: 50,
-        maxCancelTime: 600000, // 10 minutes in ms
+        maxCancelTime: 600000,
         checkInterval: 50
     };
     
@@ -158,7 +36,7 @@
         updateInterval: CONFIG.updateInterval,
         intervalId: null,
         isMsEnabled: false,
-        attackType: 'attack' // or 'cancel'
+        attackType: 'attack'
     };
     
     // DOM Elements
@@ -253,35 +131,11 @@
     
     // Bind event listeners
     function bindEvents() {
-        // Attack button
-        const attackBtn = document.getElementById('tw-start-attack');
-        if (attackBtn) {
-            attackBtn.addEventListener('click', startAttackTimer);
-        }
-        
-        // Cancel button
-        const cancelBtn = document.getElementById('tw-start-cancel');
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', startCancelTimer);
-        }
-        
-        // Stop button
-        const stopBtn = document.getElementById('tw-stop');
-        if (stopBtn) {
-            stopBtn.addEventListener('click', stopTimer);
-        }
-        
-        // Show milliseconds checkbox
-        const msCheckbox = document.getElementById('tw-show-ms');
-        if (msCheckbox) {
-            msCheckbox.addEventListener('change', toggleMillisecondsDisplay);
-        }
-        
-        // Update interval input
-        const intervalInput = document.getElementById('tw-update-interval');
-        if (intervalInput) {
-            intervalInput.addEventListener('change', updateInterval);
-        }
+        document.getElementById('tw-start-attack')?.addEventListener('click', startAttackTimer);
+        document.getElementById('tw-start-cancel')?.addEventListener('click', startCancelTimer);
+        document.getElementById('tw-stop')?.addEventListener('click', stopTimer);
+        document.getElementById('tw-show-ms')?.addEventListener('change', toggleMillisecondsDisplay);
+        document.getElementById('tw-update-interval')?.addEventListener('change', updateInterval);
     }
     
     // Get server time from the game
@@ -309,8 +163,7 @@
     
     // Add milliseconds to a date
     function addMilliseconds(date, ms) {
-        const newDate = new Date(date.getTime() + ms);
-        return newDate;
+        return new Date(date.getTime() + ms);
     }
     
     // Format time with milliseconds
@@ -337,7 +190,6 @@
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         
-        // Handle format "HH:MM:SS:mmm"
         const parts = input.split(':');
         if (parts.length >= 3) {
             const hours = parseInt(parts[0], 10) || 0;
@@ -348,7 +200,6 @@
             const targetDate = new Date(today);
             targetDate.setHours(hours, minutes, seconds, milliseconds);
             
-            // If target time is earlier than current time, assume it's tomorrow
             if (targetDate < now) {
                 targetDate.setDate(targetDate.getDate() + 1);
             }
@@ -393,33 +244,27 @@
             return;
         }
         
-        // Get target time
         const timeInput = document.getElementById('tw-target-time');
         if (!timeInput || !timeInput.value) {
             updateStatus('Please enter a target time!', 'error');
             return;
         }
         
-        // Parse target time
         attackTimer.targetTime = parseTimeInput(timeInput.value);
         if (!attackTimer.targetTime) {
             updateStatus('Invalid time format! Use HH:MM:SS:mmm', 'error');
             return;
         }
         
-        // Get max cancel time
         const maxCancelInput = document.getElementById('tw-max-cancel');
-        attackTimer.maxCancelTime = (parseInt(maxCancelInput.value, 10) || 10) * 60000; // Convert to ms
+        attackTimer.maxCancelTime = (parseInt(maxCancelInput.value, 10) || 10) * 60000;
         
-        // Get update interval
         updateInterval();
         
-        // Set attack type
         attackTimer.attackType = 'attack';
         attackTimer.startTime = new Date();
         attackTimer.running = true;
         
-        // Update UI
         document.getElementById('tw-start-attack').style.display = 'none';
         document.getElementById('tw-start-cancel').style.display = 'none';
         document.getElementById('tw-stop').style.display = 'inline-block';
@@ -428,7 +273,6 @@
         
         controlPanel.classList.add('tw-timer-running');
         
-        // Start the timer
         startTimerLoop();
         
         updateStatus(`Attack timer started! Target: ${formatTimeWithMs(attackTimer.targetTime)}`);
@@ -441,15 +285,12 @@
             return;
         }
         
-        // Get max cancel time from input
         const maxCancelInput = document.getElementById('tw-max-cancel');
         const maxCancelMinutes = parseInt(maxCancelInput.value, 10) || 10;
         attackTimer.maxCancelTime = maxCancelMinutes * 60000;
         
-        // Set target time to now + max cancel time
         attackTimer.targetTime = new Date(Date.now() + attackTimer.maxCancelTime);
         
-        // Update target time input
         const timeInput = document.getElementById('tw-target-time');
         const msCheckbox = document.getElementById('tw-show-ms');
         if (timeInput) {
@@ -460,15 +301,12 @@
             }
         }
         
-        // Get update interval
         updateInterval();
         
-        // Set attack type
         attackTimer.attackType = 'cancel';
         attackTimer.startTime = new Date();
         attackTimer.running = true;
         
-        // Update UI
         document.getElementById('tw-start-attack').style.display = 'none';
         document.getElementById('tw-start-cancel').style.display = 'none';
         document.getElementById('tw-stop').style.display = 'inline-block';
@@ -477,7 +315,6 @@
         
         controlPanel.classList.add('tw-timer-running');
         
-        // Start the timer
         startTimerLoop();
         
         updateStatus(`Auto-cancel timer started! Will cancel after ${maxCancelMinutes} minutes`);
@@ -485,15 +322,11 @@
     
     // Start the timer loop
     function startTimerLoop() {
-        // Clear any existing interval
         if (attackTimer.intervalId) {
             clearInterval(attackTimer.intervalId);
         }
         
-        // Start new interval
         attackTimer.intervalId = setInterval(timerTick, attackTimer.updateInterval);
-        
-        // Immediate first tick
         timerTick();
     }
     
@@ -504,21 +337,17 @@
         const now = new Date();
         const remaining = attackTimer.targetTime.getTime() - now.getTime();
         
-        // Update displays
         updateTimeDisplays(now, remaining);
         
-        // Check if it's time to click
-        if (remaining <= 10) { // 10ms before target
+        if (remaining <= 10) {
             executeAction();
         } else if (remaining <= 0) {
-            // Just in case we missed the 10ms window
             executeAction();
         }
     }
     
     // Update time displays
     function updateTimeDisplays(now, remaining) {
-        // Current time
         const latency = getLatency();
         const currentTimeWithMs = addMilliseconds(now, latency);
         const currentTimeEl = document.getElementById('tw-current-time');
@@ -526,13 +355,11 @@
             currentTimeEl.textContent = `Current: ${formatTimeWithMs(currentTimeWithMs)}`;
         }
         
-        // Target time
         const targetDisplay = document.getElementById('tw-target-time-display');
         if (targetDisplay) {
             targetDisplay.textContent = formatTimeWithMs(attackTimer.targetTime);
         }
         
-        // Remaining time
         const remainingEl = document.getElementById('tw-remaining-time');
         if (remainingEl) {
             if (remaining > 0) {
@@ -555,17 +382,14 @@
             return;
         }
         
-        // Click the button
         attackButton.click();
         
-        // Update status based on action type
         if (attackTimer.attackType === 'attack') {
             updateStatus('Attack executed successfully!', 'running');
         } else {
             updateStatus('Attack cancelled (auto-cancel triggered)', 'running');
         }
         
-        // Stop the timer
         setTimeout(stopTimer, 1000);
     }
     
@@ -580,7 +404,6 @@
             attackTimer.intervalId = null;
         }
         
-        // Update UI
         document.getElementById('tw-start-attack').style.display = 'inline-block';
         document.getElementById('tw-start-cancel').style.display = 'inline-block';
         document.getElementById('tw-stop').style.display = 'none';
@@ -604,34 +427,139 @@
         }
     }
     
-    // Initialize when page loads
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    // Add CSS styles
+    const styles = `
+    .tw-attack-controls {
+        background: linear-gradient(to bottom, #2d2d2d, #1a1a1a);
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 15px;
+        margin: 15px 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        color: #e0e0e0;
+        font-family: Arial, sans-serif;
     }
+    .tw-attack-controls h3 {
+        margin: 0 0 15px 0;
+        padding: 0 0 10px 0;
+        border-bottom: 1px solid #555;
+        color: #ff8a00;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .tw-control-group {
+        margin-bottom: 12px;
+    }
+    .tw-control-group label {
+        display: inline-block;
+        width: 200px;
+        font-size: 12px;
+        color: #b0b0b0;
+        margin-bottom: 5px;
+    }
+    .tw-control-group input[type="text"],
+    .tw-control-group input[type="number"] {
+        width: 250px;
+        padding: 6px 10px;
+        background: #333;
+        border: 1px solid #555;
+        border-radius: 3px;
+        color: #fff;
+        font-size: 12px;
+    }
+    .tw-control-group input[type="checkbox"] {
+        margin-right: 8px;
+        vertical-align: middle;
+    }
+    .tw-btn {
+        padding: 8px 20px;
+        background: linear-gradient(to bottom, #444, #333);
+        border: 1px solid #555;
+        border-radius: 3px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+        text-shadow: 0 -1px 0 rgba(0,0,0,0.5);
+        transition: all 0.2s;
+        margin-right: 10px;
+    }
+    .tw-btn:hover {
+        background: linear-gradient(to bottom, #555, #444);
+        border-color: #666;
+    }
+    .tw-btn-attack {
+        background: linear-gradient(to bottom, #d9534f, #c9302c);
+        border-color: #ac2925;
+    }
+    .tw-btn-attack:hover {
+        background: linear-gradient(to bottom, #ec7063, #d9534f);
+        border-color: #d43f3a;
+    }
+    .tw-btn-cancel {
+        background: linear-gradient(to bottom, #5bc0de, #46b8da);
+        border-color: #269abc;
+    }
+    .tw-btn-cancel:hover {
+        background: linear-gradient(to bottom, #7bd4ec, #5bc0de);
+        border-color: #46b8da;
+    }
+    .tw-btn-stop {
+        background: linear-gradient(to bottom, #f0ad4e, #eea236);
+        border-color: #ec971f;
+    }
+    .tw-btn-stop:hover {
+        background: linear-gradient(to bottom, #f7c477, #f0ad4e);
+        border-color: #eea236;
+    }
+    .tw-status {
+        margin-top: 15px;
+        padding: 10px;
+        background: rgba(0,0,0,0.3);
+        border-radius: 3px;
+        font-size: 12px;
+        min-height: 20px;
+    }
+    .tw-status.running {
+        background: rgba(76, 174, 76, 0.2);
+        border-left: 3px solid #4cae4c;
+    }
+    .tw-status.error {
+        background: rgba(217, 83, 79, 0.2);
+        border-left: 3px solid #d9534f;
+    }
+    .tw-time-display {
+        font-family: monospace;
+        font-size: 14px;
+        color: #ff8a00;
+        font-weight: bold;
+    }
+    .tw-ms-checkbox {
+        margin-top: 8px;
+    }
+    .tw-timer-running {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+    `;
     
-    // Re-initialize when page changes (for Tribal Wars AJAX navigation)
-    const originalPushState = history.pushState;
-    history.pushState = function() {
-        originalPushState.apply(this, arguments);
-        setTimeout(init, 100);
-    };
+    // Inject styles
+    const styleSheet = document.createElement("style");
+    styleSheet.textContent = styles;
+    document.head.appendChild(styleSheet);
     
-    const originalReplaceState = history.replaceState;
-    history.replaceState = function() {
-        originalReplaceState.apply(this, arguments);
-        setTimeout(init, 100);
-    };
-    
-    // Export for debugging
-    window.TWAttackTimer = {
-        init: init,
-        startAttack: startAttackTimer,
-        startCancel: startCancelTimer,
-        stop: stopTimer,
-        getState: () => attackTimer
-    };
+    // Handle AJAX navigation (common in Tribal Wars)
+    let lastURL = location.href;
+    new MutationObserver(() => {
+        const url = location.href;
+        if (url !== lastURL) {
+            lastURL = url;
+            setTimeout(init, 500);
+        }
+    }).observe(document, {subtree: true, childList: true});
     
 })();
-</script>
