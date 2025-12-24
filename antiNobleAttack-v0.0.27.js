@@ -31,7 +31,9 @@
         calibrationComplete: false,
         calibrationData: [],
         updateInterval: CONFIG.defaultUpdateInterval,
-        maxCancelTime: CONFIG.defaultMaxCancelMinutes * 60 * 1000
+        maxCancelTime: CONFIG.defaultMaxCancelMinutes * 60 * 1000,
+        fixedArriveTime: null,
+        fixedReturnTime: null
     };
     
     // Initialize
@@ -413,6 +415,71 @@
                     ">
                         🖱️ Click at: <span id="tw-click-text">--:--:--:---</span>
                     </div>
+
+                    <!-- FIXED TIMES (When timer starts) -->
+                    <div id="tw-fixed-times" style="display: none; margin-bottom: 20px;">
+                        <div style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 15px;
+                        ">
+                            <!-- FIXED ARRIVE TIME -->
+                            <div style="
+                                background: rgba(0, 255, 136, 0.1);
+                                border: 2px solid #00ff88;
+                                border-radius: 8px;
+                                padding: 15px;
+                            ">
+                                <div style="
+                                    color: #00ff88;
+                                    margin-bottom: 8px;
+                                    font-size: 14px;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                ">
+                                    <span style="font-size: 20px;">📍</span>
+                                    <span>Will arrive at:</span>
+                                </div>
+                                <div id="tw-fixed-arrive" style="
+                                    color: #00ff88;
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 16px;
+                                    font-weight: bold;
+                                ">
+                                    --:--:--:---
+                                </div>
+                            </div>
+                            
+                            <!-- FIXED RETURN TIME -->
+                            <div style="
+                                background: rgba(255, 136, 0, 0.1);
+                                border: 2px solid #ff8800;
+                                border-radius: 8px;
+                                padding: 15px;
+                            ">
+                                <div style="
+                                    color: #ff8800;
+                                    margin-bottom: 8px;
+                                    font-size: 14px;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                ">
+                                    <span style="font-size: 20px;">↩️</span>
+                                    <span>Will return at:</span>
+                                </div>
+                                <div id="tw-fixed-return" style="
+                                    color: #ff8800;
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 16px;
+                                    font-weight: bold;
+                                ">
+                                    --:--:--:---
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div id="tw-remaining-display" style="
                         color: #00ff88;
@@ -715,12 +782,18 @@
         if (calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
             updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
         }
+
+        // Calculate fixed times based on click time
+        const duration = getDurationTime();
+        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);
+        state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
         
         // Update state
         state.running = true;
         state.targetTime = calc.targetTime;
         state.clickTime = calc.clickTime;
         state.updateInterval = Math.max(1, Math.min(100, updateInterval));
+        
         
         // Update UI
         document.getElementById('tw-start-btn').style.display = 'none';
@@ -731,6 +804,11 @@
         
         document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
+
+        // Show and update fixed times
+        document.getElementById('tw-fixed-times').style.display = 'block';
+        document.getElementById('tw-fixed-arrive').textContent = formatTime(state.fixedArriveTime);
+        document.getElementById('tw-fixed-return').textContent = formatTime(state.fixedReturnTime);
         
         updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s (${attackDelay}ms delay)`, 'success');
         
@@ -829,6 +907,10 @@
         document.getElementById('tw-target-display').style.display = 'none';
         document.getElementById('tw-click-display').style.display = 'none';
         document.getElementById('tw-remaining-display').style.display = 'none';
+
+        document.getElementById('tw-fixed-times').style.display = 'none';
+        state.fixedArriveTime = null;
+        state.fixedReturnTime = null;
         
         updateStatus('Timer stopped', 'info');
     }
