@@ -809,7 +809,7 @@
         
         // Calculate fixed times based on click time
         const duration = getDurationTime();
-        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);// + latency);
+        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration + latency);
         state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
         
         // Update state
