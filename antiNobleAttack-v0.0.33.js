@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.5
 // @description  Precision attack timer with server time synchronization
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -17,7 +17,7 @@
         defaultUpdateInterval: 10,      // 10ms update for precision
         defaultMaxCancelMinutes: 10,    // 10 minutes default
         defaultAttackDelay: 50,         // 50ms default delay before attack
-        minSafetyMargin: 5000,          // 5 seconds minimum
+        minSafetyMargin: 100,           // Minimal safety margin (100ms)
         maxCancelMultiplier: 2,         // Multiply by 2 for latest attack
         calibrationSamples: 10          // Server time calibration samples
     };
@@ -25,14 +25,14 @@
     let state = {
         running: false,
         targetTime: null,        // When enemy attack arrives
-        clickTime: null,         // When we click (target - delay - latency)
+        clickTime: null,         // When we click (target - 2x cancel - attack delay - latency)
         timerId: null,
         serverTimeOffset: 0,     // Server time - local time offset
         calibrationComplete: false,
         calibrationData: [],
         updateInterval: CONFIG.defaultUpdateInterval,
         maxCancelTime: CONFIG.defaultMaxCancelMinutes * 60 * 1000,
-        fixedArriveTime: null,   // Arrive time based on click time + duration
+        fixedArriveTime: null,   // Arrive time based on click time + duration (no latency)
         fixedReturnTime: null    // Return time based on arrive time + duration
     };
     
@@ -76,7 +76,6 @@
             const durationElement = document.querySelector("#command-data-form > div:nth-child(9) > table > tbody > tr:nth-child(4) > td:nth-child(2)");
             if (durationElement) {
                 const text = durationElement.textContent.trim();
-                console.log('Duration element found:', text);
                 
                 // Parse duration like "0:05:23"
                 const parts = text.split(':');
@@ -85,11 +84,11 @@
                     const minutes = parseInt(parts[1], 10) || 0;
                     const seconds = parseInt(parts[2], 10) || 0;
                     
-                    return (hours * 3600 + minutes * 60 + seconds) * 1000; // Convert to milliseconds
+                    return (hours * 3600 + minutes * 60 + seconds) * 1000;
                 }
             }
             
-            // Alternative selectors in case the first one doesn't work
+            // Alternative selectors
             const alternativeSelectors = [
                 'td[data-duration]',
                 '.duration',
@@ -119,7 +118,7 @@
         }
     }
     
-    // Add main UI
+    // Add main UI with white theme
     function addMainUI(attackBtn) {
         const current = getEstimatedServerTime();
         const duration = getDurationTime();
@@ -127,28 +126,29 @@
         
         // Calculate times based on duration
         const arriveTime = new Date(current.getTime() + duration);
-        const returnTime = new Date(arriveTime.getTime() + duration); // Return after reaching destination
+        const returnTime = new Date(arriveTime.getTime() + duration);
         
         const div = document.createElement('div');
         div.id = 'tw-precision-main';
         div.innerHTML = `
             <div style="
-                background: linear-gradient(145deg, #0a0a0a, #1a1a1a);
-                border: 3px solid #00ff88;
+                background: linear-gradient(145deg, #ffffff, #f5f5f5);
+                border: 2px solid #4CAF50;
                 border-radius: 12px;
                 padding: 25px;
                 margin: 25px 0;
-                color: white;
-                box-shadow: 0 6px 30px rgba(0, 255, 136, 0.2);
+                color: #333;
+                box-shadow: 0 6px 30px rgba(76, 175, 80, 0.15);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             ">
                 <h3 style="
                     margin: 0 0 20px 0;
-                    color: #00ff88;
+                    color: #2E7D32;
                     display: flex;
                     align-items: center;
                     gap: 12px;
                     font-size: 20px;
-                    border-bottom: 2px solid rgba(0, 255, 136, 0.3);
+                    border-bottom: 2px solid rgba(76, 175, 80, 0.2);
                     padding-bottom: 15px;
                 ">
                     <span style="font-size: 28px;">🎯</span>
@@ -157,12 +157,13 @@
                 
                 <!-- CALIBRATION STATUS -->
                 <div id="tw-calibration-status" style="
-                    padding: 15px;
-                    background: rgba(0, 255, 136, 0.1);
-                    border: 2px solid #00ff88;
-                    border-radius: 8px;
+                    padding: 12px;
+                    background: rgba(76, 175, 80, 0.08);
+                    border: 1px solid #4CAF50;
+                    border-radius: 6px;
                     margin-bottom: 20px;
-                    color: #00ff88;
+                    color: #2E7D32;
+                    font-size: 14px;
                     display: none;
                 ">
                     🔄 Calibrating server time...
@@ -171,18 +172,20 @@
                 <!-- DURATION INFO -->
                 <div id="tw-duration-info" style="
                     padding: 12px;
-                    background: rgba(0, 136, 255, 0.1);
-                    border: 1px solid #0088ff;
+                    background: rgba(33, 150, 243, 0.08);
+                    border: 1px solid #2196F3;
                     border-radius: 6px;
                     margin-bottom: 20px;
-                    color: #88ccff;
+                    color: #1565C0;
                     font-size: 14px;
                 ">
-                    📊 Duration: ${formatDuration(duration)} (${duration}ms)<br>
-                    📡 Latency: ${latency.toFixed(1)}ms
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>📊 Duration: ${formatDuration(duration)}</span>
+                        <span>📡 Latency: ${latency.toFixed(1)}ms</span>
+                    </div>
                 </div>
                 
-                <!-- DURATION TIMES -->
+                <!-- CURRENT TRAVEL TIMES -->
                 <div style="
                     display: grid;
                     grid-template-columns: 1fr 1fr;
@@ -191,24 +194,25 @@
                 ">
                     <!-- ARRIVE TO DESTINATION -->
                     <div style="
-                        background: rgba(0, 255, 136, 0.05);
-                        border: 2px solid rgba(0, 255, 136, 0.3);
+                        background: rgba(76, 175, 80, 0.05);
+                        border: 1px solid rgba(76, 175, 80, 0.3);
                         border-radius: 8px;
                         padding: 15px;
                     ">
                         <div style="
-                            color: #00ff88;
+                            color: #2E7D32;
                             margin-bottom: 8px;
                             font-size: 14px;
                             display: flex;
                             align-items: center;
                             gap: 8px;
+                            font-weight: 500;
                         ">
                             <span style="font-size: 20px;">📍</span>
                             <span>Arrive to destination:</span>
                         </div>
                         <div id="tw-arrive-time" style="
-                            color: #00ff88;
+                            color: #2E7D32;
                             font-family: 'Courier New', monospace;
                             font-size: 16px;
                             font-weight: bold;
@@ -219,24 +223,25 @@
                     
                     <!-- RETURN IF NOT CANCEL -->
                     <div style="
-                        background: rgba(255, 136, 0, 0.05);
-                        border: 2px solid rgba(255, 136, 0, 0.3);
+                        background: rgba(255, 152, 0, 0.05);
+                        border: 1px solid rgba(255, 152, 0, 0.3);
                         border-radius: 8px;
                         padding: 15px;
                     ">
                         <div style="
-                            color: #ff8800;
+                            color: #EF6C00;
                             margin-bottom: 8px;
                             font-size: 14px;
                             display: flex;
                             align-items: center;
                             gap: 8px;
+                            font-weight: 500;
                         ">
                             <span style="font-size: 20px;">↩️</span>
                             <span>Return if not cancel:</span>
                         </div>
                         <div id="tw-return-time" style="
-                            color: #ff8800;
+                            color: #EF6C00;
                             font-family: 'Courier New', monospace;
                             font-size: 16px;
                             font-weight: bold;
@@ -249,63 +254,76 @@
                 <!-- FIXED TIMES (When timer starts) -->
                 <div id="tw-fixed-times" style="display: none; margin-bottom: 20px;">
                     <div style="
-                        display: grid;
-                        grid-template-columns: 1fr 1fr;
-                        gap: 15px;
+                        background: rgba(63, 81, 181, 0.05);
+                        border: 1px solid #3F51B5;
+                        border-radius: 8px;
+                        padding: 15px;
                     ">
-                        <!-- FIXED ARRIVE TIME -->
                         <div style="
-                            background: rgba(0, 255, 136, 0.1);
-                            border: 2px solid #00ff88;
-                            border-radius: 8px;
-                            padding: 15px;
+                            color: #3F51B5;
+                            margin-bottom: 12px;
+                            font-size: 15px;
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            font-weight: 600;
                         ">
-                            <div style="
-                                color: #00ff88;
-                                margin-bottom: 8px;
-                                font-size: 14px;
-                                display: flex;
-                                align-items: center;
-                                gap: 8px;
-                            ">
-                                <span style="font-size: 20px;">📍</span>
-                                <span>Will arrive at:</span>
-                            </div>
-                            <div id="tw-fixed-arrive" style="
-                                color: #00ff88;
-                                font-family: 'Courier New', monospace;
-                                font-size: 16px;
-                                font-weight: bold;
-                            ">
-                                --:--:--:---
-                            </div>
+                            <span style="font-size: 20px;">⏱️</span>
+                            <span>Scheduled Attack Times</span>
                         </div>
-                        
-                        <!-- FIXED RETURN TIME -->
                         <div style="
-                            background: rgba(255, 136, 0, 0.1);
-                            border: 2px solid #ff8800;
-                            border-radius: 8px;
-                            padding: 15px;
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 15px;
                         ">
+                            <!-- FIXED ARRIVE TIME -->
                             <div style="
-                                color: #ff8800;
-                                margin-bottom: 8px;
-                                font-size: 14px;
-                                display: flex;
-                                align-items: center;
-                                gap: 8px;
+                                background: rgba(76, 175, 80, 0.08);
+                                border: 1px solid #4CAF50;
+                                border-radius: 6px;
+                                padding: 12px;
                             ">
-                                <span style="font-size: 20px;">↩️</span>
-                                <span>Will return at:</span>
+                                <div style="
+                                    color: #2E7D32;
+                                    margin-bottom: 6px;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                ">
+                                    Will arrive at:
+                                </div>
+                                <div id="tw-fixed-arrive" style="
+                                    color: #2E7D32;
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 15px;
+                                    font-weight: bold;
+                                ">
+                                    --:--:--:---
+                                </div>
                             </div>
-                            <div id="tw-fixed-return" style="
-                                color: #ff8800;
-                                font-family: 'Courier New', monospace;
-                                font-size: 16px;
-                                font-weight: bold;
+                            
+                            <!-- FIXED RETURN TIME -->
+                            <div style="
+                                background: rgba(255, 152, 0, 0.08);
+                                border: 1px solid #FF9800;
+                                border-radius: 6px;
+                                padding: 12px;
                             ">
-                                --:--:--:---
+                                <div style="
+                                    color: #EF6C00;
+                                    margin-bottom: 6px;
+                                    font-size: 13px;
+                                    font-weight: 500;
+                                ">
+                                    Will return at:
+                                </div>
+                                <div id="tw-fixed-return" style="
+                                    color: #EF6C00;
+                                    font-family: 'Courier New', monospace;
+                                    font-size: 15px;
+                                    font-weight: bold;
+                                ">
+                                    --:--:--:---
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -314,15 +332,15 @@
                 <!-- TARGET TIME -->
                 <div style="margin-bottom: 20px;">
                     <div style="
-                        color: #8ff;
+                        color: #555;
                         margin-bottom: 8px;
                         font-size: 14px;
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                     ">
-                        <span>🎯 Enemy Arrival Time:</span>
-                        <span style="color: #00ff88; font-size: 12px; font-family: monospace;">HH:MM:SS:mmm</span>
+                        <span style="font-weight: 500;">🎯 Enemy Arrival Time:</span>
+                        <span style="color: #4CAF50; font-size: 12px; font-family: monospace;">HH:MM:SS:mmm</span>
                     </div>
                     <input type="text" 
                            id="tw-target-input" 
@@ -330,14 +348,17 @@
                            placeholder="13:44:30:054"
                            style="
                                width: 100%;
-                               padding: 14px;
-                               background: #222;
-                               border: 2px solid #444;
-                               color: #fff;
+                               padding: 12px;
+                               background: #fff;
+                               border: 2px solid #ddd;
+                               color: #333;
                                border-radius: 6px;
                                font-family: monospace;
-                               font-size: 16px;
-                           ">
+                               font-size: 15px;
+                               transition: border-color 0.3s;
+                           "
+                           onfocus="this.style.borderColor='#4CAF50'"
+                           onblur="this.style.borderColor='#ddd'">
                 </div>
                 
                 <!-- SETTINGS ROW -->
@@ -348,7 +369,7 @@
                     margin-bottom: 20px;
                 ">
                     <div>
-                        <div style="color: #8ff; margin-bottom: 8px; font-size: 14px;">
+                        <div style="color: #555; margin-bottom: 8px; font-size: 14px; font-weight: 500;">
                             🔄 Update (ms):
                         </div>
                         <input type="number" 
@@ -359,16 +380,16 @@
                                step="1"
                                style="
                                    width: 100%;
-                                   padding: 12px;
-                                   background: #222;
-                                   border: 2px solid #444;
-                                   color: #fff;
+                                   padding: 10px;
+                                   background: #fff;
+                                   border: 2px solid #ddd;
+                                   color: #333;
                                    border-radius: 6px;
                                ">
                     </div>
                     
                     <div>
-                        <div style="color: #8ff; margin-bottom: 8px; font-size: 14px;">
+                        <div style="color: #555; margin-bottom: 8px; font-size: 14px; font-weight: 500;">
                             ⏰ Max Cancel (min):
                         </div>
                         <input type="number" 
@@ -379,16 +400,16 @@
                                step="1"
                                style="
                                    width: 100%;
-                                   padding: 12px;
-                                   background: #222;
-                                   border: 2px solid #444;
-                                   color: #fff;
+                                   padding: 10px;
+                                   background: #fff;
+                                   border: 2px solid #ddd;
+                                   color: #333;
                                    border-radius: 6px;
                                ">
                     </div>
                     
                     <div>
-                        <div style="color: #8ff; margin-bottom: 8px; font-size: 14px;">
+                        <div style="color: #555; margin-bottom: 8px; font-size: 14px; font-weight: 500;">
                             ⏱️ Attack Delay (ms):
                         </div>
                         <input type="number" 
@@ -399,10 +420,10 @@
                                step="1"
                                style="
                                    width: 100%;
-                                   padding: 12px;
-                                   background: #222;
-                                   border: 2px solid #444;
-                                   color: #fff;
+                                   padding: 10px;
+                                   background: #fff;
+                                   border: 2px solid #ddd;
+                                   color: #333;
                                    border-radius: 6px;
                                ">
                     </div>
@@ -416,43 +437,49 @@
                     margin-bottom: 25px;
                 ">
                     <button id="tw-start-btn" style="
-                        padding: 16px;
-                        background: linear-gradient(145deg, #00ff88, #00cc66);
-                        border: 2px solid #00aa55;
-                        color: #002211;
+                        padding: 14px;
+                        background: linear-gradient(145deg, #4CAF50, #388E3C);
+                        border: none;
+                        color: white;
                         border-radius: 8px;
                         cursor: pointer;
-                        font-weight: bold;
-                        font-size: 16px;
+                        font-weight: 600;
+                        font-size: 15px;
                         transition: all 0.3s;
-                    ">
+                        box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(76, 175, 80, 0.3)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 10px rgba(76, 175, 80, 0.2)'">
                         🚀 Start Timer
                     </button>
                     
                     <button id="tw-stop-btn" style="
-                        padding: 16px;
-                        background: linear-gradient(145deg, #ff4444, #cc0000);
-                        border: 2px solid #aa0000;
+                        padding: 14px;
+                        background: linear-gradient(145deg, #F44336, #D32F2F);
+                        border: none;
                         color: white;
                         border-radius: 8px;
                         cursor: pointer;
-                        font-weight: bold;
-                        font-size: 16px;
+                        font-weight: 600;
+                        font-size: 15px;
                         transition: all 0.3s;
+                        box-shadow: 0 3px 10px rgba(244, 67, 54, 0.2);
                         display: none;
-                    ">
+                    "
+                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 5px 15px rgba(244, 67, 54, 0.3)'"
+                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 3px 10px rgba(244, 67, 54, 0.2)'">
                         ⏹️ Stop
                     </button>
                 </div>
                 
                 <!-- STATUS -->
                 <div id="tw-status" style="
-                    padding: 18px;
-                    background: rgba(0, 255, 136, 0.1);
+                    padding: 15px;
+                    background: rgba(76, 175, 80, 0.08);
                     border-radius: 8px;
                     margin-bottom: 25px;
-                    border-left: 4px solid #00ff88;
-                    color: #00ff88;
+                    border-left: 4px solid #4CAF50;
+                    color: #2E7D32;
                     font-size: 14px;
                     min-height: 24px;
                 ">
@@ -461,15 +488,15 @@
                 
                 <!-- TIME DISPLAY -->
                 <div style="
-                    background: rgba(0, 0, 0, 0.7);
+                    background: #f9f9f9;
                     padding: 20px;
                     border-radius: 8px;
-                    border: 2px solid rgba(0, 255, 136, 0.3);
+                    border: 1px solid #e0e0e0;
                 ">
                     <div id="tw-current-display" style="
-                        color: #00ff88;
+                        color: #4CAF50;
                         font-family: 'Courier New', monospace;
-                        font-size: 18px;
+                        font-size: 17px;
                         font-weight: bold;
                         margin-bottom: 15px;
                     ">
@@ -477,31 +504,31 @@
                     </div>
                     
                     <div id="tw-target-display" style="
-                        color: #ffaa00;
+                        color: #FF9800;
                         font-family: 'Courier New', monospace;
-                        font-size: 18px;
+                        font-size: 17px;
                         font-weight: bold;
-                        margin-bottom: 15px;
+                        margin-bottom: 12px;
                         display: none;
                     ">
                         🎯 Enemy: <span id="tw-target-text">--:--:--:---</span>
                     </div>
                     
                     <div id="tw-click-display" style="
-                        color: #ff8800;
+                        color: #2196F3;
                         font-family: 'Courier New', monospace;
                         font-size: 16px;
                         font-weight: bold;
-                        margin-bottom: 15px;
+                        margin-bottom: 12px;
                         display: none;
                     ">
                         🖱️ Click at: <span id="tw-click-text">--:--:--:---</span>
                     </div>
                     
                     <div id="tw-remaining-display" style="
-                        color: #00ff88;
+                        color: #4CAF50;
                         font-family: 'Courier New', monospace;
-                        font-size: 18px;
+                        font-size: 17px;
                         font-weight: bold;
                         display: none;
                     ">
@@ -555,7 +582,6 @@
             return serverTime;
         }
         
-        // Server time = local time + offset
         const now = new Date();
         return new Date(now.getTime() + state.serverTimeOffset);
     }
@@ -596,7 +622,6 @@
         
         state.calibrationData = [];
         let samples = 0;
-        let lastText = serverEl.textContent;
         
         const observer = new MutationObserver(() => {
             const now = Date.now();
@@ -614,7 +639,6 @@
                 
                 samples++;
                 
-                // Update average offset
                 const avgOffset = state.calibrationData.reduce((sum, d) => sum + d.offset, 0) / samples;
                 state.serverTimeOffset = avgOffset;
                 
@@ -635,7 +659,6 @@
             subtree: true
         });
         
-        // Timeout after 10 seconds
         setTimeout(() => {
             observer.disconnect();
             if (samples > 0) {
@@ -678,7 +701,10 @@
             const durationInfo = document.getElementById('tw-duration-info');
             if (durationInfo) {
                 const duration = getDurationTime();
-                durationInfo.innerHTML = `📊 Duration: ${formatDuration(duration)} (${duration}ms)<br>📡 Latency: ${latency.toFixed(1)}ms`;
+                durationInfo.innerHTML = `<div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>📊 Duration: ${formatDuration(duration)}</span>
+                    <span>📡 Latency: ${latency.toFixed(1)}ms</span>
+                </div>`;
             }
             
             // Update duration times
@@ -711,7 +737,7 @@
         }
     }
     
-    // Calculate attack time with LATENCY INCLUDED
+    // Calculate attack time with EXACT millisecond timing
     function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
         // Get current server time
         const current = getEstimatedServerTime();
@@ -719,23 +745,41 @@
         
         // Convert max cancel to ms
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
-        const twoTimesCancel = maxCancelMs * CONFIG.maxCancelMultiplier;
+        const twoTimesCancel = maxCancelMs * 2; // Always 2x for anti-noble
         
         // Calculate time available
         const timeAvailable = targetTime.getTime() - current.getTime();
         
-        // Adjust max cancel if needed
+        // Calculate adjusted cancel time
         let adjustedMaxCancelMs = maxCancelMs;
-        if (timeAvailable < twoTimesCancel + CONFIG.minSafetyMargin) {
+        if (timeAvailable < twoTimesCancel) {
+            // Not enough time for full 2x cancel - use half of available time
+            adjustedMaxCancelMs = Math.floor(timeAvailable / 2);
+        }
+        
+        // Ensure we have at least 100ms margin
+        if (adjustedMaxCancelMs * 2 > timeAvailable - CONFIG.minSafetyMargin) {
             adjustedMaxCancelMs = Math.floor((timeAvailable - CONFIG.minSafetyMargin) / 2);
         }
         
-        // Calculate latest attack time (target - 2x max cancel time)
-        const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * CONFIG.maxCancelMultiplier);
+        // Calculate latest attack time: target - 2x adjusted cancel
+        const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * 2);
         
-        // Calculate click time: target time - attack delay - latency
-        // We need to click earlier by latency amount because there's delay between click and server receiving it
+        // Calculate click time: latest attack - attack delay - latency
         const clickTime = new Date(latestAttackMs - attackDelay - latency);
+        
+        console.log('=== CALCULATION DEBUG ===');
+        console.log('Target time:', formatTime(targetTime));
+        console.log('Current time:', formatTime(current));
+        console.log('Time available:', timeAvailable, 'ms');
+        console.log('Max cancel requested:', maxCancelMinutes, 'min =', maxCancelMs, 'ms');
+        console.log('2x cancel needed:', twoTimesCancel, 'ms');
+        console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(1), 'min');
+        console.log('Latest attack:', formatTime(new Date(latestAttackMs)));
+        console.log('Attack delay:', attackDelay, 'ms');
+        console.log('Latency:', latency, 'ms');
+        console.log('Click time:', formatTime(clickTime));
+        console.log('Remaining until click:', clickTime.getTime() - current.getTime(), 'ms');
         
         return {
             targetTime: targetTime,
@@ -764,7 +808,7 @@
         const parts = targetInput.split(':');
         
         if (parts.length < 3) {
-            updateStatus('Invalid time format!', 'error');
+            updateStatus('Invalid time format! Use HH:MM:SS:mmm', 'error');
             return;
         }
         
@@ -788,28 +832,25 @@
         const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
         const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
         const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
-        const latency = getLatency();
         
         // Calculate attack time
         const calc = calculateAttackTime(target, maxCancel, attackDelay);
-        if (!calc) {
-            updateStatus('Calculation failed!', 'error');
-            return;
-        }
         
-        if (calc.remaining < 1000) {
-            updateStatus('Target time too close!', 'error');
+        if (calc.remaining < 100) {
+            updateStatus('Target time too close! Need at least 100ms', 'error');
             return;
         }
         
         // Show warning if max cancel was adjusted
         if (calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
-            updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
+            updateStatus(`⚠️ Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
+        } else {
+            updateStatus(`✅ Using ${maxCancel}min cancel time`, 'success');
         }
         
-        // Calculate fixed times based on click time
+        // Calculate fixed times based on click time (NO LATENCY added)
         const duration = getDurationTime();
-        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);// + latency);
+        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);
         state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
         
         // Update state
@@ -833,14 +874,14 @@
         document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
-        updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s (${attackDelay}ms delay + ${latency.toFixed(1)}ms latency)`, 'success');
+        updateStatus(`✅ Timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
         
         // Start precision timer
-        startPrecisionTimer(attackDelay, latency);
+        startPrecisionTimer();
     }
     
-    // Start precision timer with 10ms updates
-    function startPrecisionTimer(attackDelay, latency) {
+    // Start precision timer
+    function startPrecisionTimer() {
         if (state.timerId) {
             clearInterval(state.timerId);
         }
@@ -872,23 +913,24 @@
                 // Color coding
                 const el = document.getElementById('tw-remaining-text');
                 if (remaining > 10000) {
-                    el.style.color = '#00ff88';
+                    el.style.color = '#4CAF50';
                 } else if (remaining > 2000) {
-                    el.style.color = '#ffaa00';
+                    el.style.color = '#FF9800';
                 } else if (remaining > 500) {
-                    el.style.color = '#ff8800';
+                    el.style.color = '#FF5722';
                 } else {
-                    el.style.color = '#ff4444';
+                    el.style.color = '#F44336';
                     el.style.fontWeight = 'bold';
                 }
             }
             
-            // Check execution - debug logging
+            // Debug logging (every 100 checks)
             executionCheckCount++;
-            if (executionCheckCount % 10 === 0) { // Log every 10 checks
+            if (executionCheckCount % 100 === 0) {
                 console.log(`Timer check #${executionCheckCount}: Remaining = ${remaining}ms`);
             }
             
+            // Check execution
             if (remaining <= 0) {
                 console.log('EXECUTE CONDITION MET! Remaining:', remaining);
                 clearInterval(state.timerId);
@@ -907,40 +949,54 @@
         
         const attackBtn = document.querySelector('#troop_confirm_submit');
         if (!attackBtn) {
-            updateStatus('No attack button!', 'error');
+            updateStatus('❌ No attack button found!', 'error');
             return;
         }
         
-        console.log('Attack button found, clicking...');
-        console.log('Button type:', attackBtn.type);
-        console.log('Button value:', attackBtn.value);
+        console.log('Attack button found, clicking now...');
         
         updateStatus('✅ Executing attack...', 'success');
         
-        // SIMPLE DIRECT CLICK - no setTimeout, no event prevention
+        // Simple direct click
         try {
-            // Disable our own event listeners temporarily
+            // Save original onclick
             const originalOnclick = attackBtn.onclick;
             
-            // Click using the simplest method
+            // Remove any onclick handler that might interfere
+            attackBtn.onclick = null;
+            
+            // Perform the click
             attackBtn.click();
             
-            // Restore onclick if it existed
+            // Restore original onclick if it existed
             if (originalOnclick) {
                 attackBtn.onclick = originalOnclick;
             }
             
-            console.log('Click executed successfully');
+            console.log('Attack button clicked successfully!');
+            
+            // Log expected times
+            console.log('Expected arrive:', formatTime(state.fixedArriveTime));
+            console.log('Expected return:', formatTime(state.fixedReturnTime));
             
         } catch (error) {
-            console.error('Error during click:', error);
-            updateStatus('Click error!', 'error');
+            console.error('Error clicking attack button:', error);
+            updateStatus('❌ Click error: ' + error.message, 'error');
+            
+            // Try form submission as backup
+            try {
+                const form = attackBtn.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            } catch (e) {
+                console.error('Form submission also failed:', e);
+            }
         }
     }
     
     // Stop main timer
     function stopMainTimer() {
-        console.log('Stopping main timer...');
         state.running = false;
         
         if (state.timerId) {
@@ -971,24 +1027,24 @@
         
         switch (type) {
             case 'error':
-                el.style.borderLeftColor = '#ff4444';
-                el.style.color = '#ff4444';
-                el.style.background = 'rgba(255, 68, 68, 0.1)';
+                el.style.borderLeftColor = '#F44336';
+                el.style.color = '#D32F2F';
+                el.style.background = 'rgba(244, 67, 54, 0.08)';
                 break;
             case 'warning':
-                el.style.borderLeftColor = '#ffaa00';
-                el.style.color = '#ffaa00';
-                el.style.background = 'rgba(255, 170, 0, 0.1)';
+                el.style.borderLeftColor = '#FF9800';
+                el.style.color = '#EF6C00';
+                el.style.background = 'rgba(255, 152, 0, 0.08)';
                 break;
             case 'success':
-                el.style.borderLeftColor = '#00ff88';
-                el.style.color = '#00ff88';
-                el.style.background = 'rgba(0, 255, 136, 0.1)';
+                el.style.borderLeftColor = '#4CAF50';
+                el.style.color = '#2E7D32';
+                el.style.background = 'rgba(76, 175, 80, 0.08)';
                 break;
             default:
-                el.style.borderLeftColor = '#00ff88';
-                el.style.color = '#00ff88';
-                el.style.background = 'rgba(0, 255, 136, 0.1)';
+                el.style.borderLeftColor = '#2196F3';
+                el.style.color = '#1565C0';
+                el.style.background = 'rgba(33, 150, 243, 0.08)';
         }
     }
     
