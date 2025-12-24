@@ -846,6 +846,7 @@
         }
         
         let lastDisplayUpdate = 0;
+        let executionCheckCount = 0;
         
         state.timerId = setInterval(() => {
             if (!state.running) return;
@@ -882,8 +883,16 @@
                 }
             }
             
-            // Check execution
+            // Check execution - debug logging
+            executionCheckCount++;
+            if (executionCheckCount % 10 === 0) { // Log every 10 checks
+                console.log(`Timer check #${executionCheckCount}: Remaining = ${remaining}ms`);
+            }
+            
             if (remaining <= 0) {
+                console.log('EXECUTE CONDITION MET! Remaining:', remaining);
+                clearInterval(state.timerId);
+                state.timerId = null;
                 executeAttack();
             }
         }, state.updateInterval);
@@ -902,26 +911,36 @@
             return;
         }
         
-        const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
-        const latency = getLatency();
+        console.log('Attack button found, clicking...');
+        console.log('Button type:', attackBtn.type);
+        console.log('Button value:', attackBtn.value);
         
-        // Log timing
-        const current = getEstimatedServerTime();
-        console.log('Executing at:', formatTime(current));
-        console.log('Target was:', formatTime(state.targetTime));
-        console.log('Attack delay:', attackDelay, 'ms');
-        console.log('Latency:', latency, 'ms');
-        console.log('Will arrive at:', formatTime(state.fixedArriveTime));
-        console.log('Will return at:', formatTime(state.fixedReturnTime));
+        updateStatus('✅ Executing attack...', 'success');
         
-        updateStatus(`✅ Executing attack with ${attackDelay}ms delay...`, 'success');
-        
-        // Click immediately (the delay was already accounted for in clickTime calculation)
-        attackBtn.click();
+        // SIMPLE DIRECT CLICK - no setTimeout, no event prevention
+        try {
+            // Disable our own event listeners temporarily
+            const originalOnclick = attackBtn.onclick;
+            
+            // Click using the simplest method
+            attackBtn.click();
+            
+            // Restore onclick if it existed
+            if (originalOnclick) {
+                attackBtn.onclick = originalOnclick;
+            }
+            
+            console.log('Click executed successfully');
+            
+        } catch (error) {
+            console.error('Error during click:', error);
+            updateStatus('Click error!', 'error');
+        }
     }
     
     // Stop main timer
     function stopMainTimer() {
+        console.log('Stopping main timer...');
         state.running = false;
         
         if (state.timerId) {
