@@ -473,9 +473,17 @@
     
     function timerTick() {
         if (!attackTimer.running || !attackTimer.targetTime) return;
-        
+    
         const now = new Date();
         const remaining = attackTimer.targetTime.getTime() - now.getTime();
+        
+        // ADD DEBUGGING
+        console.log('Timer tick:');
+        console.log('Now:', now);
+        console.log('Target:', attackTimer.targetTime);
+        console.log('Remaining ms:', remaining);
+        console.log('Remaining seconds:', remaining / 1000);
+        console.log('Should execute?', remaining <= 10);
         
         // Update displays
         const latency = getLatency();
