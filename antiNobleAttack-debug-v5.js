@@ -40,7 +40,7 @@
     function addHybridUI(attackBtn) {
         const serverNow = getServerTime();
         const latency = getLatency();
-        const current = new Date(serverNow.getTime() + latency);
+        const current = new Date(serverNow.getTime() - latency);
         
         // Set to +1 minute for quick test
         const oneMinuteLater = new Date(current.getTime() + (1 * 60 * 1000));
@@ -236,7 +236,7 @@ Ready for test...</div>
             // Get current time
             const serverNow = getServerTime();
             const latency = getLatency();
-            const current = new Date(serverNow.getTime() + latency);
+            const current = new Date(serverNow.getTime() - latency);
             
             const remaining = hybridState.clickTime.getTime() - current.getTime();
             
@@ -283,7 +283,7 @@ Ready for test...</div>
         // Log exact timing
         const serverNow = getServerTime();
         const latency = getLatency();
-        const current = new Date(serverNow.getTime() + latency);
+        const current = new Date(serverNow.getTime() - latency);
         logHybrid(`Executing at: ${formatTime(current)}`);
         logHybrid(`Target was: ${formatTime(hybridState.targetTime)}`);
         
@@ -314,7 +314,7 @@ Ready for test...</div>
     window.testHybridSafe = function(minutes = 1) {
         const serverNow = getServerTime();
         const latency = getLatency();
-        const current = new Date(serverNow.getTime() + latency);
+        const current = new Date(serverNow.getTime() - latency);
         const target = new Date(current.getTime() + (minutes * 60 * 1000));
         
         document.getElementById('tw-hybrid-target').value = formatTime(target);
@@ -329,7 +329,7 @@ Ready for test...</div>
     window.testHybridReal = function(minutes = 1) {
         const serverNow = getServerTime();
         const latency = getLatency();
-        const current = new Date(serverNow.getTime() + latency);
+        const current = new Date(serverNow.getTime() - latency);
         const target = new Date(current.getTime() + (minutes * 60 * 1000));
         
         document.getElementById('tw-hybrid-target').value = formatTime(target);
