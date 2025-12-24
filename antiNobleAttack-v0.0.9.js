@@ -358,32 +358,36 @@
         const seconds = parseInt(parts[2], 10) || 0;
         const milliseconds = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
         
-        // DEBUG: Log what we're parsing
-        console.log('Parsing time:', {hours, minutes, seconds, milliseconds});
+        // GET SERVER TIME, not local time!
+        const serverTime = getServerTime();
+        const latency = getLatency();
+        const now = addMilliseconds(serverTime, latency); // Current server time with latency
         
-        const now = new Date();
+        console.log('=== ATTACK TIMER DEBUG ===');
+        console.log('Input:', timeStr);
+        console.log('Parsed:', {hours, minutes, seconds, milliseconds});
+        console.log('Server time (from element):', serverTime);
+        console.log('Latency:', latency, 'ms');
+        console.log('Now (server + latency):', now);
         
-        // Create target date PROPERLY - start with today's date at midnight
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Create target based on SERVER TIME
+        const today = new Date(serverTime.getFullYear(), serverTime.getMonth(), serverTime.getDate());
         const targetDate = new Date(today);
         targetDate.setHours(hours, minutes, seconds, milliseconds);
         
-        // DEBUG: Show calculations
-        console.log('Now:', now);
-        console.log('Today (midnight):', today);
-        console.log('Target before adjustment:', targetDate);
-        console.log('Target is earlier than now?', targetDate < now);
-        console.log('Difference in ms:', targetDate.getTime() - now.getTime());
-        console.log('Difference in hours:', (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+        console.log('Target (before adjustment):', targetDate);
+        console.log('Target < Now?', targetDate < now);
+        console.log('Difference (ms):', targetDate.getTime() - now.getTime());
         
-        // If target time is earlier than current time OR if it's the same day but earlier today
-        // (which shouldn't happen for future attacks), add 1 day
+        // If target is in the past, schedule for tomorrow
         if (targetDate <= now) {
-            console.log('Target is in the past, adding 1 day');
+            console.log('Target is in past, adding 1 day');
             targetDate.setDate(targetDate.getDate() + 1);
-            console.log('New target:', targetDate);
-            console.log('New difference in hours:', (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60));
         }
+        
+        console.log('Final target:', targetDate);
+        console.log('Will wait (ms):', targetDate.getTime() - now.getTime());
+        console.log('Will wait (hours):', (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60));
         
         attackTimer.targetTime = targetDate;
         
