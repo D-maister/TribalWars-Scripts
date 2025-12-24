@@ -823,7 +823,7 @@
         }
     }
     
-    // Calculate attack time with EXACT millisecond timing - FIXED VERSION
+    // Calculate attack time with EXACT millisecond timing - SIMPLE VERSION
     function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
         console.log('=== CALCULATION START ===');
         
@@ -832,9 +832,6 @@
         
         console.log('Current time:', formatTime(current));
         console.log('Target time:', formatTime(targetTime));
-        console.log('Max cancel:', maxCancelMinutes, 'min');
-        console.log('Attack delay:', attackDelay, 'ms');
-        console.log('Latency:', latency, 'ms');
         
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
         const twoTimesCancel = maxCancelMs * 2;
@@ -848,33 +845,63 @@
         
         if (timeAvailable >= twoTimesCancel) {
             // We have enough time for full 2x cancel
-            // Latest attack = target - 2x cancel
             const latestAttackMs = targetTime.getTime() - twoTimesCancel;
-            // Click time = latest attack - delay - latency
             clickTime = new Date(latestAttackMs - attackDelay - latency);
             console.log('Using FULL cancel time');
-            console.log('Latest attack:', formatTime(new Date(latestAttackMs)));
         } else {
             // Not enough time for full 2x cancel
-            // We need to attack earlier, but still follow milliseconds rule
-            // Use half of available time for cancel time
-            adjustedMaxCancelMs = Math.floor(timeAvailable / 2);
+            // Attack as soon as possible while still matching milliseconds pattern
             
-            // Ensure we have at least attack delay + latency + 100ms margin
-            const minNeeded = attackDelay + latency + 100;
-            if (adjustedMaxCancelMs * 2 < minNeeded) {
-                console.error('Not enough time even for minimal attack');
+            // We need to attack at: target - X - delay - latency
+            // Where X is as large as possible but <= timeAvailable - delay - latency
+            
+            const minClickOffset = attackDelay + latency + 100; // Minimum: delay + latency + 100ms margin
+            
+            if (timeAvailable < minClickOffset) {
+                console.error('Not enough time even for immediate attack');
                 return null;
             }
             
-            // Latest attack = target - 2x adjusted cancel
-            const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * 2);
-            // Click time = latest attack - delay - latency
-            clickTime = new Date(latestAttackMs - attackDelay - latency);
+            // Calculate maximum time we can wait before clicking
+            const maxClickOffset = timeAvailable - 100; // Leave 100ms margin
             
-            console.log('Using REDUCED cancel time');
-            console.log('Adjusted cancel:', adjustedMaxCancelMs, 'ms');
-            console.log('Latest attack:', formatTime(new Date(latestAttackMs)));
+            // We want to attack at: target - (2 × cancel) - delay - latency
+            // So: 2 × cancel = target - clickTime - delay - latency
+            // We want cancel to be as large as possible
+            
+            // Let's find the largest cancel time that gives us a click time in the future
+            // Start with maximum possible cancel (timeAvailable/2) and reduce if needed
+            
+            let attemptCancel = Math.floor(timeAvailable / 2);
+            let attemptClickTime;
+            let attempts = 0;
+            
+            do {
+                const latestAttackMs = targetTime.getTime() - (attemptCancel * 2);
+                attemptClickTime = new Date(latestAttackMs - attackDelay - latency);
+                const attemptRemaining = attemptClickTime.getTime() - current.getTime();
+                
+                if (attemptRemaining >= 100) {
+                    // This works!
+                    clickTime = attemptClickTime;
+                    adjustedMaxCancelMs = attemptCancel;
+                    console.log(`Found working cancel after ${attempts} attempts:`, attemptCancel, 'ms');
+                    break;
+                }
+                
+                // Reduce cancel time and try again
+                attemptCancel = Math.floor(attemptCancel * 0.9); // Reduce by 10%
+                attempts++;
+                
+                if (attempts > 10 || attemptCancel < 1000) {
+                    // Fallback: attack 100ms from now
+                    clickTime = new Date(current.getTime() + 100);
+                    adjustedMaxCancelMs = Math.floor((targetTime.getTime() - clickTime.getTime() - attackDelay - latency) / 2);
+                    adjustedMaxCancelMs = Math.max(adjustedMaxCancelMs, 1000); // At least 1 second
+                    console.log('Using fallback: attack 100ms from now');
+                    break;
+                }
+            } while (true);
         }
         
         const remaining = clickTime.getTime() - current.getTime();
@@ -884,9 +911,8 @@
         console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(2), 'min');
         console.log('=== CALCULATION END ===');
         
-        // Check if click time is valid
-        if (remaining < 0) {
-            console.error('Click time is in the past!');
+        if (remaining < 100) {
+            console.error('Remaining time too small:', remaining, 'ms');
             return null;
         }
         
