@@ -180,7 +180,7 @@ Ready for test...</div>
         // Get current time
         const serverNow = getServerTime();
         const latency = getLatency();
-        const current = new Date(serverNow.getTime() + latency);
+        const current = new Date(serverNow.getTime() - latency);
         
         // Create target
         const target = new Date(current);
