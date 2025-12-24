@@ -265,7 +265,7 @@ Ready for test...</div>
                 logHybrid('Safety stop: Too many checks');
                 stopHybridTest();
             }
-        }, 100);
+        }, 10);
     }
     
     function executeHybridAttack() {
