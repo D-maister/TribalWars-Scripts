@@ -431,10 +431,10 @@
     // Get duration time from the page
     function getDurationTime() {
         try {
-            const durationElement = document.querySelector("#command-data-form > div:nth-child(9) > table > tbody > tr:nth-child(4) > td:nth-child(2)");
+            const durationElement = document.querySelector("#command-data-form table.vis tbody tr:nth-child(4) td:nth-child(2)");
             if (durationElement) {
                 const text = durationElement.textContent.trim();
-                const parts = text.split(':');
+                const parts = text.split(':'); 
                 if (parts.length === 3) {
                     const hours = parseInt(parts[0], 10) || 0;
                     const minutes = parseInt(parts[1], 10) || 0;
