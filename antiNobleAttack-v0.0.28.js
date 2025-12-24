@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Precision attack timer with server time synchronization
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -25,15 +25,15 @@
     let state = {
         running: false,
         targetTime: null,        // When enemy attack arrives
-        clickTime: null,         // When we click (target - delay)
+        clickTime: null,         // When we click (target - delay - latency)
         timerId: null,
         serverTimeOffset: 0,     // Server time - local time offset
         calibrationComplete: false,
         calibrationData: [],
         updateInterval: CONFIG.defaultUpdateInterval,
         maxCancelTime: CONFIG.defaultMaxCancelMinutes * 60 * 1000,
-        fixedArriveTime: null,
-        fixedReturnTime: null
+        fixedArriveTime: null,   // Arrive time based on click time + duration
+        fixedReturnTime: null    // Return time based on arrive time + duration
     };
     
     // Initialize
@@ -52,6 +52,21 @@
             // Auto-calibrate on load
             setTimeout(calibrateServerTime, 500);
         }, 1000);
+    }
+    
+    // Get latency from serverTime element
+    function getLatency() {
+        try {
+            const serverTimeEl = document.querySelector('#serverTime');
+            if (!serverTimeEl) return 0;
+            
+            const title = serverTimeEl.getAttribute('data-title') || '';
+            const match = title.match(/Latency:\s*([\d.]+)ms/i);
+            return match ? parseFloat(match[1]) : 0;
+        } catch (error) {
+            console.error('Error getting latency:', error);
+            return 0;
+        }
     }
     
     // Get duration time from the page
@@ -108,6 +123,7 @@
     function addMainUI(attackBtn) {
         const current = getEstimatedServerTime();
         const duration = getDurationTime();
+        const latency = getLatency();
         
         // Calculate times based on duration
         const arriveTime = new Date(current.getTime() + duration);
@@ -162,7 +178,8 @@
                     color: #88ccff;
                     font-size: 14px;
                 ">
-                    📊 Duration: ${formatDuration(duration)} (${duration}ms)
+                    📊 Duration: ${formatDuration(duration)} (${duration}ms)<br>
+                    📡 Latency: ${latency.toFixed(1)}ms
                 </div>
                 
                 <!-- DURATION TIMES -->
@@ -225,6 +242,71 @@
                             font-weight: bold;
                         ">
                             ${formatTime(returnTime)}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- FIXED TIMES (When timer starts) -->
+                <div id="tw-fixed-times" style="display: none; margin-bottom: 20px;">
+                    <div style="
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 15px;
+                    ">
+                        <!-- FIXED ARRIVE TIME -->
+                        <div style="
+                            background: rgba(0, 255, 136, 0.1);
+                            border: 2px solid #00ff88;
+                            border-radius: 8px;
+                            padding: 15px;
+                        ">
+                            <div style="
+                                color: #00ff88;
+                                margin-bottom: 8px;
+                                font-size: 14px;
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                            ">
+                                <span style="font-size: 20px;">📍</span>
+                                <span>Will arrive at:</span>
+                            </div>
+                            <div id="tw-fixed-arrive" style="
+                                color: #00ff88;
+                                font-family: 'Courier New', monospace;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">
+                                --:--:--:---
+                            </div>
+                        </div>
+                        
+                        <!-- FIXED RETURN TIME -->
+                        <div style="
+                            background: rgba(255, 136, 0, 0.1);
+                            border: 2px solid #ff8800;
+                            border-radius: 8px;
+                            padding: 15px;
+                        ">
+                            <div style="
+                                color: #ff8800;
+                                margin-bottom: 8px;
+                                font-size: 14px;
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                            ">
+                                <span style="font-size: 20px;">↩️</span>
+                                <span>Will return at:</span>
+                            </div>
+                            <div id="tw-fixed-return" style="
+                                color: #ff8800;
+                                font-family: 'Courier New', monospace;
+                                font-size: 16px;
+                                font-weight: bold;
+                            ">
+                                --:--:--:---
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -415,71 +497,6 @@
                     ">
                         🖱️ Click at: <span id="tw-click-text">--:--:--:---</span>
                     </div>
-
-                    <!-- FIXED TIMES (When timer starts) -->
-                    <div id="tw-fixed-times" style="display: none; margin-bottom: 20px;">
-                        <div style="
-                            display: grid;
-                            grid-template-columns: 1fr 1fr;
-                            gap: 15px;
-                        ">
-                            <!-- FIXED ARRIVE TIME -->
-                            <div style="
-                                background: rgba(0, 255, 136, 0.1);
-                                border: 2px solid #00ff88;
-                                border-radius: 8px;
-                                padding: 15px;
-                            ">
-                                <div style="
-                                    color: #00ff88;
-                                    margin-bottom: 8px;
-                                    font-size: 14px;
-                                    display: flex;
-                                    align-items: center;
-                                    gap: 8px;
-                                ">
-                                    <span style="font-size: 20px;">📍</span>
-                                    <span>Will arrive at:</span>
-                                </div>
-                                <div id="tw-fixed-arrive" style="
-                                    color: #00ff88;
-                                    font-family: 'Courier New', monospace;
-                                    font-size: 16px;
-                                    font-weight: bold;
-                                ">
-                                    --:--:--:---
-                                </div>
-                            </div>
-                            
-                            <!-- FIXED RETURN TIME -->
-                            <div style="
-                                background: rgba(255, 136, 0, 0.1);
-                                border: 2px solid #ff8800;
-                                border-radius: 8px;
-                                padding: 15px;
-                            ">
-                                <div style="
-                                    color: #ff8800;
-                                    margin-bottom: 8px;
-                                    font-size: 14px;
-                                    display: flex;
-                                    align-items: center;
-                                    gap: 8px;
-                                ">
-                                    <span style="font-size: 20px;">↩️</span>
-                                    <span>Will return at:</span>
-                                </div>
-                                <div id="tw-fixed-return" style="
-                                    color: #ff8800;
-                                    font-family: 'Courier New', monospace;
-                                    font-size: 16px;
-                                    font-weight: bold;
-                                ">
-                                    --:--:--:---
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     
                     <div id="tw-remaining-display" style="
                         color: #00ff88;
@@ -653,7 +670,16 @@
         
         setInterval(() => {
             const serverTime = getEstimatedServerTime();
+            const latency = getLatency();
+            
             document.getElementById('tw-current-display').textContent = `⏰ Server: ${formatTime(serverTime)}`;
+            
+            // Update duration info with current latency
+            const durationInfo = document.getElementById('tw-duration-info');
+            if (durationInfo) {
+                const duration = getDurationTime();
+                durationInfo.innerHTML = `📊 Duration: ${formatDuration(duration)} (${duration}ms)<br>📡 Latency: ${latency.toFixed(1)}ms`;
+            }
             
             // Update duration times
             updateDurationTimes(serverTime);
@@ -670,12 +696,6 @@
     function updateDurationTimes(currentTime) {
         const duration = getDurationTime();
         
-        // Update duration info
-        const durationInfo = document.getElementById('tw-duration-info');
-        if (durationInfo) {
-            durationInfo.textContent = `📊 Duration: ${formatDuration(duration)} (${duration}ms)`;
-        }
-        
         // Calculate and update arrive time
         const arriveTime = new Date(currentTime.getTime() + duration);
         const arriveTimeElement = document.getElementById('tw-arrive-time');
@@ -691,10 +711,11 @@
         }
     }
     
-    // Calculate attack time
+    // Calculate attack time with LATENCY INCLUDED
     function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
-        // Get current server time (this already accounts for latency)
+        // Get current server time
         const current = getEstimatedServerTime();
+        const latency = getLatency();
         
         // Convert max cancel to ms
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
@@ -712,14 +733,16 @@
         // Calculate latest attack time (target - 2x max cancel time)
         const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * CONFIG.maxCancelMultiplier);
         
-        // Calculate click time: target time - attack delay (in milliseconds)
-        const clickTime = new Date(latestAttackMs - attackDelay);
+        // Calculate click time: target time - attack delay - latency
+        // We need to click earlier by latency amount because there's delay between click and server receiving it
+        const clickTime = new Date(latestAttackMs - attackDelay - latency);
         
         return {
             targetTime: targetTime,
             clickTime: clickTime,
             adjustedMaxCancel: adjustedMaxCancelMs / 60000,
             attackDelay: attackDelay,
+            latency: latency,
             remaining: clickTime.getTime() - current.getTime(),
             current: current
         };
@@ -765,6 +788,7 @@
         const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
         const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
         const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
+        const latency = getLatency();
         
         // Calculate attack time
         const calc = calculateAttackTime(target, maxCancel, attackDelay);
@@ -782,10 +806,10 @@
         if (calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
             updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
         }
-
+        
         // Calculate fixed times based on click time
         const duration = getDurationTime();
-        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);
+        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration + latency);
         state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
         
         // Update state
@@ -794,7 +818,6 @@
         state.clickTime = calc.clickTime;
         state.updateInterval = Math.max(1, Math.min(100, updateInterval));
         
-        
         // Update UI
         document.getElementById('tw-start-btn').style.display = 'none';
         document.getElementById('tw-stop-btn').style.display = 'block';
@@ -802,22 +825,22 @@
         document.getElementById('tw-click-display').style.display = 'block';
         document.getElementById('tw-remaining-display').style.display = 'block';
         
-        document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
-        document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
-
         // Show and update fixed times
         document.getElementById('tw-fixed-times').style.display = 'block';
         document.getElementById('tw-fixed-arrive').textContent = formatTime(state.fixedArriveTime);
         document.getElementById('tw-fixed-return').textContent = formatTime(state.fixedReturnTime);
         
-        updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s (${attackDelay}ms delay)`, 'success');
+        document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
+        document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
+        
+        updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s (${attackDelay}ms delay + ${latency.toFixed(1)}ms latency)`, 'success');
         
         // Start precision timer
-        startPrecisionTimer(attackDelay);
+        startPrecisionTimer(attackDelay, latency);
     }
     
     // Start precision timer with 10ms updates
-    function startPrecisionTimer(attackDelay) {
+    function startPrecisionTimer(attackDelay, latency) {
         if (state.timerId) {
             clearInterval(state.timerId);
         }
@@ -880,12 +903,16 @@
         }
         
         const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
+        const latency = getLatency();
         
         // Log timing
         const current = getEstimatedServerTime();
         console.log('Executing at:', formatTime(current));
         console.log('Target was:', formatTime(state.targetTime));
         console.log('Attack delay:', attackDelay, 'ms');
+        console.log('Latency:', latency, 'ms');
+        console.log('Will arrive at:', formatTime(state.fixedArriveTime));
+        console.log('Will return at:', formatTime(state.fixedReturnTime));
         
         updateStatus(`✅ Executing attack with ${attackDelay}ms delay...`, 'success');
         
@@ -907,7 +934,8 @@
         document.getElementById('tw-target-display').style.display = 'none';
         document.getElementById('tw-click-display').style.display = 'none';
         document.getElementById('tw-remaining-display').style.display = 'none';
-
+        
+        // Hide fixed times
         document.getElementById('tw-fixed-times').style.display = 'none';
         state.fixedArriveTime = null;
         state.fixedReturnTime = null;
