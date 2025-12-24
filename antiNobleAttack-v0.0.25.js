@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Precision attack timer with server time synchronization
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -16,7 +16,7 @@
     const CONFIG = {
         defaultUpdateInterval: 10,      // 10ms update for precision
         defaultMaxCancelMinutes: 10,    // 10 minutes default
-        safetyOffset: 50,               // 50ms safety margin
+        defaultAttackDelay: 50,         // 50ms default delay before attack
         minSafetyMargin: 5000,          // 5 seconds minimum
         maxCancelMultiplier: 2,         // Multiply by 2 for latest attack
         calibrationSamples: 10          // Server time calibration samples
@@ -25,7 +25,7 @@
     let state = {
         running: false,
         targetTime: null,        // When enemy attack arrives
-        clickTime: null,         // When we click (target - latency - 50ms)
+        clickTime: null,         // When we click (target - delay)
         timerId: null,
         serverTimeOffset: 0,     // Server time - local time offset
         calibrationComplete: false,
@@ -127,7 +127,7 @@
                 <!-- SETTINGS ROW -->
                 <div style="
                     display: grid;
-                    grid-template-columns: 1fr 1fr;
+                    grid-template-columns: 1fr 1fr 1fr;
                     gap: 15px;
                     margin-bottom: 20px;
                 ">
@@ -160,6 +160,26 @@
                                value="10"
                                min="1" 
                                max="60"
+                               step="1"
+                               style="
+                                   width: 100%;
+                                   padding: 12px;
+                                   background: #222;
+                                   border: 2px solid #444;
+                                   color: #fff;
+                                   border-radius: 6px;
+                               ">
+                    </div>
+                    
+                    <div>
+                        <div style="color: #8ff; margin-bottom: 8px; font-size: 14px;">
+                            ⏱️ Attack Delay (ms):
+                        </div>
+                        <input type="number" 
+                               id="tw-delay-input" 
+                               value="50"
+                               min="1" 
+                               max="500"
                                step="1"
                                style="
                                    width: 100%;
@@ -251,6 +271,17 @@
                         🎯 Target: <span id="tw-target-text">--:--:--:---</span>
                     </div>
                     
+                    <div id="tw-click-display" style="
+                        color: #ff8800;
+                        font-family: 'Courier New', monospace;
+                        font-size: 16px;
+                        font-weight: bold;
+                        margin-bottom: 15px;
+                        display: none;
+                    ">
+                        🖱️ Click at: <span id="tw-click-text">--:--:--:---</span>
+                    </div>
+                    
                     <div id="tw-remaining-display" style="
                         color: #00ff88;
                         font-family: 'Courier New', monospace;
@@ -311,15 +342,6 @@
         // Server time = local time + offset
         const now = new Date();
         return new Date(now.getTime() + state.serverTimeOffset);
-    }
-    
-    // Get latency
-    function getLatency() {
-        const el = document.querySelector('#serverTime');
-        if (!el) return 0;
-        const title = el.getAttribute('data-title') || '';
-        const match = title.match(/Latency:\s*([\d.]+)ms/i);
-        return match ? parseFloat(match[1]) : 0;
     }
     
     // Format time
@@ -433,16 +455,10 @@
         }, updateInterval);
     }
     
-    // Calculate attack time with automatic max cancel adjustment
-    function calculateAttackTime(targetTime, maxCancelMinutes) {
-        const latency = getLatency();
-        
-        // Get current server time (WITH latency SUBTRACTION as per your update)
-        const serverNow = getServerTimeFromElement();
-        if (!serverNow) return null;
-        
-        // CRITICAL: Subtract latency as you specified
-        const current = new Date(serverNow.getTime() - latency);
+    // Calculate attack time
+    function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
+        // Get current server time (this already accounts for latency)
+        const current = getEstimatedServerTime();
         
         // Convert max cancel to ms
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
@@ -451,28 +467,24 @@
         // Calculate time available
         const timeAvailable = targetTime.getTime() - current.getTime();
         
-        // Adjust max cancel if needed (Solution A)
+        // Adjust max cancel if needed
         let adjustedMaxCancelMs = maxCancelMs;
         if (timeAvailable < twoTimesCancel + CONFIG.minSafetyMargin) {
             adjustedMaxCancelMs = Math.floor((timeAvailable - CONFIG.minSafetyMargin) / 2);
         }
         
-        // Calculate latest attack time
-        const adjustedTwoTimes = adjustedMaxCancelMs * CONFIG.maxCancelMultiplier;
-        const latestAttackMs = targetTime.getTime() - adjustedTwoTimes;
+        // Calculate latest attack time (target - 2x max cancel time)
+        const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * CONFIG.maxCancelMultiplier);
         
-        // Calculate click time: latest attack with milliseconds adjustment
-        // target ms - latency - 50ms (but we already subtracted latency from current)
-        const targetMs = targetTime.getMilliseconds();
-        const msAdjustment = targetMs - CONFIG.safetyOffset; // latency already subtracted
-        
-        const clickTime = new Date(latestAttackMs + msAdjustment);
+        // Calculate click time: target time - attack delay (in milliseconds)
+        // Using target's milliseconds minus the configured delay
+        const clickTime = new Date(latestAttackMs - attackDelay);
         
         return {
             targetTime: targetTime,
             clickTime: clickTime,
             adjustedMaxCancel: adjustedMaxCancelMs / 60000,
-            latency: latency,
+            attackDelay: attackDelay,
             remaining: clickTime.getTime() - current.getTime(),
             current: current
         };
@@ -504,26 +516,23 @@
         const ms = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
         
         // Get current server time
-        const serverNow = getServerTimeFromElement();
-        if (!serverNow) {
-            updateStatus('Cannot get server time!', 'error');
-            return;
-        }
+        const current = getEstimatedServerTime();
         
         // Create target
-        const target = new Date(serverNow);
+        const target = new Date(current);
         target.setHours(h, m, s, ms);
         
         // If target is in past, add 1 day
-        if (target <= serverNow) {
+        if (target <= current) {
             target.setDate(target.getDate() + 1);
         }
         
         const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
         const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
+        const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
         
         // Calculate attack time
-        const calc = calculateAttackTime(target, maxCancel);
+        const calc = calculateAttackTime(target, maxCancel, attackDelay);
         if (!calc) {
             updateStatus('Calculation failed!', 'error');
             return;
@@ -534,6 +543,7 @@
             return;
         }
         
+        // Show warning if max cancel was adjusted
         if (calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
             updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
         }
@@ -548,18 +558,20 @@
         document.getElementById('tw-start-btn').style.display = 'none';
         document.getElementById('tw-stop-btn').style.display = 'block';
         document.getElementById('tw-target-display').style.display = 'block';
+        document.getElementById('tw-click-display').style.display = 'block';
         document.getElementById('tw-remaining-display').style.display = 'block';
         
         document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
+        document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
-        updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s`, 'success');
+        updateStatus(`✅ Timer started! Clicking in ${Math.round(calc.remaining/1000)}s (${attackDelay}ms delay)`, 'success');
         
         // Start precision timer
-        startPrecisionTimer();
+        startPrecisionTimer(attackDelay);
     }
     
     // Start precision timer with 10ms updates
-    function startPrecisionTimer() {
+    function startPrecisionTimer(attackDelay) {
         if (state.timerId) {
             clearInterval(state.timerId);
         }
@@ -571,12 +583,8 @@
             
             const now = Date.now();
             
-            // Get current server time (with latency subtraction)
-            const serverNow = getServerTimeFromElement();
-            if (!serverNow) return;
-            
-            const latency = getLatency();
-            const current = new Date(serverNow.getTime() - latency);
+            // Get current server time
+            const current = getEstimatedServerTime();
             
             // Calculate remaining
             const remaining = state.clickTime.getTime() - current.getTime();
@@ -603,7 +611,7 @@
             }
             
             // Check execution
-            if (remaining <= CONFIG.safetyOffset) {
+            if (remaining <= 0) {
                 executeAttack();
             }
         }, state.updateInterval);
@@ -622,21 +630,18 @@
             return;
         }
         
+        const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
+        
         // Log timing
-        const serverNow = getServerTimeFromElement();
-        if (serverNow) {
-            const latency = getLatency();
-            const current = new Date(serverNow.getTime() - latency);
-            console.log('Executing at:', formatTime(current));
-            console.log('Target was:', formatTime(state.targetTime));
-        }
+        const current = getEstimatedServerTime();
+        console.log('Executing at:', formatTime(current));
+        console.log('Target was:', formatTime(state.targetTime));
+        console.log('Attack delay:', attackDelay, 'ms');
         
-        updateStatus('✅ Executing attack...', 'success');
+        updateStatus(`✅ Executing attack with ${attackDelay}ms delay...`, 'success');
         
-        // Click with minimal delay
-        setTimeout(() => {
-            attackBtn.click();
-        }, Math.max(0, CONFIG.safetyOffset - 10));
+        // Click immediately (the delay was already accounted for in clickTime calculation)
+        attackBtn.click();
     }
     
     // Stop main timer
@@ -651,6 +656,7 @@
         document.getElementById('tw-start-btn').style.display = 'block';
         document.getElementById('tw-stop-btn').style.display = 'none';
         document.getElementById('tw-target-display').style.display = 'none';
+        document.getElementById('tw-click-display').style.display = 'none';
         document.getElementById('tw-remaining-display').style.display = 'none';
         
         updateStatus('Timer stopped', 'info');
