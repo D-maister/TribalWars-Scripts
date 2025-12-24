@@ -1,30 +1,24 @@
 // ==UserScript==
 // @name         Tribal Wars Anti Noble Attack
 // @namespace    http://tampermonkey.net/
-// @version      0.0.2
+// @version      0.0.3
 // @description  Auto start and auto cancel attack execution for Tribal Wars
 // @author       D-maister
 // @match        *://*.tribalwars.*/*
 // @match        *://*.tribalwars.com.*/*
 // @match        *://*.die-staemme.de/*
-// @grant        none
+// @grant        GM_addStyle
+// @grant        GM_log
 // ==/UserScript==
 
 (function() {
     'use strict';
     
-    // Wait for page to load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        setTimeout(init, 1000);
-    }
-    
     // Configuration
     const CONFIG = {
         updateInterval: 50,
         maxCancelTime: 600000,
-        checkInterval: 50
+        debug: true
     };
     
     // Global state
@@ -42,33 +36,131 @@
     // DOM Elements
     let controlPanel = null;
     
+    // Debug logging
+    function log(message, data = null) {
+        if (CONFIG.debug) {
+            console.log('[TW Attack Timer] ' + message, data || '');
+            if (typeof GM_log !== 'undefined') {
+                GM_log('[TW Attack Timer] ' + message);
+            }
+        }
+    }
+    
     // Initialize the script
     function init() {
-        if (!isAttackPage()) {
-            return;
-        }
+        log('Initializing...');
         
         // Check if already initialized
         if (document.getElementById('tw-attack-control-panel')) {
+            log('Already initialized');
             return;
         }
         
+        // Check if we're on an attack confirmation page
+        if (!isAttackPage()) {
+            log('Not on attack page');
+            return;
+        }
+        
+        log('On attack page, creating control panel');
         createControlPanel();
         bindEvents();
         
-        console.log('TW Attack Timer initialized');
+        log('TW Attack Timer initialized successfully');
     }
     
     // Check if we're on an attack confirmation page
     function isAttackPage() {
+        // Method 1: Check for attack button by ID
         const attackButton = document.getElementById('troop_confirm_submit');
-        return attackButton && attackButton.classList.contains('btn-attack');
+        if (attackButton) {
+            log('Found attack button by ID');
+            return true;
+        }
+        
+        // Method 2: Check for attack button by class
+        const attackButtons = document.querySelectorAll('.btn-attack, input[value*="ttack"], input[value*="атаковать"]');
+        if (attackButtons.length > 0) {
+            log('Found attack button by class/value', attackButtons.length);
+            return true;
+        }
+        
+        // Method 3: Check URL patterns
+        const url = window.location.href;
+        const attackPatterns = [
+            'screen=place',
+            'mode=attack',
+            'action=attack',
+            'screen=place&mode=attack'
+        ];
+        
+        for (const pattern of attackPatterns) {
+            if (url.includes(pattern)) {
+                log('Found attack pattern in URL: ' + pattern);
+                return true;
+            }
+        }
+        
+        // Method 4: Check page content
+        const pageText = document.body.textContent;
+        if (pageText.includes('Атаковать') || pageText.includes('attack') || pageText.includes('Attack')) {
+            log('Found attack text in page content');
+            return true;
+        }
+        
+        log('No attack page detected');
+        return false;
+    }
+    
+    // Find the actual attack button
+    function findAttackButton() {
+        // Try multiple selectors
+        const selectors = [
+            '#troop_confirm_submit',
+            '.btn-attack',
+            'input[value="Атаковать"]',
+            'input[value="Attack"]',
+            'input[name*="attack"]',
+            'input[type="submit"][class*="attack"]',
+            'button:contains("Атаковать")',
+            'button:contains("Attack")'
+        ];
+        
+        for (const selector of selectors) {
+            try {
+                const element = document.querySelector(selector);
+                if (element) {
+                    log('Found attack button with selector: ' + selector, element);
+                    return element;
+                }
+            } catch (e) {
+                // Ignore invalid selector errors
+            }
+        }
+        
+        // Fallback: look for any submit button that might be the attack button
+        const submitButtons = document.querySelectorAll('input[type="submit"], button[type="submit"]');
+        for (const button of submitButtons) {
+            const value = button.value || button.textContent || '';
+            if (value.toLowerCase().includes('attack') || value.toLowerCase().includes('атаковать')) {
+                log('Found attack button by text content', button);
+                return button;
+            }
+        }
+        
+        log('No attack button found');
+        return null;
     }
     
     // Create the control panel
     function createControlPanel() {
-        const attackButton = document.getElementById('troop_confirm_submit');
-        if (!attackButton) return;
+        const attackButton = findAttackButton();
+        if (!attackButton) {
+            log('Cannot create control panel: no attack button found');
+            return;
+        }
+        
+        log('Creating control panel near button', attackButton);
         
         // Create container
         controlPanel = document.createElement('div');
@@ -87,7 +179,7 @@
                 <label>Target Time (HH:MM:SS:mmm):</label><br>
                 <input type="text" id="tw-target-time" value="${formatTimeWithMs(currentTimeWithMs)}" placeholder="сегодня в 10:41:58:264">
                 <div class="tw-ms-checkbox">
-                    <input type="checkbox" id="tw-show-ms">
+                    <input type="checkbox" id="tw-show-ms" checked>
                     <label for="tw-show-ms">Show milliseconds in time field</label>
                 </div>
             </div>
@@ -125,25 +217,80 @@
             </div>
         `;
         
-        // Insert after attack button
-        attackButton.parentNode.insertBefore(controlPanel, attackButton.nextSibling);
+        // Try to insert after the attack button
+        try {
+            // Find a good container near the attack button
+            let parent = attackButton.parentNode;
+            let insertPosition = attackButton.nextSibling;
+            
+            // If button is in a form or specific container, insert there
+            for (let i = 0; i < 5; i++) {
+                if (parent && (parent.tagName === 'FORM' || parent.classList.contains('content-border') || parent.id.includes('content'))) {
+                    break;
+                }
+                if (parent) {
+                    insertPosition = parent.nextSibling;
+                    parent = parent.parentNode;
+                }
+            }
+            
+            if (insertPosition) {
+                insertPosition.parentNode.insertBefore(controlPanel, insertPosition);
+                log('Control panel inserted after button');
+            } else if (parent) {
+                parent.appendChild(controlPanel);
+                log('Control panel appended to parent');
+            } else {
+                attackButton.parentNode.insertBefore(controlPanel, attackButton.nextSibling);
+                log('Control panel inserted after button (fallback)');
+            }
+        } catch (e) {
+            log('Error inserting control panel:', e);
+            // Last resort: append to body
+            document.body.appendChild(controlPanel);
+            log('Control panel appended to body');
+        }
     }
     
     // Bind event listeners
     function bindEvents() {
-        document.getElementById('tw-start-attack')?.addEventListener('click', startAttackTimer);
-        document.getElementById('tw-start-cancel')?.addEventListener('click', startCancelTimer);
-        document.getElementById('tw-stop')?.addEventListener('click', stopTimer);
-        document.getElementById('tw-show-ms')?.addEventListener('change', toggleMillisecondsDisplay);
-        document.getElementById('tw-update-interval')?.addEventListener('change', updateInterval);
+        // Use event delegation since elements might not exist yet
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'tw-start-attack') {
+                startAttackTimer();
+            }
+            if (e.target && e.target.id === 'tw-start-cancel') {
+                startCancelTimer();
+            }
+            if (e.target && e.target.id === 'tw-stop') {
+                stopTimer();
+            }
+        });
+        
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'tw-show-ms') {
+                toggleMillisecondsDisplay();
+            }
+            if (e.target && e.target.id === 'tw-update-interval') {
+                updateInterval();
+            }
+        });
+        
+        log('Event listeners bound');
     }
     
+    // [Rest of the functions remain the same as previous version...]
     // Get server time from the game
     function getServerTime() {
         const serverTimeEl = document.querySelector('#serverTime');
-        if (!serverTimeEl) return new Date();
+        if (!serverTimeEl) {
+            log('No server time element found, using local time');
+            return new Date();
+        }
         
         const timeText = serverTimeEl.textContent || '00:00:00';
+        log('Server time text:', timeText);
+        
         const [hours, minutes, seconds] = timeText.split(':').map(Number);
         
         const now = new Date();
@@ -154,11 +301,18 @@
     // Get latency from the game
     function getLatency() {
         const serverTimeEl = document.querySelector('#serverTime');
-        if (!serverTimeEl) return 0;
+        if (!serverTimeEl) {
+            log('No server time element for latency');
+            return 0;
+        }
         
         const title = serverTimeEl.getAttribute('data-title') || '';
+        log('Latency data-title:', title);
+        
         const match = title.match(/Latency:\s*(\d+)ms/i);
-        return match ? parseInt(match[1], 10) : 0;
+        const latency = match ? parseInt(match[1], 10) : 0;
+        log('Latency found:', latency + 'ms');
+        return latency;
     }
     
     // Add milliseconds to a date
@@ -239,6 +393,8 @@
     
     // Start attack timer
     function startAttackTimer() {
+        log('Starting attack timer');
+        
         if (attackTimer.running) {
             updateStatus('Timer already running!', 'error');
             return;
@@ -280,6 +436,8 @@
     
     // Start cancel timer
     function startCancelTimer() {
+        log('Starting cancel timer');
+        
         if (attackTimer.running) {
             updateStatus('Timer already running!', 'error');
             return;
@@ -375,7 +533,9 @@
     
     // Execute the attack or cancel action
     function executeAction() {
-        const attackButton = document.getElementById('troop_confirm_submit');
+        log('Executing action: ' + attackTimer.attackType);
+        
+        const attackButton = findAttackButton();
         if (!attackButton) {
             updateStatus('Attack button not found!', 'error');
             stopTimer();
@@ -395,6 +555,8 @@
     
     // Stop the timer
     function stopTimer() {
+        log('Stopping timer');
+        
         attackTimer.running = false;
         attackTimer.targetTime = null;
         attackTimer.startTime = null;
@@ -404,13 +566,23 @@
             attackTimer.intervalId = null;
         }
         
-        document.getElementById('tw-start-attack').style.display = 'inline-block';
-        document.getElementById('tw-start-cancel').style.display = 'inline-block';
-        document.getElementById('tw-stop').style.display = 'none';
-        document.getElementById('tw-target-display').style.display = 'none';
-        document.getElementById('tw-remaining').style.display = 'none';
+        const startAttackBtn = document.getElementById('tw-start-attack');
+        const startCancelBtn = document.getElementById('tw-start-cancel');
+        const stopBtn = document.getElementById('tw-stop');
         
-        controlPanel.classList.remove('tw-timer-running');
+        if (startAttackBtn) startAttackBtn.style.display = 'inline-block';
+        if (startCancelBtn) startCancelBtn.style.display = 'inline-block';
+        if (stopBtn) stopBtn.style.display = 'none';
+        
+        const targetDisplay = document.getElementById('tw-target-display');
+        const remaining = document.getElementById('tw-remaining');
+        
+        if (targetDisplay) targetDisplay.style.display = 'none';
+        if (remaining) remaining.style.display = 'none';
+        
+        if (controlPanel) {
+            controlPanel.classList.remove('tw-timer-running');
+        }
         
         updateStatus('Timer stopped');
     }
@@ -425,6 +597,7 @@
                 statusEl.classList.add(type);
             }
         }
+        log('Status: ' + message);
     }
     
     // Add CSS styles
@@ -438,6 +611,8 @@
         box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         color: #e0e0e0;
         font-family: Arial, sans-serif;
+        z-index: 10000;
+        position: relative;
     }
     .tw-attack-controls h3 {
         margin: 0 0 15px 0;
@@ -547,19 +722,54 @@
     }
     `;
     
-    // Inject styles
-    const styleSheet = document.createElement("style");
-    styleSheet.textContent = styles;
-    document.head.appendChild(styleSheet);
+    // Inject styles using GM_addStyle if available, otherwise create style element
+    if (typeof GM_addStyle !== 'undefined') {
+        GM_addStyle(styles);
+    } else {
+        const styleSheet = document.createElement("style");
+        styleSheet.textContent = styles;
+        document.head.appendChild(styleSheet);
+    }
     
-    // Handle AJAX navigation (common in Tribal Wars)
+    // Start initialization
+    log('Script loaded');
+    
+    // Wait a bit and then initialize
+    setTimeout(init, 1000);
+    
+    // Also try on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(init, 500);
+    });
+    
+    // Handle AJAX navigation
     let lastURL = location.href;
-    new MutationObserver(() => {
+    const observer = new MutationObserver(function() {
         const url = location.href;
         if (url !== lastURL) {
             lastURL = url;
+            log('URL changed, reinitializing');
+            setTimeout(init, 1000);
+        }
+        
+        // Also check if attack page elements appear
+        if (!controlPanel && isAttackPage()) {
+            log('Attack page detected via mutation');
             setTimeout(init, 500);
         }
-    }).observe(document, {subtree: true, childList: true});
+    });
+    
+    observer.observe(document, {subtree: true, childList: true});
+    
+    // Check periodically in case of slow loading
+    const checkInterval = setInterval(function() {
+        if (!controlPanel && isAttackPage()) {
+            log('Periodic check: attack page detected');
+            init();
+        }
+    }, 2000);
+    
+    // Stop checking after 30 seconds
+    setTimeout(() => clearInterval(checkInterval), 30000);
     
 })();
