@@ -493,20 +493,21 @@
     
     function timerTick() {
         if (!attackTimer.running || !attackTimer.targetTime) return;
-    
-        const now = new Date();
+        
+        // Use SERVER time, not local time!
+        const serverTime = getServerTime();
+        const latency = getLatency();
+        const now = addMilliseconds(serverTime, latency);
+        
         const remaining = attackTimer.targetTime.getTime() - now.getTime();
         
-        // ADD DEBUGGING
-        console.log('Timer tick:');
-        console.log('Now:', now);
+        console.log('Timer tick:'); // Add debugging
+        console.log('Server time:', serverTime);
+        console.log('Now (with latency):', now);
         console.log('Target:', attackTimer.targetTime);
-        console.log('Remaining ms:', remaining);
-        console.log('Remaining seconds:', remaining / 1000);
-        console.log('Should execute?', remaining <= 10);
+        console.log('Remaining:', remaining, 'ms');
         
         // Update displays
-        const latency = getLatency();
         const currentTimeWithMs = addMilliseconds(now, latency);
         document.getElementById('tw-current-time').textContent = `Current: ${formatTimeWithMs(currentTimeWithMs)}`;
         
@@ -521,9 +522,8 @@
         }
         
         // Check if it's time to click
-        if (remaining <= 10) { // 10ms before target
-            executeAction();
-        } else if (remaining <= 0) {
+        if (remaining <= 10) {
+            console.log('Executing! Remaining:', remaining);
             executeAction();
         }
     }
