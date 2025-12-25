@@ -1,4 +1,645 @@
 (function() {
+    // ===== STYLES =====
+    const styles = `
+        .tw-attack-config {
+            position: fixed;
+            top: 50px;
+            right: 10px;
+            background: white;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            z-index: 10000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 600px;
+            max-height: 85vh;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+        }
+        
+        .tw-attack-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .tw-attack-title {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        .tw-attack-toggle-btn {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            font-size: 13px;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-toggle-btn:hover {
+            background: #555;
+        }
+        
+        .tw-attack-auto-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tw-attack-auto-btn {
+            color: white;
+            border: none;
+            padding: 12px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            flex: 1;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tw-attack-auto-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+        }
+        
+        .tw-attack-auto-btn-a {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+        }
+        
+        .tw-attack-auto-btn-b {
+            background: linear-gradient(to right, #2196F3, #1976D2);
+        }
+        
+        .tw-attack-world-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .tw-attack-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #ffecb3;
+        }
+        
+        .tw-attack-section-settings {
+            background-color: #fff8e1;
+            border-color: #ffecb3;
+        }
+        
+        .tw-attack-section-builds {
+            background-color: #fff8e1;
+            border-color: #ffecb3;
+        }
+        
+        .tw-attack-section-title {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .tw-attack-setting-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .tw-attack-setting-label {
+            margin-right: 10px;
+            font-weight: bold;
+            min-width: 200px;
+        }
+        
+        .tw-attack-input {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .tw-attack-save-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-save-btn:hover {
+            background: #45a049;
+        }
+        
+        .tw-attack-build-container {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #fff;
+            border-radius: 4px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .tw-attack-build-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .tw-attack-build-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: #4CAF50;
+        }
+        
+        .tw-attack-build-title-b {
+            color: #2196F3;
+        }
+        
+        .tw-attack-build-save-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .tw-attack-build-save-btn-b {
+            background: #2196F3;
+        }
+        
+        .tw-attack-troops-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 6px;
+        }
+        
+        .tw-attack-troop-input {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .tw-attack-troop-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #666;
+            margin-bottom: 4px;
+            text-align: center;
+            width: 100%;
+        }
+        
+        .tw-attack-troop-field {
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 12px;
+            width: 45px;
+            box-sizing: border-box;
+        }
+        
+        .tw-attack-textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+        
+        .tw-attack-parse-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-parse-btn:hover {
+            background: #45a049;
+        }
+        
+        .tw-attack-status {
+            font-size: 13px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .tw-attack-status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .tw-attack-status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .tw-attack-status-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .tw-attack-targets-container {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #ddd;
+        }
+        
+        .tw-attack-clear-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 15px;
+            width: 100%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-clear-btn:hover {
+            background: #ff2222;
+        }
+        
+        .tw-attack-manage-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 15px;
+            width: 100%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-manage-btn:hover {
+            background: #f57c00;
+        }
+        
+        .tw-attack-target-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 10px;
+            margin: 3px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+        
+        .tw-attack-target-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tw-attack-target-item-alt {
+            background: #fff;
+        }
+        
+        .tw-attack-target-info {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .tw-attack-target-coords {
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            min-width: 70px;
+        }
+        
+        .tw-attack-target-details {
+            font-size: 11px;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: nowrap;
+        }
+        
+        .tw-attack-action-buttons {
+            display: flex;
+            gap: 5px;
+            margin: 0 10px;
+        }
+        
+        .tw-attack-action-btn {
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 30px;
+            height: 24px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tw-attack-action-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 2px 3px rgba(0,0,0,0.15);
+        }
+        
+        .tw-attack-action-btn-a {
+            background: #4CAF50;
+        }
+        
+        .tw-attack-action-btn-b {
+            background: #2196F3;
+        }
+        
+        .tw-attack-action-btn-disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .tw-attack-action-btn-disabled:hover {
+            transform: none;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .tw-attack-ignore-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            width: 30px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.2s, background 0.2s;
+        }
+        
+        .tw-attack-ignore-btn:hover {
+            transform: scale(1.05);
+            background: #f57c00;
+        }
+        
+        .tw-attack-remove-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            width: 30px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.2s, background 0.2s;
+        }
+        
+        .tw-attack-remove-btn:hover {
+            transform: scale(1.05);
+            background: #ff4444;
+        }
+        
+        .tw-attack-bonus-star {
+            color: #FFD700;
+            font-size: 14px;
+            margin-left: 5px;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        
+        .tw-attack-external-auto {
+            position: fixed;
+            z-index: 10002;
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #4CAF50;
+            border-radius: 20px;
+            padding: 12px 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            cursor: move;
+            user-select: none;
+            min-width: 180px;
+        }
+        
+        .tw-attack-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10001;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .tw-attack-selection-container {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            width: 700px;
+            max-width: 90vw;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .tw-attack-selection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #4CAF50;
+        }
+        
+        .tw-attack-selection-title {
+            margin: 0;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .tw-attack-selection-close-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .tw-attack-search-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .tw-attack-villages-container {
+            flex: 1;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .tw-attack-village-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+        }
+        
+        .tw-attack-village-item:hover {
+            background-color: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .tw-attack-village-item-alt {
+            background: #f8f9fa;
+        }
+        
+        .tw-attack-village-item.selected {
+            background-color: #e8f5e9;
+        }
+        
+        .tw-attack-village-info {
+            display: flex;
+            flex-direction: column;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        .tw-attack-village-details {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        .tw-attack-select-all-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f0f8ff;
+            border-radius: 6px;
+            border: 1px solid #b8d4ff;
+        }
+        
+        .tw-attack-select-all-btn {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .tw-attack-select-all-btn:hover {
+            background: #1976D2;
+        }
+    `;
+
+    // Add styles to the page
+    const styleElement = document.createElement('style');
+    styleElement.textContent = styles;
+    document.head.appendChild(styleElement);
+
     // ===== CONFIGURATION SECTION =====
     var cookieName = "akk";
     var historyCookie = "attackHistory";
@@ -6,6 +647,7 @@
     var buildsStorageKey = "twAttackBuilds";
     var settingsStorageKey = "twAttackSettings";
     var ignoreStorageKey = "twAttackIgnoreList";
+    var submitMarkerKey = "twAttackSubmitMarker";
     var defaultCooldown = 30;
     
     var homeCoords = "";
@@ -27,7 +669,8 @@
         includePlayers: false,
         maxPlayerPoints: 1000,
         autoAttackEnabled: false,
-        autoAttackPosition: { x: 10, y: 100 }
+        autoAttackPosition: { x: 10, y: 100 },
+        includeBonusVillages: true
     };
 
     // ===== ANTIBOT CHECK =====
@@ -141,6 +784,15 @@
             if (actualCount < count) {
                 console.log("Warning: Only " + actualCount + " " + unitType + " available (requested " + count + ")");
             }
+            
+            // Set session storage marker when setting troops (this happens before submit button click)
+            if (actualCount > 0) {
+                var worldName = getWorldName();
+                var key = submitMarkerKey + "_" + worldName;
+                var timestamp = new Date().getTime();
+                sessionStorage.setItem(key, timestamp.toString());
+                console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
+            }
         }
     }
     
@@ -240,6 +892,7 @@
                     if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
                     if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
                     if (settings.autoAttackPosition === undefined) settings.autoAttackPosition = { x: 10, y: 100 };
+                    if (settings.includeBonusVillages === undefined) settings.includeBonusVillages = true;
                 } else {
                     settings = {
                         cooldown: defaultCooldown,
@@ -251,7 +904,8 @@
                         autoAttackBuilds: {
                             A: true,
                             B: false
-                        }
+                        },
+                        includeBonusVillages: true
                     };
                 }
             } else {
@@ -265,7 +919,8 @@
                     autoAttackBuilds: {
                         A: true,
                         B: false
-                    }
+                    },
+                    includeBonusVillages: true
                 };
             }
         } catch (e) {
@@ -280,7 +935,8 @@
                 autoAttackBuilds: {
                     A: true,
                     B: false
-                }
+                },
+                includeBonusVillages: true
             };
         }
     }
@@ -382,23 +1038,9 @@
         
         var checkboxContainer = document.createElement('div');
         checkboxContainer.id = 'external-auto-attack';
-        checkboxContainer.style.cssText = `
-            position: fixed;
-            top: ${settings.autoAttackPosition.y}px;
-            left: ${settings.autoAttackPosition.x}px;
-            z-index: 10002;
-            background: rgba(255, 255, 255, 0.9);
-            border: 2px solid #4CAF50;
-            border-radius: 20px;
-            padding: 12px 15px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            cursor: move;
-            user-select: none;
-            min-width: 180px;
-        `;
+        checkboxContainer.className = 'tw-attack-external-auto';
+        checkboxContainer.style.top = settings.autoAttackPosition.y + 'px';
+        checkboxContainer.style.left = settings.autoAttackPosition.x + 'px';
         
         var isDragging = false;
         var offsetX, offsetY;
@@ -596,9 +1238,24 @@
         var submitButton = doc.querySelector('input[type="submit"], button[type="submit"], input[name="target_attack"]');
         if (submitButton) {
             console.log("Auto-attack: Clicking submit button");
+            
+            // Set session storage marker before clicking
+            var worldName = getWorldName();
+            var key = submitMarkerKey + "_" + worldName;
+            var timestamp = new Date().getTime();
+            sessionStorage.setItem(key, timestamp.toString());
+            console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
+            
             submitButton.click();
             return true;
         } else if (doc.forms[0]) {
+            // Set session storage marker before submitting form
+            var worldName = getWorldName();
+            var key = submitMarkerKey + "_" + worldName;
+            var timestamp = new Date().getTime();
+            sessionStorage.setItem(key, timestamp.toString());
+            console.log("Set session storage marker for form submit: " + key + " = " + timestamp);
+            
             doc.forms[0].submit();
             return true;
         }
@@ -782,37 +1439,11 @@
         
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
-        uiContainer.style.cssText = `
-            position: fixed;
-            top: 50px;
-            right: 10px;
-            background: white;
-            border: 2px solid #333;
-            border-radius: 8px;
-            padding: 20px;
-            z-index: 10000;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            min-width: 600px;
-            max-height: 85vh;
-            overflow-y: auto;
-            font-family: Arial, sans-serif;
-        `;
+        uiContainer.className = 'tw-attack-config';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
-        closeBtn.style.cssText = `
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            font-size: 16px;
-        `;
+        closeBtn.className = 'tw-attack-close-btn';
         closeBtn.onclick = function() {
             uiContainer.remove();
             stopAutoUpdate();
@@ -822,29 +1453,11 @@
         
         var title = document.createElement('h3');
         title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
-        title.style.marginTop = '0';
-        title.style.marginBottom = '20px';
-        title.style.color = '#333';
-        title.style.borderBottom = '2px solid #4CAF50';
-        title.style.paddingBottom = '10px';
+        title.className = 'tw-attack-title';
         
         var toggleConfigBtn = document.createElement('button');
         toggleConfigBtn.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
-        toggleConfigBtn.style.cssText = `
-            background: #666;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 15px;
-            font-size: 13px;
-            font-weight: bold;
-            width: 100%;
-            transition: background 0.2s;
-        `;
-        toggleConfigBtn.onmouseover = function() { this.style.background = '#555'; };
-        toggleConfigBtn.onmouseout = function() { this.style.background = '#666'; };
+        toggleConfigBtn.className = 'tw-attack-toggle-btn';
         toggleConfigBtn.onclick = function() {
             configVisible = !configVisible;
             this.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
@@ -852,56 +1465,16 @@
         };
         
         var autoAttackContainer = document.createElement('div');
-        autoAttackContainer.style.cssText = `display: flex; gap: 10px; margin-bottom: 20px;`;
+        autoAttackContainer.className = 'tw-attack-auto-container';
         
         var autoAttackBtnA = document.createElement('button');
         autoAttackBtnA.textContent = '⚡ Auto-Attack (A)';
-        autoAttackBtnA.style.cssText = `
-            background: linear-gradient(to right, #ff416c, #ff4b2b);
-            color: white;
-            border: none;
-            padding: 12px 0;
-            border-radius: 6px;
-            cursor: pointer;
-            flex: 1;
-            font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        `;
-        autoAttackBtnA.onmouseover = function() {
-            this.style.transform = 'translateY(-2px)';
-            this.style.boxShadow = '0 5px 10px rgba(0,0,0,0.15)';
-        };
-        autoAttackBtnA.onmouseout = function() {
-            this.style.transform = 'translateY(0)';
-            this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.1)';
-        };
+        autoAttackBtnA.className = 'tw-attack-auto-btn tw-attack-auto-btn-a';
         autoAttackBtnA.onclick = function() { autoAttackNext('A'); };
         
         var autoAttackBtnB = document.createElement('button');
         autoAttackBtnB.textContent = '⚡ Auto-Attack (B)';
-        autoAttackBtnB.style.cssText = `
-            background: linear-gradient(to right, #2196F3, #1976D2);
-            color: white;
-            border: none;
-            padding: 12px 0;
-            border-radius: 6px;
-            cursor: pointer;
-            flex: 1;
-            font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        `;
-        autoAttackBtnB.onmouseover = function() {
-            this.style.transform = 'translateY(-2px)';
-            this.style.boxShadow = '0 5px 10px rgba(0,0,0,0.15)';
-        };
-        autoAttackBtnB.onmouseout = function() {
-            this.style.transform = 'translateY(0)';
-            this.style.boxShadow = '0 3px 6px rgba(0,0,0,0.1)';
-        };
+        autoAttackBtnB.className = 'tw-attack-auto-btn tw-attack-auto-btn-b';
         autoAttackBtnB.onclick = function() { autoAttackNext('B'); };
         
         autoAttackContainer.appendChild(autoAttackBtnA);
@@ -966,13 +1539,7 @@
         
         var infoSection = document.createElement('div');
         infoSection.id = 'world-info';
-        infoSection.style.cssText = `
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 6px;
-            border: 1px solid #e9ecef;
-        `;
+        infoSection.className = 'tw-attack-world-info';
         
         var worldInfo = document.createElement('div');
         worldInfo.innerHTML = '<strong>🌍 World:</strong> ' + currentWorld;
@@ -1028,19 +1595,11 @@
         
         var settingsSection = document.createElement('div');
         settingsSection.id = 'settings-section';
-        settingsSection.style.cssText = `
-            margin-bottom: 20px;
-            padding: 15px;
-            background-color: #fff8e1;
-            border-radius: 6px;
-            border: 1px solid #ffecb3;
-        `;
+        settingsSection.className = 'tw-attack-section tw-attack-section-settings';
         
         var settingsTitle = document.createElement('h4');
         settingsTitle.textContent = '⚙️ Settings';
-        settingsTitle.style.marginTop = '0';
-        settingsTitle.style.marginBottom = '15px';
-        settingsTitle.style.color = '#333';
+        settingsTitle.className = 'tw-attack-section-title';
         
         settingsSection.appendChild(settingsTitle);
         
@@ -1053,48 +1612,31 @@
             
             // Cooldown setting
             var cooldownSetting = document.createElement('div');
-            cooldownSetting.style.cssText = `
-                display: flex;
-                align-items: center;
-                margin-bottom: 12px;
-                padding: 10px;
-                background: #fff;
-                border-radius: 4px;
-                border: 1px solid #e0e0e0;
-            `;
+            cooldownSetting.className = 'tw-attack-setting-row';
             
             var cooldownLabel = document.createElement('label');
             cooldownLabel.textContent = 'Cooldown (minutes): ';
-            cooldownLabel.style.marginRight = '10px';
-            cooldownLabel.style.fontWeight = 'bold';
-            cooldownLabel.style.minWidth = '200px';
+            cooldownLabel.className = 'tw-attack-setting-label';
             
             var cooldownInput = document.createElement('input');
             cooldownInput.type = 'number';
             cooldownInput.min = '1';
             cooldownInput.max = '1440';
             cooldownInput.value = settings.cooldown;
-            cooldownInput.style.cssText = `
-                padding: 6px 10px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                width: 80px;
-                font-size: 14px;
-                margin-right: 10px;
-            `;
+            cooldownInput.className = 'tw-attack-input';
+            cooldownInput.style.width = '80px';
+            cooldownInput.style.marginRight = '10px';
             
             cooldownSetting.appendChild(cooldownLabel);
             cooldownSetting.appendChild(cooldownInput);
             
             // Include players villages setting
             var includePlayersSetting = document.createElement('div');
-            includePlayersSetting.style.cssText = cooldownSetting.style.cssText;
+            includePlayersSetting.className = 'tw-attack-setting-row';
             
             var includePlayersLabel = document.createElement('label');
             includePlayersLabel.textContent = 'Include players villages: ';
-            includePlayersLabel.style.marginRight = '10px';
-            includePlayersLabel.style.fontWeight = 'bold';
-            includePlayersLabel.style.minWidth = '200px';
+            includePlayersLabel.className = 'tw-attack-setting-label';
             
             var includePlayersCheckbox = document.createElement('input');
             includePlayersCheckbox.type = 'checkbox';
@@ -1106,22 +1648,37 @@
             
             // Max player points setting
             var maxPointsSetting = document.createElement('div');
-            maxPointsSetting.style.cssText = cooldownSetting.style.cssText;
+            maxPointsSetting.className = 'tw-attack-setting-row';
             
             var maxPointsLabel = document.createElement('label');
             maxPointsLabel.textContent = 'Max player points: ';
-            maxPointsLabel.style.marginRight = '10px';
-            maxPointsLabel.style.fontWeight = 'bold';
-            maxPointsLabel.style.minWidth = '200px';
+            maxPointsLabel.className = 'tw-attack-setting-label';
             
             var maxPointsInput = document.createElement('input');
             maxPointsInput.type = 'number';
             maxPointsInput.min = '1';
             maxPointsInput.value = settings.maxPlayerPoints;
-            maxPointsInput.style.cssText = cooldownInput.style.cssText;
+            maxPointsInput.className = 'tw-attack-input';
+            maxPointsInput.style.width = '80px';
             
             maxPointsSetting.appendChild(maxPointsLabel);
             maxPointsSetting.appendChild(maxPointsInput);
+            
+            // Include bonus villages setting
+            var includeBonusSetting = document.createElement('div');
+            includeBonusSetting.className = 'tw-attack-setting-row';
+            
+            var includeBonusLabel = document.createElement('label');
+            includeBonusLabel.textContent = 'Include bonus villages: ';
+            includeBonusLabel.className = 'tw-attack-setting-label';
+            
+            var includeBonusCheckbox = document.createElement('input');
+            includeBonusCheckbox.type = 'checkbox';
+            includeBonusCheckbox.checked = settings.includeBonusVillages;
+            includeBonusCheckbox.style.cssText = `transform: scale(1.3); margin-right: 10px;`;
+            
+            includeBonusSetting.appendChild(includeBonusLabel);
+            includeBonusSetting.appendChild(includeBonusCheckbox);
             
             // External auto-attack position settings
             var positionSetting = document.createElement('div');
@@ -1151,7 +1708,9 @@
             xInput.type = 'number';
             xInput.min = '0';
             xInput.value = settings.autoAttackPosition.x;
-            xInput.style.cssText = `padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; width: 70px; font-size: 14px; margin-right: 15px;`;
+            xInput.className = 'tw-attack-input';
+            xInput.style.width = '70px';
+            xInput.style.marginRight = '15px';
             
             var yLabel = document.createElement('span');
             yLabel.textContent = 'Y:';
@@ -1161,7 +1720,8 @@
             yInput.type = 'number';
             yInput.min = '0';
             yInput.value = settings.autoAttackPosition.y;
-            yInput.style.cssText = xInput.style.cssText;
+            yInput.className = 'tw-attack-input';
+            yInput.style.width = '70px';
             
             positionControls.appendChild(xLabel);
             positionControls.appendChild(xInput);
@@ -1174,26 +1734,12 @@
             settingsContainer.appendChild(cooldownSetting);
             settingsContainer.appendChild(includePlayersSetting);
             settingsContainer.appendChild(maxPointsSetting);
+            settingsContainer.appendChild(includeBonusSetting);
             settingsContainer.appendChild(positionSetting);
             
             var saveAllBtn = document.createElement('button');
             saveAllBtn.textContent = '💾 Save All Settings';
-            saveAllBtn.style.cssText = `
-                background: #4CAF50;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 14px;
-                font-weight: bold;
-                width: 100%;
-                margin-top: 15px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                transition: background 0.2s;
-            `;
-            saveAllBtn.onmouseover = function() { this.style.background = '#45a049'; };
-            saveAllBtn.onmouseout = function() { this.style.background = '#4CAF50'; };
+            saveAllBtn.className = 'tw-attack-save-btn';
             
             saveAllBtn.onclick = function() {
                 var newCooldown = parseInt(cooldownInput.value);
@@ -1206,6 +1752,7 @@
                 
                 settings.includePlayers = includePlayersCheckbox.checked;
                 settings.maxPlayerPoints = parseInt(maxPointsInput.value) || 1000;
+                settings.includeBonusVillages = includeBonusCheckbox.checked;
                 settings.autoAttackPosition.x = parseInt(xInput.value) || 10;
                 settings.autoAttackPosition.y = parseInt(yInput.value) || 100;
                 
@@ -1222,13 +1769,11 @@
         
         var buildsSection = document.createElement('div');
         buildsSection.id = 'troop-builds';
-        buildsSection.style.cssText = settingsSection.style.cssText;
+        buildsSection.className = 'tw-attack-section tw-attack-section-builds';
         
         var buildsTitle = document.createElement('h4');
         buildsTitle.textContent = '👥 Troop Builds';
-        buildsTitle.style.marginTop = '0';
-        buildsTitle.style.marginBottom = '15px';
-        buildsTitle.style.color = '#333';
+        buildsTitle.className = 'tw-attack-section-title';
         
         buildsSection.appendChild(buildsTitle);
         
@@ -1243,44 +1788,19 @@
                 var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
                 
                 var buildContainer = document.createElement('div');
-                buildContainer.style.cssText = `
-                    margin-bottom: 15px;
-                    padding: 12px;
-                    background: #fff;
-                    border-radius: 4px;
-                    border: 1px solid #e0e0e0;
-                `;
+                buildContainer.className = 'tw-attack-build-container';
                 
                 var buildHeader = document.createElement('div');
-                buildHeader.style.cssText = `
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 10px;
-                    padding-bottom: 8px;
-                    border-bottom: 2px solid ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
-                `;
+                buildHeader.className = 'tw-attack-build-header';
+                buildHeader.style.borderBottomColor = buildKey === 'A' ? '#4CAF50' : '#2196F3';
                 
                 var buildTitle = document.createElement('div');
-                buildTitle.style.cssText = `
-                    font-weight: bold;
-                    font-size: 16px;
-                    color: ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
-                `;
+                buildTitle.className = buildKey === 'A' ? 'tw-attack-build-title' : 'tw-attack-build-title tw-attack-build-title-b';
                 buildTitle.textContent = 'Build ' + buildKey;
                 
                 var saveBtn = document.createElement('button');
                 saveBtn.textContent = '💾 Save';
-                saveBtn.style.cssText = `
-                    background: ${buildKey === 'A' ? '#4CAF50' : '#2196F3'};
-                    color: white;
-                    border: none;
-                    padding: 6px 12px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 12px;
-                    font-weight: bold;
-                `;
+                saveBtn.className = buildKey === 'A' ? 'tw-attack-build-save-btn' : 'tw-attack-build-save-btn tw-attack-build-save-btn-b';
                 
                 saveBtn.onclick = (function(key) {
                     return function() {
@@ -1292,11 +1812,7 @@
                 buildHeader.appendChild(saveBtn);
                 
                 var troopsContainer = document.createElement('div');
-                troopsContainer.style.cssText = `
-                    display: grid;
-                    grid-template-columns: repeat(9, 1fr);
-                    gap: 6px;
-                `;
+                troopsContainer.className = 'tw-attack-troops-grid';
                 
                 var troopTypes = [
                     { key: 'spear', abbr: 'sp', name: 'Spear' },
@@ -1312,19 +1828,12 @@
                 
                 troopTypes.forEach(function(troop) {
                     var troopInput = document.createElement('div');
-                    troopInput.style.cssText = `display: flex; flex-direction: column; align-items: center;`;
+                    troopInput.className = 'tw-attack-troop-input';
                     
                     var label = document.createElement('label');
                     label.textContent = troop.abbr;
                     label.title = troop.name;
-                    label.style.cssText = `
-                        font-size: 11px;
-                        font-weight: bold;
-                        color: #666;
-                        margin-bottom: 4px;
-                        text-align: center;
-                        width: 100%;
-                    `;
+                    label.className = 'tw-attack-troop-label';
                     
                     var input = document.createElement('input');
                     input.type = 'number';
@@ -1332,15 +1841,7 @@
                     input.value = build[troop.key] || 0;
                     input.dataset.build = buildKey;
                     input.dataset.troop = troop.key;
-                    input.style.cssText = `
-                        padding: 4px;
-                        border: 1px solid #ddd;
-                        border-radius: 3px;
-                        text-align: center;
-                        font-size: 12px;
-                        width: 45px;
-                        box-sizing: border-box;
-                    `;
+                    input.className = 'tw-attack-troop-field';
                     
                     input.onchange = function() {
                         var value = parseInt(this.value) || 0;
@@ -1382,18 +1883,7 @@
         
         var pasteTextarea = document.createElement('textarea');
         pasteTextarea.id = 'village-textarea';
-        pasteTextarea.style.cssText = `
-            width: 100%;
-            height: 120px;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 13px;
-            resize: vertical;
-            box-sizing: border-box;
-            margin-bottom: 12px;
-        `;
+        pasteTextarea.className = 'tw-attack-textarea';
         pasteTextarea.placeholder = 'Paste the content from village.txt here...';
         
         var savedTextKey = 'villageTxtContent_' + currentWorld;
@@ -1412,38 +1902,20 @@
         distanceInput.type = 'number';
         distanceInput.value = '50';
         distanceInput.min = '1';
-        distanceInput.style.cssText = `width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; margin-right: 15px;`;
+        distanceInput.className = 'tw-attack-input';
+        distanceInput.style.width = '80px';
+        distanceInput.style.marginRight = '15px';
         
         distanceContainer.appendChild(distanceLabel);
         distanceContainer.appendChild(distanceInput);
         
         var parseBtn = document.createElement('button');
         parseBtn.textContent = '🔍 Parse villages.txt';
-        parseBtn.style.cssText = `
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-            transition: background 0.2s;
-        `;
-        parseBtn.onmouseover = function() { this.style.background = '#45a049'; };
-        parseBtn.onmouseout = function() { this.style.background = '#4CAF50'; };
+        parseBtn.className = 'tw-attack-parse-btn';
         
         var statusMsg = document.createElement('div');
         statusMsg.id = 'parse-status';
-        statusMsg.style.cssText = `
-            font-size: 13px;
-            margin-bottom: 15px;
-            padding: 10px;
-            border-radius: 6px;
-            display: none;
-        `;
+        statusMsg.className = 'tw-attack-status';
         
         parseBtn.onclick = function() {
             var text = pasteTextarea.value.trim();
@@ -1464,7 +1936,7 @@
         pasteSection.appendChild(statusMsg);
         
         var targetsContainer = document.createElement('div');
-        targetsContainer.style.cssText = `margin-top: 20px; padding-top: 20px; border-top: 2px solid #ddd;`;
+        targetsContainer.className = 'tw-attack-targets-container';
         
         var targetsTitle = document.createElement('h4');
         targetsTitle.textContent = '🎯 Targets for ' + currentWorld + ':';
@@ -1497,7 +1969,7 @@
         
         function toggleConfigVisibility() {
             var sectionsToHide = [settingsSection, buildsSection, pasteSection];
-            var clearBtn = targetsList.querySelector('button');
+            var clearBtn = targetsList.querySelector('.tw-attack-clear-btn');
             
             sectionsToHide.forEach(function(section) {
                 section.style.display = configVisible ? 'block' : 'none';
@@ -1517,22 +1989,17 @@
         
         statusMsg.textContent = message;
         statusMsg.style.display = 'block';
+        statusMsg.className = 'tw-attack-status';
         
         switch(type) {
             case 'success':
-                statusMsg.style.backgroundColor = '#d4edda';
-                statusMsg.style.color = '#155724';
-                statusMsg.style.border = '1px solid #c3e6cb';
+                statusMsg.classList.add('tw-attack-status-success');
                 break;
             case 'error':
-                statusMsg.style.backgroundColor = '#f8d7da';
-                statusMsg.style.color = '#721c24';
-                statusMsg.style.border = '1px solid #f5c6cb';
+                statusMsg.classList.add('tw-attack-status-error');
                 break;
             default:
-                statusMsg.style.backgroundColor = '#d1ecf1';
-                statusMsg.style.color = '#0c5460';
-                statusMsg.style.border = '1px solid #bee5eb';
+                statusMsg.classList.add('tw-attack-status-info');
         }
     }
     
@@ -1550,23 +2017,8 @@
         
         var clearAllBtn = document.createElement('button');
         clearAllBtn.textContent = '🗑️ Clear All Targets for ' + currentWorld;
-        clearAllBtn.style.cssText = `
-            background: #ff4444;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            margin-bottom: 15px;
-            width: 100%;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background 0.2s;
-            display: ${configVisible ? 'block' : 'none'};
-        `;
-        clearAllBtn.onmouseover = function() { this.style.background = '#ff2222'; };
-        clearAllBtn.onmouseout = function() { this.style.background = '#ff4444'; };
+        clearAllBtn.className = 'tw-attack-clear-btn';
+        clearAllBtn.style.display = configVisible ? 'block' : 'none';
         clearAllBtn.onclick = function() {
             if (confirm('Clear all targets for ' + currentWorld + '?')) {
                 clearAllTargets();
@@ -1577,26 +2029,7 @@
 
         var manageIgnoresBtn = document.createElement('button');
         manageIgnoresBtn.textContent = '👁️ Manage Ignore List';
-        manageIgnoresBtn.style.cssText = `
-            background: #ff9800;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            margin-bottom: 15px;
-            width: 100%;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background 0.2s;
-        `;
-        manageIgnoresBtn.onmouseover = function() {
-            this.style.background = '#f57c00';
-        };
-        manageIgnoresBtn.onmouseout = function() {
-            this.style.background = '#ff9800';
-        };
+        manageIgnoresBtn.className = 'tw-attack-manage-btn';
         manageIgnoresBtn.onclick = function() {
             showIgnoreListManagement();
         };
@@ -1606,56 +2039,20 @@
         
         targets.forEach(function(target, index) {
             var targetItem = document.createElement('div');
-            targetItem.style.cssText = `
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 6px 10px;
-                margin: 3px 0;
-                background: ${index % 2 === 0 ? '#f8f9fa' : '#fff'};
-                border-radius: 4px;
-                border: 1px solid #e9ecef;
-                transition: transform 0.2s, box-shadow 0.2s;
-                font-size: 12px;
-                line-height: 1.2;
-            `;
-            targetItem.onmouseover = function() {
-                this.style.transform = 'translateY(-1px)';
-                this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-            };
-            targetItem.onmouseout = function() {
-                this.style.transform = 'translateY(0)';
-                this.style.boxShadow = 'none';
-            };
+            targetItem.className = index % 2 === 0 ? 'tw-attack-target-item' : 'tw-attack-target-item tw-attack-target-item-alt';
             
             var targetInfo = document.createElement('div');
-            targetInfo.style.flex = '1';
-            targetInfo.style.display = 'flex';
-            targetInfo.style.alignItems = 'center';
-            targetInfo.style.gap = '15px';
+            targetInfo.className = 'tw-attack-target-info';
             
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
             var cooldownInfo = getCooldownInfo(target);
             
             var targetCoords = document.createElement('div');
-            targetCoords.style.cssText = `
-                font-family: monospace;
-                font-weight: bold;
-                font-size: 14px;
-                color: #333;
-                min-width: 70px;
-            `;
+            targetCoords.className = 'tw-attack-target-coords';
             targetCoords.textContent = target;
             
             var targetDetails = document.createElement('div');
-            targetDetails.style.cssText = `
-                font-size: 11px;
-                color: #666;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                flex-wrap: nowrap;
-            `;
+            targetDetails.className = 'tw-attack-target-details';
             
             var distanceSpan = document.createElement('span');
             distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
@@ -1679,36 +2076,15 @@
             targetInfo.appendChild(targetDetails);
             
             var attackButtons = document.createElement('div');
-            attackButtons.style.cssText = `display: flex; gap: 5px; margin: 0 10px;`;
+            attackButtons.className = 'tw-attack-action-buttons';
             
             var attackBtnA = document.createElement('button');
             attackBtnA.textContent = 'A';
             attackBtnA.disabled = cooldownInfo.onCooldown;
             attackBtnA.title = 'Attack with Build A';
-            attackBtnA.style.cssText = `
-                background: ${cooldownInfo.onCooldown ? '#cccccc' : '#4CAF50'};
-                color: white;
-                border: none;
-                padding: 4px 8px;
-                border-radius: 3px;
-                cursor: ${cooldownInfo.onCooldown ? 'not-allowed' : 'pointer'};
-                font-size: 11px;
-                font-weight: bold;
-                min-width: 30px;
-                height: 24px;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                transition: transform 0.2s, box-shadow 0.2s;
-            `;
+            attackBtnA.className = cooldownInfo.onCooldown ? 'tw-attack-action-btn tw-attack-action-btn-disabled' : 'tw-attack-action-btn tw-attack-action-btn-a';
             
             if (!cooldownInfo.onCooldown) {
-                attackBtnA.onmouseover = function() {
-                    this.style.transform = 'scale(1.05)';
-                    this.style.boxShadow = '0 2px 3px rgba(0,0,0,0.15)';
-                };
-                attackBtnA.onmouseout = function() {
-                    this.style.transform = 'scale(1)';
-                    this.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
-                };
                 attackBtnA.onclick = (function(targetToAttack) {
                     return function() { attackTarget(targetToAttack, 'A'); };
                 })(target);
@@ -1718,12 +2094,9 @@
             attackBtnB.textContent = 'B';
             attackBtnB.disabled = cooldownInfo.onCooldown;
             attackBtnB.title = 'Attack with Build B';
-            attackBtnB.style.cssText = attackBtnA.style.cssText;
-            attackBtnB.style.background = cooldownInfo.onCooldown ? '#cccccc' : '#2196F3';
+            attackBtnB.className = cooldownInfo.onCooldown ? 'tw-attack-action-btn tw-attack-action-btn-disabled' : 'tw-attack-action-btn tw-attack-action-btn-b';
             
             if (!cooldownInfo.onCooldown) {
-                attackBtnB.onmouseover = attackBtnA.onmouseover;
-                attackBtnB.onmouseout = attackBtnA.onmouseout;
                 attackBtnB.onclick = (function(targetToAttack) {
                     return function() { attackTarget(targetToAttack, 'B'); };
                 })(target);
@@ -1735,31 +2108,7 @@
             var ignoreBtn = document.createElement('button');
             ignoreBtn.textContent = '👁️';
             ignoreBtn.title = 'Add to ignore list (hide from future selections)';
-            ignoreBtn.style.cssText = `
-                background: #ff9800;
-                color: white;
-                border: none;
-                padding: 4px 8px;
-                border-radius: 3px;
-                cursor: pointer;
-                font-size: 11px;
-                width: 30px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                transition: transform 0.2s, background 0.2s;
-            `;
-            ignoreBtn.onmouseover = function() {
-                this.style.transform = 'scale(1.05)';
-                this.style.background = '#f57c00';
-            };
-            ignoreBtn.onmouseout = function() {
-                this.style.transform = 'scale(1)';
-                this.style.background = '#ff9800';
-            };
+            ignoreBtn.className = 'tw-attack-ignore-btn';
             ignoreBtn.onclick = (function(targetCoords) {
                 return function() {
                     if (addToIgnoreList(targetCoords)) {
@@ -1773,32 +2122,7 @@
             var removeBtn = document.createElement('button');
             removeBtn.textContent = '✕';
             removeBtn.title = 'Remove target';
-            removeBtn.style.cssText = `
-                background: #ff6b6b;
-                color: white;
-                border: none;
-                padding: 4px 8px;
-                border-radius: 3px;
-                cursor: pointer;
-                font-size: 11px;
-                font-weight: bold;
-                width: 30px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-                box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                transition: transform 0.2s, background 0.2s;
-            `;
-            removeBtn.onmouseover = function() {
-                this.style.transform = 'scale(1.05)';
-                this.style.background = '#ff4444';
-            };
-            removeBtn.onmouseout = function() {
-                this.style.transform = 'scale(1)';
-                this.style.background = '#ff6b6b';
-            };
+            removeBtn.className = 'tw-attack-remove-btn';
             removeBtn.onclick = (function(targetToRemove) {
                 return function() {
                     if (removeFromTargetList(targetToRemove)) {
@@ -1834,9 +2158,16 @@
                     
                     var shouldInclude = false;
                     
-                    if (playerNumber === 0 && isBonusVillage === 0) {
+                    // Check if it's a bonus village
+                    if (isBonusVillage > 0 && settings.includeBonusVillages) {
                         shouldInclude = true;
-                    } else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
+                    } 
+                    // Check if it's a barbarian village
+                    else if (playerNumber === 0 && isBonusVillage === 0) {
+                        shouldInclude = true;
+                    } 
+                    // Check if it's a player village and we include them
+                    else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
                         shouldInclude = true;
                     }
                     
@@ -1854,7 +2185,8 @@
                                     coords: coords,
                                     distance: distance,
                                     playerNumber: playerNumber,
-                                    points: villagePoints
+                                    points: villagePoints,
+                                    isBonus: isBonusVillage > 0
                                 });
                             }
                         }
@@ -1890,97 +2222,39 @@
         
         var overlay = document.createElement('div');
         overlay.id = 'villages-overlay';
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 10001;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        `;
+        overlay.className = 'tw-attack-overlay';
         
         var selectionContainer = document.createElement('div');
         selectionContainer.id = 'villages-selection';
-        selectionContainer.style.cssText = `
-            background: white;
-            border-radius: 10px;
-            padding: 25px;
-            width: 700px;
-            max-width: 90vw;
-            max-height: 85vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        `;
+        selectionContainer.className = 'tw-attack-selection-container';
         
         var header = document.createElement('div');
-        header.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #4CAF50;
-        `;
+        header.className = 'tw-attack-selection-header';
         
         var title = document.createElement('h3');
-            title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
-        title.style.margin = '0';
-        title.style.color = '#333';
-        title.style.fontSize = '18px';
+        title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
+        title.className = 'tw-attack-selection-title';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
-        closeBtn.style.cssText = `
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
+        closeBtn.className = 'tw-attack-selection-close-btn';
         closeBtn.onclick = function() { document.body.removeChild(overlay); };
         
         header.appendChild(title);
         header.appendChild(closeBtn);
         
         var searchContainer = document.createElement('div');
-        searchContainer.style.marginBottom = '20px';
         
         var searchInput = document.createElement('input');
         searchInput.type = 'text';
         searchInput.placeholder = '🔍 Search villages...';
-        searchInput.style.cssText = `
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 14px;
-        `;
+        searchInput.className = 'tw-attack-search-input';
         
         searchContainer.appendChild(searchInput);
         
         var villagesContainer = document.createElement('div');
         villagesContainer.id = 'villages-container';
-        villagesContainer.style.cssText = `
-            flex: 1;
-            overflow-y: auto;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            background: #f8f9fa;
-        `;
+        villagesContainer.className = 'tw-attack-villages-container';
         
         var footer = document.createElement('div');
         footer.style.cssText = `
@@ -1997,6 +2271,33 @@
         selectedCount.textContent = '📌 Selected: 0';
         selectedCount.style.color = '#666';
         selectedCount.style.fontSize = '14px';
+        
+        // Select All container
+        var selectAllContainer = document.createElement('div');
+        selectAllContainer.className = 'tw-attack-select-all-container';
+        
+        var selectAllCheckbox = document.createElement('input');
+        selectAllCheckbox.type = 'checkbox';
+        selectAllCheckbox.id = 'select-all-checkbox';
+        
+        var selectAllLabel = document.createElement('label');
+        selectAllLabel.htmlFor = 'select-all-checkbox';
+        selectAllLabel.textContent = 'Select All';
+        selectAllLabel.style.cursor = 'pointer';
+        selectAllLabel.style.marginRight = '10px';
+        
+        var selectAllBtn = document.createElement('button');
+        selectAllBtn.textContent = 'Select All';
+        selectAllBtn.className = 'tw-attack-select-all-btn';
+        
+        var deselectAllBtn = document.createElement('button');
+        deselectAllBtn.textContent = 'Deselect All';
+        deselectAllBtn.className = 'tw-attack-select-all-btn';
+        
+        selectAllContainer.appendChild(selectAllCheckbox);
+        selectAllContainer.appendChild(selectAllLabel);
+        selectAllContainer.appendChild(selectAllBtn);
+        selectAllContainer.appendChild(deselectAllBtn);
         
         var addSelectedBtn = document.createElement('button');
         addSelectedBtn.textContent = '✅ Add Selected to List';
@@ -2030,16 +2331,19 @@
         
         selectionContainer.appendChild(header);
         selectionContainer.appendChild(searchContainer);
+        selectionContainer.appendChild(selectAllContainer);
         selectionContainer.appendChild(villagesContainer);
         selectionContainer.appendChild(footer);
         overlay.appendChild(selectionContainer);
         document.body.appendChild(overlay);
         
         var selectedVillages = [];
+        var allVillageCheckboxes = [];
         
         function updateVillagesList(filter) {
             villagesContainer.innerHTML = '';
             selectedVillages = [];
+            allVillageCheckboxes = [];
             
             var filtered = villages;
             if (filter) {
@@ -2053,52 +2357,37 @@
             if (filtered.length === 0) {
                 villagesContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #666; font-size: 14px;">No villages match your search</div>';
                 updateSelectedCount();
+                updateSelectAllCheckbox();
                 return;
             }
             
             filtered.forEach(function(village, index) {
                 var villageItem = document.createElement('div');
-                villageItem.style.cssText = `
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 12px 15px;
-                    margin: 8px 0;
-                    background: ${index % 2 === 0 ? '#fff' : '#f8f9fa'};
-                    border-radius: 8px;
-                    border: 1px solid #e9ecef;
-                    cursor: pointer;
-                    transition: background-color 0.2s, transform 0.2s;
-                `;
-                
-                villageItem.onmouseover = function() {
-                    this.style.backgroundColor = '#e9ecef';
-                    this.style.transform = 'translateX(5px)';
-                };
-                villageItem.onmouseout = function() {
-                    if (!this.classList.contains('selected')) {
-                        this.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa';
-                    }
-                    this.style.transform = 'translateX(0)';
-                };
+                villageItem.className = index % 2 === 0 ? 'tw-attack-village-item' : 'tw-attack-village-item tw-attack-village-item-alt';
                 
                 var villageInfo = document.createElement('div');
-                villageInfo.style.cssText = `
-                    display: flex;
-                    flex-direction: column;
-                    font-family: monospace;
-                    font-size: 13px;
-                `;
+                villageInfo.className = 'tw-attack-village-info';
                 
                 var villageName = document.createElement('span');
                 villageName.textContent = village.name + ' - ' + village.coords;
                 
+                // Add star for bonus villages
+                if (village.isBonus) {
+                    var bonusStar = document.createElement('span');
+                    bonusStar.className = 'tw-attack-bonus-star';
+                    bonusStar.textContent = ' ★';
+                    bonusStar.title = 'Bonus Village';
+                    villageName.appendChild(bonusStar);
+                }
+                
                 var villageDetails = document.createElement('span');
-                villageDetails.style.cssText = `font-size: 11px; color: #666; margin-top: 2px;`;
+                villageDetails.className = 'tw-attack-village-details';
                 
                 var detailsText = 'Distance: ' + village.distance.toFixed(2);
                 if (village.playerNumber > 0) {
                     detailsText += ' | Player village | Points: ' + village.points;
+                } else if (village.isBonus) {
+                    detailsText += ' | Bonus village';
                 } else {
                     detailsText += ' | Barbarian village';
                 }
@@ -2112,6 +2401,7 @@
                 checkbox.type = 'checkbox';
                 checkbox.style.marginLeft = '15px';
                 checkbox.style.transform = 'scale(1.2)';
+                allVillageCheckboxes.push(checkbox);
                 
                 checkbox.onchange = function() {
                     if (this.checked) {
@@ -2125,6 +2415,7 @@
                         villageItem.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa';
                     }
                     updateSelectedCount();
+                    updateSelectAllCheckbox();
                 };
                 
                 villageItem.onclick = function(e) {
@@ -2140,11 +2431,52 @@
             });
             
             updateSelectedCount();
+            updateSelectAllCheckbox();
         }
         
         function updateSelectedCount() {
             selectedCount.textContent = '📌 Selected: ' + selectedVillages.length;
         }
+        
+        function updateSelectAllCheckbox() {
+            if (allVillageCheckboxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+                return;
+            }
+            
+            var checkedCount = allVillageCheckboxes.filter(cb => cb.checked).length;
+            if (checkedCount === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (checkedCount === allVillageCheckboxes.length) {
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+        
+        selectAllCheckbox.onchange = function() {
+            var shouldSelect = this.checked;
+            allVillageCheckboxes.forEach(function(checkbox) {
+                if (checkbox.checked !== shouldSelect) {
+                    checkbox.checked = shouldSelect;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+        };
+        
+        selectAllBtn.onclick = function() {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.dispatchEvent(new Event('change'));
+        };
+        
+        deselectAllBtn.onclick = function() {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.dispatchEvent(new Event('change'));
+        };
         
         searchInput.oninput = function() { updateVillagesList(this.value); };
         
@@ -2253,18 +2585,7 @@
         
         var overlay = document.createElement('div');
         overlay.id = 'ignore-overlay';
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 10001;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        `;
+        overlay.className = 'tw-attack-overlay';
         
         var container = document.createElement('div');
         container.style.cssText = `
@@ -2490,7 +2811,7 @@
             
             setTimeout(function() {
                 console.log("Now starting auto-attack...");
-                startExternalAutoAttack(); // Changed from autoAttackNext('A')
+                startExternalAutoAttack();
             }, 2000);
         }
     }
