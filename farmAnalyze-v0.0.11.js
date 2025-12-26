@@ -1,57 +1,74 @@
 (function() {
     // Get current world from URL
     function getCurrentWorld() {
-        const url = window.location.href;
-        
-        // Pattern for URLs like:
-        // - https://ruc1.voynaplemyon.com/game.php?village=145&screen=report
-        // - https://ru100.voynaplemyon.com/*
-        const match = url.match(/https?:\/\/([^.]+)\.voynaplemyon\.com/);
-        
-        if (match && match[1]) {
-            return match[1]; // Returns 'ruc1', 'ru100', etc.
-        }
-        
-        // Fallback: extract from hostname
         const hostname = window.location.hostname;
+        
+        // Handle voynaplemyon.com domains
         if (hostname.includes('voynaplemyon.com')) {
-            return hostname.split('.')[0];
+            // Extract server name (ruc1, ru100, etc.)
+            const parts = hostname.split('.');
+            if (parts.length > 0) {
+                return parts[0]; // Returns 'ruc1', 'ru100', etc.
+            }
         }
         
-        // Final fallback
-        return 'unknown';
+        // For other domains, use a more generic approach
+        const parts = hostname.split('.');
+        return parts.length > 0 ? parts[0] : 'unknown';
     }
 
     const currentWorld = getCurrentWorld();
+    console.log('Current world detected:', currentWorld);
     
     // Check if we're on the reports page
     const isReportPage = window.location.search.includes('screen=report');
     
-    // Initialize storage for all worlds
-    if (!localStorage.getItem('tribalwars-farm')) {
-        localStorage.setItem('tribalwars-farm', JSON.stringify({
-            worlds: {},
-            troopSpeeds: {
-                sc: 18,   // Spear
-                sw: 22,   // Sword
-                ax: 18,   // Axe
-                ar: 18,   // Archer
-                lc: 10,   // Light cavalry
-                hv: 11,   // Heavy cavalry
-                hr: 10,   // Horse archer
-                kn: 18    // Knight
-            }
-        }));
+    // Initialize or get storage
+    let storage;
+    try {
+        const storedData = localStorage.getItem('tribalwars-farm');
+        storage = storedData ? JSON.parse(storedData) : {};
+    } catch (e) {
+        console.error('Error parsing storage:', e);
+        storage = {};
     }
     
-    const storage = JSON.parse(localStorage.getItem('tribalwars-farm'));
+    // DEFENSIVE: Ensure storage has required structure
+    if (typeof storage !== 'object' || storage === null) {
+        storage = {};
+    }
     
-    // Initialize current world's storage
-    if (!storage.worlds[currentWorld]) {
+    if (!storage.worlds || typeof storage.worlds !== 'object') {
+        storage.worlds = {};
+    }
+    
+    if (!storage.troopSpeeds || typeof storage.troopSpeeds !== 'object') {
+        storage.troopSpeeds = {
+            sc: 18,   // Spear
+            sw: 22,   // Sword
+            ax: 18,   // Axe
+            ar: 18,   // Archer
+            lc: 10,   // Light cavalry
+            hv: 11,   // Heavy cavalry
+            hr: 10,   // Horse archer
+            kn: 18    // Knight
+        };
+    }
+    
+    // DEFENSIVE: Ensure current world exists in storage
+    if (!storage.worlds[currentWorld] || typeof storage.worlds[currentWorld] !== 'object') {
         storage.worlds[currentWorld] = {};
     }
     
     const worldStorage = storage.worlds[currentWorld];
+    console.log('World storage initialized for:', currentWorld, worldStorage);
+    
+    // Save the updated structure back to localStorage
+    try {
+        localStorage.setItem('tribalwars-farm', JSON.stringify(storage));
+    } catch (e) {
+        console.error('Error saving to localStorage:', e);
+    }
     
     // If not on report page, just show stats
     if (!isReportPage) {
@@ -59,7 +76,7 @@
         return;
     }
     
-    // Function to filter farm reports
+    // Function to filter farm reports - UPDATED WITH DEFENSIVE CHECK
     function filterFarmReports() {
         const allLinks = Array.from(document.querySelectorAll('a.report-link'));
         const farmReports = [];
@@ -67,12 +84,13 @@
         for (const link of allLinks) {
             const reportId = link.getAttribute('data-id');
             
-            // Skip already processed reports for this world
-            if (worldStorage[reportId]) {
-                continue;
+            // DEFENSIVE: Check if worldStorage exists and has the reportId
+            if (worldStorage && reportId && worldStorage[reportId]) {
+                continue; // Skip already processed reports
             }
             
             const tableRow = link.closest('tr');
+            if (!tableRow) continue;
             
             // Check for farm icon
             const farmIcon = tableRow.querySelector('img[data-title="Отряд для грабежа"]');
@@ -1321,15 +1339,23 @@
                     processedCount++;
                     
                     // Update progress
-                    document.getElementById('progress').textContent = 
-                        `${processedCount}/${farmReports.length}`;
-                    document.getElementById('progressBar').style.width = 
-                        `${(processedCount / farmReports.length) * 100}%`;
+                    const progressEl = document.getElementById('progress');
+                    const progressBar = document.getElementById('progressBar');
+                    if (progressEl) progressEl.textContent = `${processedCount}/${farmReports.length}`;
+                    if (progressBar) progressBar.style.width = `${(processedCount / farmReports.length) * 100}%`;
+                    
+                    // DEFENSIVE: Ensure storage structure is still valid before saving
+                    if (!storage.worlds) storage.worlds = {};
+                    if (!storage.worlds[currentWorld]) storage.worlds[currentWorld] = {};
                     
                     // Save to storage for current world
-                    worldStorage[reportData.id] = reportData;
-                    storage.worlds[currentWorld] = worldStorage;
-                    localStorage.setItem('tribalwars-farm', JSON.stringify(storage));
+                    storage.worlds[currentWorld][reportData.id] = reportData;
+                    
+                    try {
+                        localStorage.setItem('tribalwars-farm', JSON.stringify(storage));
+                    } catch (e) {
+                        console.error('Error saving report to localStorage:', e);
+                    }
                 }
             } catch (error) {
                 console.error('Error processing report:', error);
