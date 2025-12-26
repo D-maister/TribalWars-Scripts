@@ -551,41 +551,36 @@
     
     // Main showStats function (shows combined stats)
     function showStats(reportLimit = 100) {
-        // Collect reports from all worlds
-        const allReports = [];
-        for (const world in storage.worlds) {
-            const worldReports = Object.values(storage.worlds[world] || {});
-            allReports.push(...worldReports);
-        }
+        // Get current world data only (not combined)
+        const currentWorld = getCurrentWorld();
+        const worldReports = storage.worlds[currentWorld] || {};
         
-        // Sort by date (newest first)
-        allReports.sort((a, b) => new Date(b.created) - new Date(a.created));
+        // Convert to array
+        const reports = Object.values(worldReports).sort((a, b) => 
+            new Date(b.created) - new Date(a.created)
+        );
         
-        const limitedReports = allReports.slice(0, reportLimit);
+        const limitedReports = reports.slice(0, reportLimit);
         
-        // Calculate combined statistics
-        const statsAll = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
+        // Calculate statistics for current world only
+        const stats = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
         
-        allReports.forEach(report => {
-            statsAll.attacks++;
-            statsAll.resources += report.totalResources;
-            statsAll.hours += report.duration / 60;
-            statsAll.capacity += report.capacity;
+        reports.forEach(report => {
+            stats.attacks++;
+            stats.resources += report.totalResources;
+            stats.hours += report.duration / 60;
+            stats.capacity += report.capacity;
         });
         
-        const calculateMetrics = (stats) => {
-            return {
-                resourcesPerHour: stats.hours > 0 ? Math.round(stats.resources / stats.hours) : 0,
-                fillRate: stats.capacity > 0 ? Math.round(stats.resources / stats.capacity * 100) : 0,
-                resourcesPerAttack: stats.attacks > 0 ? Math.round(stats.resources / stats.attacks) : 0
-            };
+        const metrics = {
+            resourcesPerHour: stats.hours > 0 ? Math.round(stats.resources / stats.hours) : 0,
+            fillRate: stats.capacity > 0 ? Math.round(stats.resources / stats.capacity * 100) : 0,
+            resourcesPerAttack: stats.attacks > 0 ? Math.round(stats.resources / stats.attacks) : 0
         };
         
-        const metricsAll = calculateMetrics(statsAll);
-        
-        // Group reports by village coordinates
+        // Group by village for current world only
         const villageGroups = {};
-        allReports.forEach(report => {
+        reports.forEach(report => {
             if (report.coordinates) {
                 const key = report.coordinates;
                 if (!villageGroups[key]) {
@@ -631,10 +626,10 @@
         // Sort villages by distance
         villageData.sort((a, b) => a.distance - b.distance);
         
-        // Prepare data for charts
-        const chartData = prepareChartData(allReports);
+        // Prepare chart data for current world only
+        const chartData = prepareChartData(reports);
         
-        // Build HTML
+        // Build HTML - SHOW CURRENT WORLD ONLY
         let html = `
         <div style="background:white;padding:10px;border:2px solid #000;max-height:80vh;overflow:auto;">
             <button id="closeStatsBtn" style="float:right;background:red;color:white;border:none;padding:5px 10px;cursor:pointer;">X</button>
@@ -648,19 +643,22 @@
             
             ${createWorldSelector()}
             
-            <div style="background:#fff4e6;padding:10px;border-radius:5px;border:1px solid #ffb74d;margin-bottom:15px;">
-                <div style="font-weight:bold;color:#e65100;">📊 Combined Statistics (All Worlds)</div>
+            <div style="background:#e0f7e0;padding:10px;border-radius:5px;border:1px solid #4CAF50;margin-bottom:15px;">
+                <div style="font-weight:bold;color:#2e7d32;">📊 Current World: <span style="background:#4CAF50;color:white;padding:2px 8px;border-radius:3px;">${currentWorld}</span></div>
+                <div style="font-size:11px;color:#666;margin-top:5px;">
+                    Reports: ${reports.length} | Attacks: ${stats.attacks} | Total Resources: ${stats.resources.toLocaleString()}
+                </div>
             </div>
             
             ${createTroopSpeedInputs()}
             
             <div id="chartsContainer" style="margin-bottom:20px;background:#f9f9f9;padding:10px;border-radius:5px;border:1px solid #ddd;">
-                <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#333;">Farming Statistics Charts</div>
+                <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#333;">Farming Statistics for ${currentWorld}</div>
                 <div id="highchartsContainer"></div>
             </div>
             
             <div style="margin-bottom:20px;background:#f0f8ff;padding:10px;border-radius:5px;border:1px solid #ddd;">
-                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Summary Statistics (All Worlds)</div>
+                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Summary Statistics (${currentWorld})</div>
                 <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
                     <tr>
                         <th>Total Attacks</th>
@@ -671,56 +669,42 @@
                         <th>Total Hours</th>
                     </tr>
                     <tr>
-                        <td>${statsAll.attacks}</td>
-                        <td>${statsAll.resources.toLocaleString()}</td>
-                        <td>${metricsAll.resourcesPerHour.toLocaleString()}</td>
-                        <td>${metricsAll.fillRate}%</td>
-                        <td>${metricsAll.resourcesPerAttack.toLocaleString()}</td>
-                        <td>${Math.round(statsAll.hours * 10) / 10}</td>
+                        <td>${stats.attacks}</td>
+                        <td>${stats.resources.toLocaleString()}</td>
+                        <td>${metrics.resourcesPerHour.toLocaleString()}</td>
+                        <td>${metrics.fillRate}%</td>
+                        <td>${metrics.resourcesPerAttack.toLocaleString()}</td>
+                        <td>${Math.round(stats.hours * 10) / 10}</td>
                     </tr>
                 </table>
             </div>`;
         
-        // World summary table
-        if (Object.keys(storage.worlds).length > 1) {
+        // Show other worlds summary (only if there are multiple worlds)
+        const otherWorlds = Object.keys(storage.worlds).filter(w => w !== currentWorld && Object.keys(storage.worlds[w] || {}).length > 0);
+        if (otherWorlds.length > 0) {
             html += `
-                <div style="margin-bottom:20px;background:#f0fff0;padding:10px;border-radius:5px;border:1px solid #81c784;">
-                    <div style="font-weight:bold;margin-bottom:10px;color:#2e7d32;">World Statistics</div>
-                    <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
-                        <tr>
-                            <th>World</th>
-                            <th>Reports</th>
-                            <th>Total Resources</th>
-                            <th>Resources/Hour</th>
-                            <th>Avg Fill Rate</th>
-                        </tr>`;
+                <div style="margin-bottom:20px;background:#fff0f0;padding:10px;border-radius:5px;border:1px solid #ff9999;">
+                    <div style="font-weight:bold;margin-bottom:10px;color:#cc0000;">Other Worlds (Click to view)</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:10px;">`;
             
-            for (const world in storage.worlds) {
+            otherWorlds.forEach(world => {
                 const worldReports = Object.values(storage.worlds[world] || {});
-                if (worldReports.length > 0) {
-                    const worldStats = worldReports.reduce((acc, report) => {
-                        acc.attacks++;
-                        acc.resources += report.totalResources;
-                        acc.hours += report.duration / 60;
-                        acc.capacity += report.capacity;
-                        return acc;
-                    }, { attacks: 0, resources: 0, hours: 0, capacity: 0 });
-                    
-                    const worldMetrics = calculateMetrics(worldStats);
-                    
-                    html += `
-                        <tr>
-                            <td><a href="javascript:void(0)" class="world-link" data-world="${world}" 
-                                   style="color:#0066cc;text-decoration:underline;cursor:pointer;">${world}</a></td>
-                            <td>${worldReports.length}</td>
-                            <td>${worldStats.resources.toLocaleString()}</td>
-                            <td>${worldMetrics.resourcesPerHour.toLocaleString()}</td>
-                            <td>${worldMetrics.fillRate}%</td>
-                        </tr>`;
-                }
-            }
+                const worldStats = worldReports.reduce((acc, report) => {
+                    acc.attacks++;
+                    acc.resources += report.totalResources;
+                    return acc;
+                }, { attacks: 0, resources: 0 });
+                
+                html += `
+                    <div class="other-world-item" data-world="${world}" 
+                         style="background:#ffebee;padding:8px 12px;border-radius:4px;border:1px solid #ffcdd2;cursor:pointer;font-size:11px;">
+                        <strong>${world}</strong><br>
+                        <span style="color:#666;">${worldReports.length} reports</span><br>
+                        <span style="color:#666;">${worldStats.resources.toLocaleString()} resources</span>
+                    </div>`;
+            });
             
-            html += `</table></div>`;
+            html += `</div></div>`;
         }
         
         // Village statistics table
@@ -860,7 +844,7 @@
         }, 100);
         
         // SETUP EVENT DELEGATION
-        setupEventDelegation();
+        setupEventDelegation(currentWorld);
     }
     
     // Function to show stats for a specific world
@@ -1130,16 +1114,9 @@
     
     // Event delegation setup function
     function setupEventDelegation(currentWorld = null) {
-        // Use event delegation for the popup
         const popup = document.getElementById('tribalwars-stats-popup');
         if (!popup) return;
         
-        // Helper function to get the current world
-        const getCurrentDisplayedWorld = () => {
-            return currentWorld || getCurrentWorld();
-        };
-        
-        // Event listener for the popup
         popup.addEventListener('click', function(event) {
             const target = event.target;
             
@@ -1168,12 +1145,13 @@
                 if (world) {
                     showStatsForWorld(world);
                 } else {
+                    // If "All Worlds" was selected, show current world instead
                     showStats();
                 }
                 return;
             }
             
-            // 4. World links in the table
+            // 4. World links in the table (if you keep them)
             if (target.classList.contains('world-link') || target.closest('.world-link')) {
                 const worldLink = target.classList.contains('world-link') ? target : target.closest('.world-link');
                 const world = worldLink.getAttribute('data-world');
@@ -1183,20 +1161,30 @@
                 return;
             }
             
-            // 5. Save troop speeds button
+            // 5. Other world items
+            if (target.classList.contains('other-world-item') || target.closest('.other-world-item')) {
+                const worldItem = target.classList.contains('other-world-item') ? target : target.closest('.other-world-item');
+                const world = worldItem.getAttribute('data-world');
+                if (world) {
+                    showStatsForWorld(world);
+                }
+                return;
+            }
+            
+            // 6. Save troop speeds button
             if (target.id === 'saveTroopSpeedsBtn' || target.closest('#saveTroopSpeedsBtn')) {
                 saveTroopSpeeds();
                 return;
             }
             
-            // 6. Reset troop speeds button
+            // 7. Reset troop speeds button
             if (target.id === 'resetTroopSpeedsBtn' || target.closest('#resetTroopSpeedsBtn')) {
                 resetTroopSpeeds();
                 return;
             }
         });
         
-        // Also handle Enter key in report limit input
+        // Handle Enter key in report limit input
         const limitInput = document.getElementById('reportLimit');
         if (limitInput) {
             limitInput.addEventListener('keypress', function(event) {
@@ -1210,13 +1198,7 @@
                 }
             });
         }
-        
-        // Add some console logging for debugging
-        console.log('Event delegation setup complete. Current world:', currentWorld);
     }
-    
-    // Also need to update the saveTroopSpeeds and resetTroopSpeeds functions
-    // to work with event delegation (they should already work as they use getElementById)
     
     // Function to save troop speeds
     function saveTroopSpeeds() {
@@ -1226,6 +1208,7 @@
             const troopTypes = ['sc', 'sw', 'ax', 'ar', 'lc', 'hv', 'hr', 'kn'];
             const newSpeeds = {};
             
+            // Get new speed values from inputs
             troopTypes.forEach(code => {
                 const input = document.getElementById(`speed_${code}`);
                 if (input) {
@@ -1242,29 +1225,109 @@
                 currentStorage.troopSpeeds = {};
             }
             
-            // Update speeds
+            // Save old speeds for comparison
+            const oldSpeeds = { ...currentStorage.troopSpeeds };
+            
+            // Update speeds in storage
             currentStorage.troopSpeeds = newSpeeds;
             
-            // Save to localStorage
+            // UPDATE ALL EXISTING REPORTS WITH NEW SPEEDS
+            let updatedReportsCount = 0;
+            
+            // Update reports in all worlds
+            if (currentStorage.worlds) {
+                for (const worldName in currentStorage.worlds) {
+                    const world = currentStorage.worlds[worldName];
+                    if (world && typeof world === 'object') {
+                        for (const reportId in world) {
+                            const report = world[reportId];
+                            if (report && report.distance && report.troops) {
+                                // Find the slowest troop in this report
+                                let slowestSpeed = Infinity;
+                                for (const troop in report.troops) {
+                                    if (report.troops[troop] > 0 && newSpeeds[troop]) {
+                                        if (newSpeeds[troop] < slowestSpeed) {
+                                            slowestSpeed = newSpeeds[troop];
+                                        }
+                                    }
+                                }
+                                
+                                // If no troops found with speeds, use default
+                                if (slowestSpeed === Infinity) {
+                                    slowestSpeed = 18; // Default speed
+                                }
+                                
+                                // Calculate new duration (distance * speed * 2 for round trip)
+                                const newDuration = report.distance * slowestSpeed * 2;
+                                
+                                // Update report with new duration and recalculated metrics
+                                report.duration = newDuration;
+                                
+                                // Recalculate resources per hour
+                                if (newDuration > 0) {
+                                    report.resourcesPerHour = Math.round(report.totalResources / (newDuration / 60));
+                                } else {
+                                    report.resourcesPerHour = 0;
+                                }
+                                
+                                // Also recalculate fill rate (capacity might be affected if we add troop capacities later)
+                                const capacities = { 
+                                    sc: 25, sw: 15, ax: 10, ar: 11,
+                                    lc: 80, hv: 50, hr: 53, kn: 200
+                                };
+                                
+                                let capacity = 0;
+                                for (const troop in report.troops) {
+                                    if (capacities[troop]) {
+                                        capacity += report.troops[troop] * capacities[troop];
+                                    }
+                                }
+                                
+                                report.capacity = capacity;
+                                report.fillRate = capacity > 0 ? Math.round(report.totalResources / capacity * 100) : 0;
+                                
+                                updatedReportsCount++;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            console.log(`Updated ${updatedReportsCount} reports with new troop speeds`);
+            
+            // Save updated storage to localStorage
             localStorage.setItem('tribalwars-farm', JSON.stringify(currentStorage));
-            console.log('Speeds saved successfully');
+            console.log('Speeds saved and reports updated successfully');
             
             // Update the global storage reference
             if (typeof storage !== 'undefined') {
                 storage.troopSpeeds = newSpeeds;
+                storage.worlds = currentStorage.worlds;
             }
             
-            // Show visual feedback
+            // Show visual feedback with update count
             const saveBtn = document.getElementById('saveTroopSpeedsBtn');
             if (saveBtn) {
                 const originalText = saveBtn.textContent;
-                saveBtn.textContent = '✅ Saved!';
+                const originalBg = saveBtn.style.background;
+                
+                if (updatedReportsCount > 0) {
+                    saveBtn.textContent = `✅ Saved! (${updatedReportsCount} reports updated)`;
+                } else {
+                    saveBtn.textContent = '✅ Saved!';
+                }
+                
                 saveBtn.style.background = '#45a049';
                 
                 setTimeout(() => {
                     saveBtn.textContent = originalText;
-                    saveBtn.style.background = '#4CAF50';
-                }, 2000);
+                    saveBtn.style.background = originalBg || '#4CAF50';
+                }, 3000);
+            }
+            
+            // Show notification
+            if (updatedReportsCount > 0) {
+                showNotification(`${updatedReportsCount} reports updated with new troop speeds`, 'success');
             }
             
         } catch (error) {
@@ -1273,7 +1336,63 @@
         }
     }
     
-    // Function to reset troop speeds to default
+    // Function to show notification
+    function showNotification(message, type = 'info') {
+        // Remove existing notifications
+        const existingNotif = document.getElementById('tribalwars-notification');
+        if (existingNotif) {
+            existingNotif.remove();
+        }
+        
+        // Create notification
+        const notification = document.createElement('div');
+        notification.id = 'tribalwars-notification';
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : '#2196F3'};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            z-index: 10001;
+            font-size: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        `;
+        
+        // Add CSS for animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes fadeOut {
+                from { opacity: 1; }
+                to { opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'fadeOut 0.5s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 500);
+            }
+        }, 5000);
+    }
+    
+    // Also update the resetTroopSpeeds function to update reports
     function resetTroopSpeeds() {
         try {
             console.log('resetTroopSpeeds called');
@@ -1285,7 +1404,71 @@
             
             // Get current storage
             const currentStorage = JSON.parse(localStorage.getItem('tribalwars-farm') || '{}');
+            const oldSpeeds = { ...currentStorage.troopSpeeds };
             currentStorage.troopSpeeds = defaultSpeeds;
+            
+            // UPDATE ALL EXISTING REPORTS WITH DEFAULT SPEEDS
+            let updatedReportsCount = 0;
+            
+            if (currentStorage.worlds) {
+                for (const worldName in currentStorage.worlds) {
+                    const world = currentStorage.worlds[worldName];
+                    if (world && typeof world === 'object') {
+                        for (const reportId in world) {
+                            const report = world[reportId];
+                            if (report && report.distance && report.troops) {
+                                // Find the slowest troop in this report
+                                let slowestSpeed = Infinity;
+                                for (const troop in report.troops) {
+                                    if (report.troops[troop] > 0 && defaultSpeeds[troop]) {
+                                        if (defaultSpeeds[troop] < slowestSpeed) {
+                                            slowestSpeed = defaultSpeeds[troop];
+                                        }
+                                    }
+                                }
+                                
+                                // If no troops found with speeds, use default
+                                if (slowestSpeed === Infinity) {
+                                    slowestSpeed = 18;
+                                }
+                                
+                                // Calculate new duration
+                                const newDuration = report.distance * slowestSpeed * 2;
+                                
+                                // Update report
+                                report.duration = newDuration;
+                                
+                                // Recalculate resources per hour
+                                if (newDuration > 0) {
+                                    report.resourcesPerHour = Math.round(report.totalResources / (newDuration / 60));
+                                } else {
+                                    report.resourcesPerHour = 0;
+                                }
+                                
+                                // Recalculate capacity and fill rate
+                                const capacities = { 
+                                    sc: 25, sw: 15, ax: 10, ar: 11,
+                                    lc: 80, hv: 50, hr: 53, kn: 200
+                                };
+                                
+                                let capacity = 0;
+                                for (const troop in report.troops) {
+                                    if (capacities[troop]) {
+                                        capacity += report.troops[troop] * capacities[troop];
+                                    }
+                                }
+                                
+                                report.capacity = capacity;
+                                report.fillRate = capacity > 0 ? Math.round(report.totalResources / capacity * 100) : 0;
+                                
+                                updatedReportsCount++;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            console.log(`Updated ${updatedReportsCount} reports with default speeds`);
             
             // Save to localStorage
             localStorage.setItem('tribalwars-farm', JSON.stringify(currentStorage));
@@ -1294,6 +1477,7 @@
             // Update the global storage reference
             if (typeof storage !== 'undefined') {
                 storage.troopSpeeds = defaultSpeeds;
+                storage.worlds = currentStorage.worlds;
             }
             
             // Update input values
@@ -1308,13 +1492,25 @@
             const resetBtn = document.getElementById('resetTroopSpeedsBtn');
             if (resetBtn) {
                 const originalText = resetBtn.textContent;
-                resetBtn.textContent = '✅ Reset!';
+                const originalBg = resetBtn.style.background;
+                
+                if (updatedReportsCount > 0) {
+                    resetBtn.textContent = `✅ Reset! (${updatedReportsCount} reports updated)`;
+                } else {
+                    resetBtn.textContent = '✅ Reset!';
+                }
+                
                 resetBtn.style.background = '#e68900';
                 
                 setTimeout(() => {
                     resetBtn.textContent = originalText;
-                    resetBtn.style.background = '#ff9800';
-                }, 2000);
+                    resetBtn.style.background = originalBg || '#ff9800';
+                }, 3000);
+            }
+            
+            // Show notification
+            if (updatedReportsCount > 0) {
+                showNotification(`${updatedReportsCount} reports updated with default speeds`, 'success');
             }
             
         } catch (error) {
