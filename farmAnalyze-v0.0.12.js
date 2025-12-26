@@ -407,17 +407,14 @@
     
     // Function to create troop speed input form
     function createTroopSpeedInputs() {
-        const speeds = storage.troopSpeeds;
+        const speeds = storage.troopSpeeds || {};
         
         let html = `
             <div style="background:#f8f8f8;padding:15px;border-radius:5px;border:1px solid #ddd;margin-bottom:20px;">
-                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Troop Speed Settings</div>
-                <table style="width:100%;border-collapse:collapse;font-size:11px;">
-                    <tr>
-                        <th>Troop Type</th>
-                        <th>Code</th>
-                        <th>Speed (min/field)</th>
-                    </tr>`;
+                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Troop Speed Settings (minutes per field)</div>
+                <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:center;">
+                    <thead>
+                        <tr style="background:#e8e8e8;">`;
         
         const troopTypes = [
             { name: 'Spear', code: 'sc' },
@@ -430,26 +427,41 @@
             { name: 'Knight', code: 'kn' }
         ];
         
+        // Create header row with troop names
         troopTypes.forEach(troop => {
-            html += `
-                <tr>
-                    <td>${troop.name}</td>
-                    <td>${troop.code.toUpperCase()}</td>
-                    <td><input type="number" id="speed_${troop.code}" value="${speeds[troop.code]}" 
-                           style="width:80px;padding:3px;font-size:11px;"></td>
-                </tr>`;
+            html += `<th style="padding:5px;border:1px solid #ccc;">${troop.name}<br><small>(${troop.code.toUpperCase()})</small></th>`;
         });
         
         html += `
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background:white;">`;
+        
+        // Create input row with speed values
+        troopTypes.forEach(troop => {
+            const speedValue = speeds[troop.code] || 18;
+            html += `
+                <td style="padding:5px;border:1px solid #ccc;">
+                    <input type="number" id="speed_${troop.code}" 
+                           value="${speedValue}" 
+                           style="width:60px;padding:5px;font-size:11px;text-align:center;"
+                           min="1" max="100" step="1">
+                </td>`;
+        });
+        
+        html += `
+                        </tr>
+                    </tbody>
                 </table>
-                <div style="margin-top:10px;text-align:center;">
-                    <button onclick="saveTroopSpeeds()" 
-                            style="background:#4CAF50;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:3px;font-size:11px;">
-                        Save Speeds
+                <div style="margin-top:15px;text-align:center;">
+                    <button id="saveTroopSpeedsBtn" 
+                            style="background:#4CAF50;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:3px;font-size:11px;margin-right:10px;">
+                        💾 Save Speeds
                     </button>
-                    <button onclick="resetTroopSpeeds()" 
-                            style="background:#ff9800;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:3px;margin-left:10px;font-size:11px;">
-                        Reset to Default
+                    <button id="resetTroopSpeedsBtn"
+                            style="background:#ff9800;color:white;border:none;padding:8px 15px;cursor:pointer;border-radius:3px;font-size:11px;">
+                        🔄 Reset to Default
                     </button>
                 </div>
             </div>`;
@@ -537,6 +549,320 @@
         }
     };
     
+    // Main showStats function (shows combined stats)
+    function showStats(reportLimit = 100) {
+        // Collect reports from all worlds
+        const allReports = [];
+        for (const world in storage.worlds) {
+            const worldReports = Object.values(storage.worlds[world] || {});
+            allReports.push(...worldReports);
+        }
+        
+        // Sort by date (newest first)
+        allReports.sort((a, b) => new Date(b.created) - new Date(a.created));
+        
+        const limitedReports = allReports.slice(0, reportLimit);
+        
+        // Calculate combined statistics
+        const statsAll = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
+        
+        allReports.forEach(report => {
+            statsAll.attacks++;
+            statsAll.resources += report.totalResources;
+            statsAll.hours += report.duration / 60;
+            statsAll.capacity += report.capacity;
+        });
+        
+        const calculateMetrics = (stats) => {
+            return {
+                resourcesPerHour: stats.hours > 0 ? Math.round(stats.resources / stats.hours) : 0,
+                fillRate: stats.capacity > 0 ? Math.round(stats.resources / stats.capacity * 100) : 0,
+                resourcesPerAttack: stats.attacks > 0 ? Math.round(stats.resources / stats.attacks) : 0
+            };
+        };
+        
+        const metricsAll = calculateMetrics(statsAll);
+        
+        // Group reports by village coordinates
+        const villageGroups = {};
+        allReports.forEach(report => {
+            if (report.coordinates) {
+                const key = report.coordinates;
+                if (!villageGroups[key]) {
+                    villageGroups[key] = {
+                        coordinates: key,
+                        attacks: [],
+                        totalResources: 0,
+                        totalDuration: 0,
+                        totalCapacity: 0,
+                        distance: report.distance
+                    };
+                }
+                villageGroups[key].attacks.push(report);
+                villageGroups[key].totalResources += report.totalResources;
+                villageGroups[key].totalDuration += report.duration;
+                villageGroups[key].totalCapacity += report.capacity;
+            }
+        });
+        
+        const villageData = Object.values(villageGroups);
+        
+        // Calculate village statistics
+        villageData.forEach(village => {
+            village.attackCount = village.attacks.length;
+            village.avgTime = Math.round(village.totalDuration / village.attackCount);
+            village.resourcesPerAttack = Math.round(village.totalResources / village.attackCount);
+            village.avgFillRate = village.totalCapacity > 0 ? 
+                Math.round(village.totalResources / village.totalCapacity * 100) : 0;
+            
+            // Calculate average troops
+            village.avgTroops = village.attacks.reduce((acc, attack) => {
+                for (const troop in attack.troops) {
+                    acc[troop] = (acc[troop] || 0) + attack.troops[troop];
+                }
+                return acc;
+            }, {});
+            
+            for (const troop in village.avgTroops) {
+                village.avgTroops[troop] = Math.round(village.avgTroops[troop] / village.attackCount);
+            }
+        });
+        
+        // Sort villages by distance
+        villageData.sort((a, b) => a.distance - b.distance);
+        
+        // Prepare data for charts
+        const chartData = prepareChartData(allReports);
+        
+        // Build HTML
+        let html = `
+        <div style="background:white;padding:10px;border:2px solid #000;max-height:80vh;overflow:auto;">
+            <button id="closeStatsBtn" style="float:right;background:red;color:white;border:none;padding:5px 10px;cursor:pointer;">X</button>
+            
+            <div style="margin-bottom:10px">
+                <label>Show last 
+                    <input type="number" id="reportLimit" value="${reportLimit}" style="width:60px"> reports
+                </label>
+                <button id="applyLimitBtn" style="margin-left:10px;padding:2px 8px;font-size:11px;cursor:pointer;">Apply</button>
+            </div>
+            
+            ${createWorldSelector()}
+            
+            <div style="background:#fff4e6;padding:10px;border-radius:5px;border:1px solid #ffb74d;margin-bottom:15px;">
+                <div style="font-weight:bold;color:#e65100;">📊 Combined Statistics (All Worlds)</div>
+            </div>
+            
+            ${createTroopSpeedInputs()}
+            
+            <div id="chartsContainer" style="margin-bottom:20px;background:#f9f9f9;padding:10px;border-radius:5px;border:1px solid #ddd;">
+                <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#333;">Farming Statistics Charts</div>
+                <div id="highchartsContainer"></div>
+            </div>
+            
+            <div style="margin-bottom:20px;background:#f0f8ff;padding:10px;border-radius:5px;border:1px solid #ddd;">
+                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Summary Statistics (All Worlds)</div>
+                <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
+                    <tr>
+                        <th>Total Attacks</th>
+                        <th>Total Resources</th>
+                        <th>Resources/Hour</th>
+                        <th>Avg Fill Rate</th>
+                        <th>Resources/Attack</th>
+                        <th>Total Hours</th>
+                    </tr>
+                    <tr>
+                        <td>${statsAll.attacks}</td>
+                        <td>${statsAll.resources.toLocaleString()}</td>
+                        <td>${metricsAll.resourcesPerHour.toLocaleString()}</td>
+                        <td>${metricsAll.fillRate}%</td>
+                        <td>${metricsAll.resourcesPerAttack.toLocaleString()}</td>
+                        <td>${Math.round(statsAll.hours * 10) / 10}</td>
+                    </tr>
+                </table>
+            </div>`;
+        
+        // World summary table
+        if (Object.keys(storage.worlds).length > 1) {
+            html += `
+                <div style="margin-bottom:20px;background:#f0fff0;padding:10px;border-radius:5px;border:1px solid #81c784;">
+                    <div style="font-weight:bold;margin-bottom:10px;color:#2e7d32;">World Statistics</div>
+                    <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
+                        <tr>
+                            <th>World</th>
+                            <th>Reports</th>
+                            <th>Total Resources</th>
+                            <th>Resources/Hour</th>
+                            <th>Avg Fill Rate</th>
+                        </tr>`;
+            
+            for (const world in storage.worlds) {
+                const worldReports = Object.values(storage.worlds[world] || {});
+                if (worldReports.length > 0) {
+                    const worldStats = worldReports.reduce((acc, report) => {
+                        acc.attacks++;
+                        acc.resources += report.totalResources;
+                        acc.hours += report.duration / 60;
+                        acc.capacity += report.capacity;
+                        return acc;
+                    }, { attacks: 0, resources: 0, hours: 0, capacity: 0 });
+                    
+                    const worldMetrics = calculateMetrics(worldStats);
+                    
+                    html += `
+                        <tr>
+                            <td><a href="javascript:void(0)" class="world-link" data-world="${world}" 
+                                   style="color:#0066cc;text-decoration:underline;cursor:pointer;">${world}</a></td>
+                            <td>${worldReports.length}</td>
+                            <td>${worldStats.resources.toLocaleString()}</td>
+                            <td>${worldMetrics.resourcesPerHour.toLocaleString()}</td>
+                            <td>${worldMetrics.fillRate}%</td>
+                        </tr>`;
+                }
+            }
+            
+            html += `</table></div>`;
+        }
+        
+        // Village statistics table
+        if (villageData.length > 0) {
+            html += `
+                <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;margin-bottom:20px;">
+                    <tr>
+                        <th>Coordinates</th>
+                        <th>Distance</th>
+                        <th>Avg Time (min)</th>
+                        <th>Attacks</th>
+                        <th>Total Resources</th>
+                        <th>Resources/Attack</th>
+                        <th>Avg Fill Rate</th>
+                        <th>SC</th>
+                        <th>SW</th>
+                        <th>AX</th>
+                        <th>AR</th>
+                        <th>LC</th>
+                        <th>HV</th>
+                        <th>HR</th>
+                        <th>KN</th>
+                    </tr>`;
+            
+            villageData.forEach(village => {
+                html += `
+                    <tr>
+                        <td>${village.coordinates}</td>
+                        <td>${village.distance}</td>
+                        <td>${village.avgTime} min</td>
+                        <td>${village.attackCount}</td>
+                        <td>${village.totalResources.toLocaleString()}</td>
+                        <td>${village.resourcesPerAttack.toLocaleString()}</td>
+                        <td>${village.avgFillRate}%</td>
+                        <td>${village.avgTroops.sc || 0}</td>
+                        <td>${village.avgTroops.sw || 0}</td>
+                        <td>${village.avgTroops.ax || 0}</td>
+                        <td>${village.avgTroops.ar || 0}</td>
+                        <td>${village.avgTroops.lc || 0}</td>
+                        <td>${village.avgTroops.hv || 0}</td>
+                        <td>${village.avgTroops.hr || 0}</td>
+                        <td>${village.avgTroops.kn || 0}</td>
+                    </tr>`;
+            });
+            
+            html += `</table>`;
+        }
+        
+        // Detailed reports table
+        html += `
+            <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
+                <tr>
+                    <th>ID</th>
+                    <th>Created</th>
+                    <th>Coordinates</th>
+                    <th>Dist</th>
+                    <th>Duration</th>
+                    <th>Wood</th>
+                    <th>Stone</th>
+                    <th>Iron</th>
+                    <th>Total</th>
+                    <th>Capacity</th>
+                    <th>Fill Rate</th>
+                    <th>Per Hour</th>
+                    <th>SC</th>
+                    <th>SW</th>
+                    <th>AX</th>
+                    <th>AR</th>
+                    <th>LC</th>
+                    <th>HV</th>
+                    <th>HR</th>
+                    <th>KN</th>
+                </tr>`;
+        
+        limitedReports.forEach(report => {
+            const minutes = Math.floor(report.duration);
+            const durationDisplay = minutes + ' min';
+            
+            let createdDate = report.created;
+            if (createdDate) {
+                const date = new Date(createdDate);
+                date.setHours(date.getHours() + 3);
+                createdDate = date.toISOString().replace('T', ' ').substring(0, 19);
+            }
+            
+            html += `
+                <tr>
+                    <td>${report.id}</td>
+                    <td>${createdDate}</td>
+                    <td>${report.coordinates}</td>
+                    <td>${report.distance}</td>
+                    <td>${durationDisplay}</td>
+                    <td>${report.resources.wood.toLocaleString()}</td>
+                    <td>${report.resources.stone.toLocaleString()}</td>
+                    <td>${report.resources.iron.toLocaleString()}</td>
+                    <td>${report.totalResources.toLocaleString()}</td>
+                    <td>${report.capacity.toLocaleString()}</td>
+                    <td>${report.fillRate}%</td>
+                    <td>${report.resourcesPerHour.toLocaleString()}</td>
+                    <td>${report.troops.sc || 0}</td>
+                    <td>${report.troops.sw || 0}</td>
+                    <td>${report.troops.ax || 0}</td>
+                    <td>${report.troops.ar || 0}</td>
+                    <td>${report.troops.lc || 0}</td>
+                    <td>${report.troops.hv || 0}</td>
+                    <td>${report.troops.hr || 0}</td>
+                    <td>${report.troops.kn || 0}</td>
+                </tr>`;
+        });
+        
+        html += `</table></div>`;
+        
+        // Remove existing popups
+        const existingPopups = document.querySelectorAll('div[style*="position: fixed"][style*="z-index: 10000"][style*="background: white"], div[style*="position:fixed"][style*="z-index:10000"][style*="background:white"]');
+        existingPopups.forEach(popup => popup.parentNode.removeChild(popup));
+        
+        // Create and show popup
+        const popup = document.createElement('div');
+        popup.innerHTML = html;
+        popup.style.position = 'fixed';
+        popup.style.top = '20px';
+        popup.style.left = '20px';
+        popup.style.zIndex = '10000';
+        popup.style.background = 'white';
+        popup.style.padding = '10px';
+        popup.style.maxWidth = '95vw';
+        popup.style.maxHeight = '95vh';
+        popup.style.overflow = 'auto';
+        popup.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+        popup.id = 'tribalwars-stats-popup';
+        
+        document.body.appendChild(popup);
+        
+        // Create simple charts immediately
+        setTimeout(() => {
+            createSimpleCharts(chartData, 'highchartsContainer');
+        }, 100);
+        
+        // SETUP EVENT DELEGATION
+        setupEventDelegation();
+    }
+    
     // Function to show stats for a specific world
     function showStatsForWorld(worldName, reportLimit = 100) {
         const worldReports = storage.worlds[worldName] || {};
@@ -618,13 +944,13 @@
         // Build HTML
         let html = `
         <div style="background:white;padding:10px;border:2px solid #000;max-height:80vh;overflow:auto;">
-            <button onclick="this.parentElement.remove()" style="float:right;background:red;color:white;border:none;padding:5px 10px;cursor:pointer;">X</button>
+            <button id="closeStatsBtn" style="float:right;background:red;color:white;border:none;padding:5px 10px;cursor:pointer;">X</button>
             
             <div style="margin-bottom:10px">
                 <label>Show last 
-                    <input type="number" id="reportLimit" value="${reportLimit}" style="width:60px" 
-                           onchange="updateReportLimitForWorld('${worldName}', this.value)"> reports
+                    <input type="number" id="reportLimit" value="${reportLimit}" style="width:60px"> reports
                 </label>
+                <button id="applyLimitBtn" style="margin-left:10px;padding:2px 8px;font-size:11px;cursor:pointer;">Apply</button>
             </div>
             
             ${createWorldSelector()}
@@ -789,333 +1115,212 @@
         popup.style.maxHeight = '95vh';
         popup.style.overflow = 'auto';
         popup.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+        popup.id = 'tribalwars-stats-popup';
         
         document.body.appendChild(popup);
         
-        // Create simple charts immediately (no external dependencies)
+        // Create simple charts immediately
         setTimeout(() => {
             createSimpleCharts(chartData, 'highchartsContainer');
         }, 100);
         
-        // Global function to update report limit for specific world
-        window.updateReportLimitForWorld = function(world, limit) {
-            showStatsForWorld(world, parseInt(limit));
-        };
+        // SETUP EVENT DELEGATION
+        setupEventDelegation(worldName);
     }
     
-    // Main showStats function (shows combined stats)
-    function showStats(reportLimit = 100) {
-        // Collect reports from all worlds
-        const allReports = [];
-        for (const world in storage.worlds) {
-            const worldReports = Object.values(storage.worlds[world]);
-            allReports.push(...worldReports);
-        }
+    // Event delegation setup function
+    function setupEventDelegation(currentWorld = null) {
+        // Use event delegation for the popup
+        const popup = document.getElementById('tribalwars-stats-popup');
+        if (!popup) return;
         
-        // Sort by date (newest first)
-        allReports.sort((a, b) => new Date(b.created) - new Date(a.created));
-        
-        const limitedReports = allReports.slice(0, reportLimit);
-        
-        // Calculate combined statistics
-        const statsAll = { attacks: 0, resources: 0, hours: 0, capacity: 0 };
-        
-        allReports.forEach(report => {
-            statsAll.attacks++;
-            statsAll.resources += report.totalResources;
-            statsAll.hours += report.duration / 60;
-            statsAll.capacity += report.capacity;
-        });
-        
-        const calculateMetrics = (stats) => {
-            return {
-                resourcesPerHour: stats.hours > 0 ? Math.round(stats.resources / stats.hours) : 0,
-                fillRate: stats.capacity > 0 ? Math.round(stats.resources / stats.capacity * 100) : 0,
-                resourcesPerAttack: stats.attacks > 0 ? Math.round(stats.resources / stats.attacks) : 0
-            };
+        // Helper function to get the current world
+        const getCurrentDisplayedWorld = () => {
+            return currentWorld || getCurrentWorld();
         };
         
-        const metricsAll = calculateMetrics(statsAll);
-        
-        // Group reports by village coordinates
-        const villageGroups = {};
-        allReports.forEach(report => {
-            if (report.coordinates) {
-                const key = report.coordinates;
-                if (!villageGroups[key]) {
-                    villageGroups[key] = {
-                        coordinates: key,
-                        attacks: [],
-                        totalResources: 0,
-                        totalDuration: 0,
-                        totalCapacity: 0,
-                        distance: report.distance
-                    };
+        // Event listener for the popup
+        popup.addEventListener('click', function(event) {
+            const target = event.target;
+            
+            // 1. Close button
+            if (target.id === 'closeStatsBtn' || target.closest('#closeStatsBtn')) {
+                this.remove();
+                return;
+            }
+            
+            // 2. Apply limit button
+            if (target.id === 'applyLimitBtn' || target.closest('#applyLimitBtn')) {
+                const limitInput = document.getElementById('reportLimit');
+                const limit = parseInt(limitInput.value) || 100;
+                
+                if (currentWorld) {
+                    showStatsForWorld(currentWorld, limit);
+                } else {
+                    showStats(limit);
                 }
-                villageGroups[key].attacks.push(report);
-                villageGroups[key].totalResources += report.totalResources;
-                villageGroups[key].totalDuration += report.duration;
-                villageGroups[key].totalCapacity += report.capacity;
+                return;
+            }
+            
+            // 3. World selector dropdown
+            if (target.id === 'worldSelector') {
+                const world = target.value;
+                if (world) {
+                    showStatsForWorld(world);
+                } else {
+                    showStats();
+                }
+                return;
+            }
+            
+            // 4. World links in the table
+            if (target.classList.contains('world-link') || target.closest('.world-link')) {
+                const worldLink = target.classList.contains('world-link') ? target : target.closest('.world-link');
+                const world = worldLink.getAttribute('data-world');
+                if (world) {
+                    showStatsForWorld(world);
+                }
+                return;
+            }
+            
+            // 5. Save troop speeds button
+            if (target.id === 'saveTroopSpeedsBtn' || target.closest('#saveTroopSpeedsBtn')) {
+                saveTroopSpeeds();
+                return;
+            }
+            
+            // 6. Reset troop speeds button
+            if (target.id === 'resetTroopSpeedsBtn' || target.closest('#resetTroopSpeedsBtn')) {
+                resetTroopSpeeds();
+                return;
             }
         });
         
-        const villageData = Object.values(villageGroups);
-        
-        // Calculate village statistics
-        villageData.forEach(village => {
-            village.attackCount = village.attacks.length;
-            village.avgTime = Math.round(village.totalDuration / village.attackCount);
-            village.resourcesPerAttack = Math.round(village.totalResources / village.attackCount);
-            village.avgFillRate = village.totalCapacity > 0 ? 
-                Math.round(village.totalResources / village.totalCapacity * 100) : 0;
-            
-            // Calculate average troops
-            village.avgTroops = village.attacks.reduce((acc, attack) => {
-                for (const troop in attack.troops) {
-                    acc[troop] = (acc[troop] || 0) + attack.troops[troop];
+        // Also handle Enter key in report limit input
+        const limitInput = document.getElementById('reportLimit');
+        if (limitInput) {
+            limitInput.addEventListener('keypress', function(event) {
+                if (event.key === 'Enter') {
+                    const limit = parseInt(this.value) || 100;
+                    if (currentWorld) {
+                        showStatsForWorld(currentWorld, limit);
+                    } else {
+                        showStats(limit);
+                    }
                 }
-                return acc;
-            }, {});
-            
-            for (const troop in village.avgTroops) {
-                village.avgTroops[troop] = Math.round(village.avgTroops[troop] / village.attackCount);
-            }
-        });
-        
-        // Sort villages by distance
-        villageData.sort((a, b) => a.distance - b.distance);
-        
-        // Prepare data for charts
-        const chartData = prepareChartData(allReports);
-        
-        // Build HTML
-        let html = `
-        <div style="background:white;padding:10px;border:2px solid #000;max-height:80vh;overflow:auto;">
-            <button onclick="this.parentElement.remove()" style="float:right;background:red;color:white;border:none;padding:5px 10px;cursor:pointer;">X</button>
-            
-            <div style="margin-bottom:10px">
-                <label>Show last 
-                    <input type="number" id="reportLimit" value="${reportLimit}" style="width:60px" 
-                           onchange="updateReportLimit(this.value)"> reports
-                </label>
-            </div>
-            
-            ${createWorldSelector()}
-            
-            <div style="background:#fff4e6;padding:10px;border-radius:5px;border:1px solid #ffb74d;margin-bottom:15px;">
-                <div style="font-weight:bold;color:#e65100;">📊 Combined Statistics (All Worlds)</div>
-            </div>
-            
-            ${createTroopSpeedInputs()}
-            
-            <div id="chartsContainer" style="margin-bottom:20px;background:#f9f9f9;padding:10px;border-radius:5px;border:1px solid #ddd;">
-                <div style="text-align:center;margin-bottom:10px;font-weight:bold;color:#333;">Farming Statistics Charts</div>
-                <div id="highchartsContainer"></div>
-            </div>
-            
-            <div style="margin-bottom:20px;background:#f0f8ff;padding:10px;border-radius:5px;border:1px solid #ddd;">
-                <div style="font-weight:bold;margin-bottom:10px;color:#333;">Summary Statistics (All Worlds)</div>
-                <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
-                    <tr>
-                        <th>Total Attacks</th>
-                        <th>Total Resources</th>
-                        <th>Resources/Hour</th>
-                        <th>Avg Fill Rate</th>
-                        <th>Resources/Attack</th>
-                        <th>Total Hours</th>
-                    </tr>
-                    <tr>
-                        <td>${statsAll.attacks}</td>
-                        <td>${statsAll.resources.toLocaleString()}</td>
-                        <td>${metricsAll.resourcesPerHour.toLocaleString()}</td>
-                        <td>${metricsAll.fillRate}%</td>
-                        <td>${metricsAll.resourcesPerAttack.toLocaleString()}</td>
-                        <td>${Math.round(statsAll.hours * 10) / 10}</td>
-                    </tr>
-                </table>
-            </div>`;
-        
-        // World summary table
-        if (Object.keys(storage.worlds).length > 1) {
-            html += `
-                <div style="margin-bottom:20px;background:#f0fff0;padding:10px;border-radius:5px;border:1px solid #81c784;">
-                    <div style="font-weight:bold;margin-bottom:10px;color:#2e7d32;">World Statistics</div>
-                    <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
-                        <tr>
-                            <th>World</th>
-                            <th>Reports</th>
-                            <th>Total Resources</th>
-                            <th>Resources/Hour</th>
-                            <th>Avg Fill Rate</th>
-                        </tr>`;
-            
-            for (const world in storage.worlds) {
-                const worldReports = Object.values(storage.worlds[world]);
-                if (worldReports.length > 0) {
-                    const worldStats = worldReports.reduce((acc, report) => {
-                        acc.attacks++;
-                        acc.resources += report.totalResources;
-                        acc.hours += report.duration / 60;
-                        acc.capacity += report.capacity;
-                        return acc;
-                    }, { attacks: 0, resources: 0, hours: 0, capacity: 0 });
-                    
-                    const worldMetrics = calculateMetrics(worldStats);
-                    
-                    html += `
-                        <tr>
-                            <td><a href="javascript:void(0)" onclick="switchWorld('${world}')" 
-                                   style="color:#0066cc;text-decoration:underline;cursor:pointer;">${world}</a></td>
-                            <td>${worldReports.length}</td>
-                            <td>${worldStats.resources.toLocaleString()}</td>
-                            <td>${worldMetrics.resourcesPerHour.toLocaleString()}</td>
-                            <td>${worldMetrics.fillRate}%</td>
-                        </tr>`;
-                }
-            }
-            
-            html += `</table></div>`;
+            });
         }
         
-        // Village statistics table
-        if (villageData.length > 0) {
-            html += `
-                <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;margin-bottom:20px;">
-                    <tr>
-                        <th>Coordinates</th>
-                        <th>Distance</th>
-                        <th>Avg Time (min)</th>
-                        <th>Attacks</th>
-                        <th>Total Resources</th>
-                        <th>Resources/Attack</th>
-                        <th>Avg Fill Rate</th>
-                        <th>SC</th>
-                        <th>SW</th>
-                        <th>AX</th>
-                        <th>AR</th>
-                        <th>LC</th>
-                        <th>HV</th>
-                        <th>HR</th>
-                        <th>KN</th>
-                    </tr>`;
+        // Add some console logging for debugging
+        console.log('Event delegation setup complete. Current world:', currentWorld);
+    }
+    
+    // Also need to update the saveTroopSpeeds and resetTroopSpeeds functions
+    // to work with event delegation (they should already work as they use getElementById)
+    
+    // Function to save troop speeds
+    function saveTroopSpeeds() {
+        try {
+            console.log('saveTroopSpeeds called');
             
-            villageData.forEach(village => {
-                html += `
-                    <tr>
-                        <td>${village.coordinates}</td>
-                        <td>${village.distance}</td>
-                        <td>${village.avgTime} min</td>
-                        <td>${village.attackCount}</td>
-                        <td>${village.totalResources.toLocaleString()}</td>
-                        <td>${village.resourcesPerAttack.toLocaleString()}</td>
-                        <td>${village.avgFillRate}%</td>
-                        <td>${village.avgTroops.sc || 0}</td>
-                        <td>${village.avgTroops.sw || 0}</td>
-                        <td>${village.avgTroops.ax || 0}</td>
-                        <td>${village.avgTroops.ar || 0}</td>
-                        <td>${village.avgTroops.lc || 0}</td>
-                        <td>${village.avgTroops.hv || 0}</td>
-                        <td>${village.avgTroops.hr || 0}</td>
-                        <td>${village.avgTroops.kn || 0}</td>
-                    </tr>`;
+            const troopTypes = ['sc', 'sw', 'ax', 'ar', 'lc', 'hv', 'hr', 'kn'];
+            const newSpeeds = {};
+            
+            troopTypes.forEach(code => {
+                const input = document.getElementById(`speed_${code}`);
+                if (input) {
+                    const value = parseInt(input.value);
+                    newSpeeds[code] = isNaN(value) ? 18 : Math.max(1, Math.min(100, value));
+                }
             });
             
-            html += `</table>`;
-        }
-        
-        // Detailed reports table
-        html += `
-            <table border="1" style="background:white;color:black;font-size:11px;width:100%;border-collapse:collapse;">
-                <tr>
-                    <th>ID</th>
-                    <th>Created</th>
-                    <th>Coordinates</th>
-                    <th>Dist</th>
-                    <th>Duration</th>
-                    <th>Wood</th>
-                    <th>Stone</th>
-                    <th>Iron</th>
-                    <th>Total</th>
-                    <th>Capacity</th>
-                    <th>Fill Rate</th>
-                    <th>Per Hour</th>
-                    <th>SC</th>
-                    <th>SW</th>
-                    <th>AX</th>
-                    <th>AR</th>
-                    <th>LC</th>
-                    <th>HV</th>
-                    <th>HR</th>
-                    <th>KN</th>
-                </tr>`;
-        
-        limitedReports.forEach(report => {
-            const minutes = Math.floor(report.duration);
-            const durationDisplay = minutes + ' min';
+            console.log('New speeds to save:', newSpeeds);
             
-            let createdDate = report.created;
-            if (createdDate) {
-                const date = new Date(createdDate);
-                date.setHours(date.getHours() + 3);
-                createdDate = date.toISOString().replace('T', ' ').substring(0, 19);
+            // Get current storage
+            const currentStorage = JSON.parse(localStorage.getItem('tribalwars-farm') || '{}');
+            if (!currentStorage.troopSpeeds) {
+                currentStorage.troopSpeeds = {};
             }
             
-            html += `
-                <tr>
-                    <td>${report.id}</td>
-                    <td>${createdDate}</td>
-                    <td>${report.coordinates}</td>
-                    <td>${report.distance}</td>
-                    <td>${durationDisplay}</td>
-                    <td>${report.resources.wood.toLocaleString()}</td>
-                    <td>${report.resources.stone.toLocaleString()}</td>
-                    <td>${report.resources.iron.toLocaleString()}</td>
-                    <td>${report.totalResources.toLocaleString()}</td>
-                    <td>${report.capacity.toLocaleString()}</td>
-                    <td>${report.fillRate}%</td>
-                    <td>${report.resourcesPerHour.toLocaleString()}</td>
-                    <td>${report.troops.sc || 0}</td>
-                    <td>${report.troops.sw || 0}</td>
-                    <td>${report.troops.ax || 0}</td>
-                    <td>${report.troops.ar || 0}</td>
-                    <td>${report.troops.lc || 0}</td>
-                    <td>${report.troops.hv || 0}</td>
-                    <td>${report.troops.hr || 0}</td>
-                    <td>${report.troops.kn || 0}</td>
-                </tr>`;
-        });
-        
-        html += `</table></div>`;
-        
-        // Remove existing popups
-        const existingPopups = document.querySelectorAll('div[style*="position: fixed"][style*="z-index: 10000"][style*="background: white"], div[style*="position:fixed"][style*="z-index:10000"][style*="background:white"]');
-        existingPopups.forEach(popup => popup.parentNode.removeChild(popup));
-        
-        // Create and show popup
-        const popup = document.createElement('div');
-        popup.innerHTML = html;
-        popup.style.position = 'fixed';
-        popup.style.top = '20px';
-        popup.style.left = '20px';
-        popup.style.zIndex = '10000';
-        popup.style.background = 'white';
-        popup.style.padding = '10px';
-        popup.style.maxWidth = '95vw';
-        popup.style.maxHeight = '95vh';
-        popup.style.overflow = 'auto';
-        popup.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-        
-        document.body.appendChild(popup);
-        
-        // Create simple charts immediately (no external dependencies)
-        setTimeout(() => {
-            createSimpleCharts(chartData, 'highchartsContainer');
-        }, 100);
-        
-        // Global function to update report limit
-        window.updateReportLimit = function(limit) {
-            showStats(parseInt(limit));
-        };
+            // Update speeds
+            currentStorage.troopSpeeds = newSpeeds;
+            
+            // Save to localStorage
+            localStorage.setItem('tribalwars-farm', JSON.stringify(currentStorage));
+            console.log('Speeds saved successfully');
+            
+            // Update the global storage reference
+            if (typeof storage !== 'undefined') {
+                storage.troopSpeeds = newSpeeds;
+            }
+            
+            // Show visual feedback
+            const saveBtn = document.getElementById('saveTroopSpeedsBtn');
+            if (saveBtn) {
+                const originalText = saveBtn.textContent;
+                saveBtn.textContent = '✅ Saved!';
+                saveBtn.style.background = '#45a049';
+                
+                setTimeout(() => {
+                    saveBtn.textContent = originalText;
+                    saveBtn.style.background = '#4CAF50';
+                }, 2000);
+            }
+            
+        } catch (error) {
+            console.error('Error in saveTroopSpeeds:', error);
+            alert('Error saving troop speeds: ' + error.message);
+        }
+    }
+    
+    // Function to reset troop speeds to default
+    function resetTroopSpeeds() {
+        try {
+            console.log('resetTroopSpeeds called');
+            
+            const defaultSpeeds = {
+                sc: 18, sw: 22, ax: 18, ar: 18,
+                lc: 10, hv: 11, hr: 10, kn: 18
+            };
+            
+            // Get current storage
+            const currentStorage = JSON.parse(localStorage.getItem('tribalwars-farm') || '{}');
+            currentStorage.troopSpeeds = defaultSpeeds;
+            
+            // Save to localStorage
+            localStorage.setItem('tribalwars-farm', JSON.stringify(currentStorage));
+            console.log('Speeds reset successfully');
+            
+            // Update the global storage reference
+            if (typeof storage !== 'undefined') {
+                storage.troopSpeeds = defaultSpeeds;
+            }
+            
+            // Update input values
+            Object.keys(defaultSpeeds).forEach(code => {
+                const input = document.getElementById(`speed_${code}`);
+                if (input) {
+                    input.value = defaultSpeeds[code];
+                }
+            });
+            
+            // Show visual feedback
+            const resetBtn = document.getElementById('resetTroopSpeedsBtn');
+            if (resetBtn) {
+                const originalText = resetBtn.textContent;
+                resetBtn.textContent = '✅ Reset!';
+                resetBtn.style.background = '#e68900';
+                
+                setTimeout(() => {
+                    resetBtn.textContent = originalText;
+                    resetBtn.style.background = '#ff9800';
+                }, 2000);
+            }
+            
+        } catch (error) {
+            console.error('Error in resetTroopSpeeds:', error);
+            alert('Error resetting troop speeds: ' + error.message);
+        }
     }
     
     // Function to process a single report
