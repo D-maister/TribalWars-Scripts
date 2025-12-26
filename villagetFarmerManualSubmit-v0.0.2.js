@@ -193,6 +193,27 @@
             loadingOverlay = null;
         }
     }
+
+    function checkAutoAttackEnabled() {
+        const worldName = getWorldName();
+        const settingsStorageKey = "twAttackSettings";
+        
+        try {
+            const storedData = localStorage.getItem(settingsStorageKey);
+            if (storedData) {
+                const allSettings = JSON.parse(storedData);
+                if (allSettings[worldName]) {
+                    const settings = allSettings[worldName];
+                    console.log(`Auto-attack enabled setting for ${worldName}:`, settings.autoAttackEnabled);
+                    return settings.autoAttackEnabled === true;
+                }
+            }
+        } catch (e) {
+            console.error("Error checking auto-attack setting:", e);
+        }
+        
+        return false;
+    }
     
     // ===== MAIN EXECUTION =====
     
@@ -210,6 +231,27 @@
             // Show brief message then hide
             createLoadingOverlay();
             updateStatus('❌ Script not triggered by attack script', true);
+            
+            setTimeout(() => {
+                removeLoadingOverlay();
+            }, 3000);
+            
+            return;
+        }
+
+        // Check if auto-attack is enabled in the first script
+        if (!checkAutoAttackEnabled()) {
+            console.log('⏹️ Auto-attack is not enabled in the first script');
+            scriptExecuted = true;
+            
+            // Remove the session marker since we checked it
+            const worldName = getWorldName();
+            const markerKey = CONFIG.submitMarkerKey + "_" + worldName;
+            sessionStorage.removeItem(markerKey);
+            
+            // Show brief message then hide
+            createLoadingOverlay();
+            updateStatus('❌ Auto-attack is disabled in attack script', true);
             
             setTimeout(() => {
                 removeLoadingOverlay();
