@@ -2,9 +2,24 @@
     // Get current world from URL
     function getCurrentWorld() {
         const url = window.location.href;
-        // Extract server name like 'ruc1' from URL pattern
-        const match = url.match(/https?:\/\/([^\/]+)\./);
-        return match ? match[1] : 'unknown';
+        
+        // Pattern for URLs like:
+        // - https://ruc1.voynaplemyon.com/game.php?village=145&screen=report
+        // - https://ru100.voynaplemyon.com/*
+        const match = url.match(/https?:\/\/([^.]+)\.voynaplemyon\.com/);
+        
+        if (match && match[1]) {
+            return match[1]; // Returns 'ruc1', 'ru100', etc.
+        }
+        
+        // Fallback: extract from hostname
+        const hostname = window.location.hostname;
+        if (hostname.includes('voynaplemyon.com')) {
+            return hostname.split('.')[0];
+        }
+        
+        // Final fallback
+        return 'unknown';
     }
 
     const currentWorld = getCurrentWorld();
