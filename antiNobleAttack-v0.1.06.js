@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.0
 // @description  Precision attack timer with anti-noble and snipe modes
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -18,22 +18,12 @@
         defaultMaxCancelMinutes: 10,
         defaultAttackDelay: 50,
         maxCancelMultiplier: 2,
-        calibrationSamples: 10,
-        latencyRefreshSeconds: 60  // Refresh page 60 seconds before click to update latency
+        calibrationSamples: 10
     };
     
     const ATTACK_MODES = {
-        ON_CANCEL: 'on_cancel',
-        ON_ARRIVE: 'on_arrive'
-    };
-    
-    const URL_PARAMS = {
-        MODE: 'tw_mode',
-        TARGET_TIME: 'tw_target',
-        MAX_CANCEL: 'tw_cancel',
-        ATTACK_DELAY: 'tw_delay',
-        UPDATE_INTERVAL: 'tw_update',
-        AUTO_START: 'tw_auto'
+        ON_CANCEL: 'on_cancel',   // Anti-noble: attack early, can cancel
+        ON_ARRIVE: 'on_arrive'    // Snipe: arrive just before enemy
     };
     
     let state = {
@@ -49,8 +39,7 @@
         fixedArriveTime: null,
         fixedReturnTime: null,
         currentAttackData: null,
-        currentMode: ATTACK_MODES.ON_CANCEL,
-        autoStart: false
+        currentMode: ATTACK_MODES.ON_CANCEL
     };
     
     // Storage functions for attack data
@@ -131,10 +120,6 @@
                 output += `\n📝 Notes: ${data.notes}\n`;
             }
             
-            if (data.urlParams) {
-                output += `\n🔗 Auto-Restart URL: ${data.urlParams}\n`;
-            }
-            
             output += '\n' + '='.repeat(50);
             return output;
         }
@@ -143,94 +128,7 @@
     // Initialize attack data storage
     AttackDataStorage.init();
     
-    // URL Parameter Management
-    const UrlParamsManager = {
-        getParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const params = {};
-            
-            for (const [key, value] of urlParams.entries()) {
-                params[key] = value;
-            }
-            
-            return params;
-        },
-        
-        getParam(name) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(name);
-        },
-        
-        hasParam(name) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.has(name);
-        },
-        
-        setParam(name, value) {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set(name, value);
-            return this.updateUrl(urlParams);
-        },
-        
-        setParams(params) {
-            const urlParams = new URLSearchParams(window.location.search);
-            
-            for (const [key, value] of Object.entries(params)) {
-                if (value !== null && value !== undefined) {
-                    urlParams.set(key, value);
-                }
-            }
-            
-            return this.updateUrl(urlParams);
-        },
-        
-        removeParam(name) {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.delete(name);
-            return this.updateUrl(urlParams);
-        },
-        
-        removeAllParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            
-            for (const key of Object.values(URL_PARAMS)) {
-                urlParams.delete(key);
-            }
-            
-            return this.updateUrl(urlParams);
-        },
-        
-        updateUrl(urlParams) {
-            const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
-            return newUrl;
-        },
-        
-        reloadWithParams(params) {
-            const newUrl = this.setParams(params);
-            window.location.href = newUrl;
-        },
-        
-        reloadWithoutParams() {
-            const newUrl = this.removeAllParams();
-            window.location.href = newUrl;
-        },
-        
-        // Create restart URL with current settings
-        createRestartUrl(mode, targetTime, maxCancel, attackDelay, updateInterval) {
-            const params = {
-                [URL_PARAMS.MODE]: mode,
-                [URL_PARAMS.TARGET_TIME]: targetTime,
-                [URL_PARAMS.MAX_CANCEL]: maxCancel,
-                [URL_PARAMS.ATTACK_DELAY]: attackDelay,
-                [URL_PARAMS.UPDATE_INTERVAL]: updateInterval,
-                [URL_PARAMS.AUTO_START]: '1'
-            };
-            
-            return this.setParams(params);
-        }
-    };
-    
-    // Add CSS styles
+    // Add CSS styles with enhanced white theme
     const style = document.createElement('style');
     style.textContent = `
         .tw-container {
@@ -257,60 +155,6 @@
         
         .tw-title-icon {
             font-size: 28px;
-        }
-        
-        .tw-url-info {
-            padding: 10px;
-            background: #e7f3ff;
-            border: 1px solid #b8daff;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            color: #004085;
-            font-size: 13px;
-            display: none;
-        }
-        
-        .tw-url-info.show {
-            display: block;
-        }
-        
-        .tw-url-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-            flex-wrap: wrap;
-        }
-        
-        .tw-url-button {
-            padding: 6px 12px;
-            background: #17a2b8;
-            border: none;
-            color: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s;
-        }
-        
-        .tw-url-button:hover {
-            background: #138496;
-            transform: translateY(-1px);
-        }
-        
-        .tw-url-button-copy {
-            background: #28a745;
-        }
-        
-        .tw-url-button-copy:hover {
-            background: #218838;
-        }
-        
-        .tw-url-button-clear {
-            background: #6c757d;
-        }
-        
-        .tw-url-button-clear:hover {
-            background: #5a6268;
         }
         
         .tw-mode-selector {
@@ -821,71 +665,6 @@
     `;
     document.head.appendChild(style);
     
-    // Check URL parameters on load
-    function checkUrlParameters() {
-        const params = UrlParamsManager.getParams();
-        
-        if (UrlParamsManager.hasParam(URL_PARAMS.AUTO_START)) {
-            state.autoStart = true;
-            console.log('Auto-start detected from URL parameters');
-        }
-        
-        return params;
-    }
-    
-    // Apply URL parameters to UI
-    function applyUrlParameters() {
-        const params = checkUrlParameters();
-        
-        // Apply mode
-        if (params[URL_PARAMS.MODE]) {
-            const mode = params[URL_PARAMS.MODE];
-            if (mode === ATTACK_MODES.ON_CANCEL || mode === ATTACK_MODES.ON_ARRIVE) {
-                setAttackMode(mode);
-            }
-        }
-        
-        // Apply target time
-        if (params[URL_PARAMS.TARGET_TIME]) {
-            const targetInput = document.getElementById('tw-target-input');
-            if (targetInput) {
-                targetInput.value = params[URL_PARAMS.TARGET_TIME];
-            }
-        }
-        
-        // Apply max cancel
-        if (params[URL_PARAMS.MAX_CANCEL]) {
-            const cancelInput = document.getElementById('tw-cancel-input');
-            if (cancelInput) {
-                cancelInput.value = params[URL_PARAMS.MAX_CANCEL];
-            }
-        }
-        
-        // Apply attack delay
-        if (params[URL_PARAMS.ATTACK_DELAY]) {
-            const delayInput = document.getElementById('tw-delay-input');
-            if (delayInput) {
-                delayInput.value = params[URL_PARAMS.ATTACK_DELAY];
-            }
-        }
-        
-        // Apply update interval
-        if (params[URL_PARAMS.UPDATE_INTERVAL]) {
-            const updateInput = document.getElementById('tw-update-input');
-            if (updateInput) {
-                updateInput.value = params[URL_PARAMS.UPDATE_INTERVAL];
-            }
-        }
-        
-        // Show URL info if we have parameters
-        const urlInfo = document.getElementById('tw-url-info');
-        if (urlInfo && Object.keys(params).length > 0) {
-            urlInfo.classList.add('show');
-            document.getElementById('tw-url-params').textContent = 
-                `Loaded from URL: ${JSON.stringify(params, null, 2)}`;
-        }
-    }
-    
     // Initialize
     function init() {
         setTimeout(() => {
@@ -899,16 +678,7 @@
             
             addMainUI(attackBtn);
             
-            // Apply URL parameters
-            applyUrlParameters();
-            
-            // Start calibration
             setTimeout(calibrateServerTime, 500);
-            
-            // Auto-start if requested
-            if (state.autoStart) {
-                console.log('Auto-start enabled, waiting for calibration...');
-            }
         }, 1000);
     }
     
@@ -986,7 +756,7 @@
         }
     }
     
-    // Add main UI with URL info section
+    // Add main UI with mode selector
     function addMainUI(attackBtn) {
         const current = getEstimatedServerTime();
         const duration = getDurationTime();
@@ -1003,19 +773,6 @@
                     <span class="tw-title-icon">🎯</span>
                     <span>Precision Attack Timer</span>
                 </h3>
-                
-                <!-- URL Parameters Info -->
-                <div id="tw-url-info" class="tw-url-info">
-                    <div id="tw-url-params"></div>
-                    <div class="tw-url-buttons">
-                        <button id="tw-copy-url" class="tw-url-button tw-url-button-copy">
-                            📋 Copy Restart URL
-                        </button>
-                        <button id="tw-clear-url" class="tw-url-button tw-url-button-clear">
-                            🗑️ Clear URL Parameters
-                        </button>
-                    </div>
-                </div>
                 
                 <div id="tw-calibration-status" class="tw-calibration-status">
                     🔄 Calibrating server time...
@@ -1240,17 +997,6 @@
             setAttackMode(ATTACK_MODES.ON_ARRIVE);
         });
         
-        // URL buttons
-        document.getElementById('tw-copy-url').addEventListener('click', function(e) {
-            e.preventDefault();
-            copyRestartUrl();
-        });
-        
-        document.getElementById('tw-clear-url').addEventListener('click', function(e) {
-            e.preventDefault();
-            clearUrlParameters();
-        });
-        
         // Export toggle
         document.getElementById('tw-export-toggle').addEventListener('click', function(e) {
             e.preventDefault();
@@ -1313,31 +1059,9 @@
             description.textContent = '⚡ Snipe Mode: Arrive just before enemy attack. No cancellation possible after launch.';
             description.classList.add('arrive-mode');
         }
-    }
-    
-    // Copy restart URL to clipboard
-    function copyRestartUrl() {
-        const mode = state.currentMode;
-        const targetTime = document.getElementById('tw-target-input').value;
-        const maxCancel = document.getElementById('tw-cancel-input').value;
-        const attackDelay = document.getElementById('tw-delay-input').value;
-        const updateInterval = document.getElementById('tw-update-input').value;
         
-        const restartUrl = UrlParamsManager.createRestartUrl(mode, targetTime, maxCancel, attackDelay, updateInterval);
-        
-        navigator.clipboard.writeText(restartUrl).then(() => {
-            alert('Restart URL copied to clipboard!\n\nPaste this URL to restart the timer with fresh latency data.');
-        }).catch(err => {
-            console.error('Failed to copy URL:', err);
-            alert('Failed to copy URL. Please try again.');
-        });
-    }
-    
-    // Clear URL parameters
-    function clearUrlParameters() {
-        if (confirm('Remove all URL parameters and reload page?')) {
-            UrlParamsManager.reloadWithoutParams();
-        }
+        // Update status to reflect mode change
+        updateStatus(`Mode set to: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble (On Cancel)' : 'Snipe (On Arrive)'}`, 'info');
     }
     
     // Update attack data display
@@ -1396,7 +1120,7 @@
     }
     
     // Save attack data to sessionStorage
-    function saveAttackData(restartUrl = null) {
+    function saveAttackData() {
         if (!state.currentAttackData) {
             console.warn('No attack data to save');
             return;
@@ -1435,11 +1159,6 @@
                    `Cancel time adjusted to ${state.currentAttackData.adjustedMaxCancel.toFixed(1)}min (requested: ${document.getElementById('tw-cancel-input').value}min)` :
                    'Using snipe timing (arrive just before enemy)'
         };
-        
-        // Add restart URL if available
-        if (restartUrl) {
-            attackData.urlParams = restartUrl;
-        }
         
         const savedAttack = AttackDataStorage.saveAttackData(attackData);
         
@@ -1555,14 +1274,6 @@
                 statusEl.textContent = '⚠️ Using estimated server time';
                 calibrationStatus.style.display = 'none';
                 state.calibrationComplete = true;
-                
-                // Auto-start if requested
-                if (state.autoStart) {
-                    setTimeout(() => {
-                        console.log('Auto-starting timer after calibration...');
-                        startMainTimer();
-                    }, 1000);
-                }
             }
         }, 10000);
         
@@ -1575,14 +1286,6 @@
             
             calibrationStatus.style.display = 'none';
             statusEl.textContent = `✅ Calibrated! Offset: ${Math.round(avgOffset)}ms`;
-            
-            // Auto-start if requested
-            if (state.autoStart) {
-                setTimeout(() => {
-                    console.log('Auto-starting timer after calibration...');
-                    startMainTimer();
-                }, 1000);
-            }
         }
     }
     
@@ -1646,7 +1349,6 @@
         console.log('Target (enemy):', formatTime(targetTime));
         console.log('Current:', formatTime(current));
         console.log('Duration:', formatDuration(duration));
-        console.log('Latency:', latency, 'ms');
         
         let adjustedMaxCancelMs = maxCancelMs;
         let clickTime;
@@ -1710,11 +1412,6 @@
             return null;
         }
         
-        // Check if we need to refresh latency (if click is more than 60 seconds away)
-        if (remaining > CONFIG.latencyRefreshSeconds * 1000) {
-            console.log(`Click is ${(remaining/1000).toFixed(0)}s away - latency refresh recommended`);
-        }
-        
         return {
             targetTime: targetTime,
             clickTime: clickTime,
@@ -1726,7 +1423,7 @@
         };
     }
     
-    // Start main timer with URL parameter generation
+    // Start main timer
     function startMainTimer() {
         if (!state.calibrationComplete) {
             updateStatus('Calibrating... please wait', 'warning');
@@ -1778,15 +1475,6 @@
         // Store current attack data for saving
         state.currentAttackData = calc;
         
-        // Generate restart URL
-        const restartUrl = UrlParamsManager.createRestartUrl(
-            state.currentMode,
-            targetInput,
-            maxCancel,
-            attackDelay,
-            updateInterval
-        );
-        
         // Show warning if max cancel was adjusted (only for Anti-Noble mode)
         if (state.currentMode === ATTACK_MODES.ON_CANCEL && 
             calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
@@ -1820,35 +1508,18 @@
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
         const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
+        updateStatus(`✅ ${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
         
-        // Check if we should recommend latency refresh
-        if (calc.remaining > CONFIG.latencyRefreshSeconds * 1000) {
-            const secondsUntilClick = Math.floor(calc.remaining / 1000);
-            updateStatus(`✅ ${modeText} timer started! Clicking in ${secondsUntilClick}s. Refresh page ${CONFIG.latencyRefreshSeconds}s before click for updated latency.`, 'success');
-            
-            // Show restart URL info
-            const urlInfo = document.getElementById('tw-url-info');
-            if (urlInfo) {
-                urlInfo.classList.add('show');
-                document.getElementById('tw-url-params').textContent = 
-                    `Restart URL generated. Copy this URL and reload ${CONFIG.latencyRefreshSeconds} seconds before click to refresh latency:\n\n${restartUrl}`;
-            }
-        } else {
-            updateStatus(`✅ ${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
-        }
-        
-        // Start precision timer with latency refresh check
-        startPrecisionTimer(restartUrl);
+        startPrecisionTimer();
     }
     
-    // Start precision timer with latency refresh logic
-    function startPrecisionTimer(restartUrl = null) {
+    // Start precision timer
+    function startPrecisionTimer() {
         if (state.timerId) {
             clearInterval(state.timerId);
         }
         
         let lastDisplayUpdate = 0;
-        let latencyRefreshTriggered = false;
         
         state.timerId = setInterval(() => {
             if (!state.running) return;
@@ -1856,26 +1527,6 @@
             const now = Date.now();
             const current = getEstimatedServerTime();
             const remaining = state.clickTime.getTime() - current.getTime();
-            
-            // Check if we should trigger latency refresh (60 seconds before click)
-            if (!latencyRefreshTriggered && restartUrl && remaining <= CONFIG.latencyRefreshSeconds * 1000 && remaining > 5000) {
-                latencyRefreshTriggered = true;
-                
-                // Ask user if they want to refresh for updated latency
-                setTimeout(() => {
-                    const refresh = confirm(
-                        `Click in ${Math.floor(remaining/1000)} seconds.\n\n` +
-                        `Refresh page now to get updated latency measurement?\n` +
-                        `This will restart the timer with fresh latency data.\n\n` +
-                        `Click OK to refresh, Cancel to continue with current latency.`
-                    );
-                    
-                    if (refresh) {
-                        console.log('User requested latency refresh, reloading page...');
-                        window.location.href = restartUrl;
-                    }
-                }, 100);
-            }
             
             if (now - lastDisplayUpdate >= 50) {
                 lastDisplayUpdate = now;
@@ -1898,15 +1549,15 @@
             if (remaining <= 0) {
                 clearInterval(state.timerId);
                 state.timerId = null;
-                executeAttack(restartUrl);
+                executeAttack();
             }
         }, state.updateInterval);
     }
     
     // Execute attack
-    function executeAttack(restartUrl = null) {
+    function executeAttack() {
         // Save attack data BEFORE clicking the button
-        saveAttackData(restartUrl);
+        saveAttackData();
         
         stopMainTimer();
         
@@ -1928,11 +1579,6 @@
             }
             
             console.log('Attack data saved and button clicked!');
-            
-            // Clear URL parameters after successful execution
-            setTimeout(() => {
-                UrlParamsManager.removeAllParams();
-            }, 1000);
             
         } catch (error) {
             console.error('Error clicking attack button:', error);
