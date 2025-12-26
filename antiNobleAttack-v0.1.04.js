@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      1.9
-// @description  Precision attack timer with server time synchronization
+// @version      2.0
+// @description  Precision attack timer with anti-noble and snipe modes
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
 // @grant        none
@@ -21,6 +21,11 @@
         calibrationSamples: 10
     };
     
+    const ATTACK_MODES = {
+        ON_CANCEL: 'on_cancel',   // Anti-noble: attack early, can cancel
+        ON_ARRIVE: 'on_arrive'    // Snipe: arrive just before enemy
+    };
+    
     let state = {
         running: false,
         targetTime: null,
@@ -33,7 +38,8 @@
         maxCancelTime: CONFIG.defaultMaxCancelMinutes * 60 * 1000,
         fixedArriveTime: null,
         fixedReturnTime: null,
-        currentAttackData: null // Store current attack data for saving
+        currentAttackData: null,
+        currentMode: ATTACK_MODES.ON_CANCEL
     };
     
     // Storage functions for attack data
@@ -50,9 +56,8 @@
         saveAttackData(attackData) {
             const attacks = this.getAttackHistory();
             
-            // Add timestamp and format data
             const formattedData = {
-                id: Date.now(), // Unique ID based on timestamp
+                id: Date.now(),
                 timestamp: new Date().toISOString(),
                 timestampReadable: new Date().toLocaleString(),
                 data: attackData
@@ -60,14 +65,11 @@
             
             attacks.unshift(formattedData);
             
-            // Keep only last MAX_ATTACKS entries
             if (attacks.length > this.MAX_ATTACKS) {
                 attacks.length = this.MAX_ATTACKS;
             }
             
             sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(attacks));
-            
-            console.log('Attack data saved to sessionStorage:', formattedData);
             return formattedData;
         },
         
@@ -85,7 +87,6 @@
             return attacks.length > 0 ? attacks[0] : null;
         },
         
-        // Format attack data for display/download
         formatAttackForDisplay(attack) {
             if (!attack) return 'No attack data';
             
@@ -93,29 +94,24 @@
             let output = `Attack Data - ${attack.timestampReadable}\n`;
             output += '='.repeat(50) + '\n\n';
             
-            // Basic info
-            output += `📅 Timestamp: ${attack.timestampReadable}\n`;
-            output += `⏰ Start Timer: ${data.startTime || 'N/A'}\n`;
+            output += `🎯 Mode: ${data.mode === 'on_cancel' ? 'Anti-Noble (On Cancel)' : 'Snipe (On Arrive)'}\n`;
+            output += `📅 Start Timer: ${data.startTime || 'N/A'}\n`;
             output += `🎯 Enemy Arrival: ${data.enemyArrival || 'N/A'}\n`;
             output += `🖱️ Click at: ${data.clickAt || 'N/A'}\n\n`;
             
-            // Travel times
             output += `📊 Duration: ${data.duration || 'N/A'}\n`;
             output += `📍 Arrive to destination: ${data.arriveToDestination || 'N/A'}\n`;
             output += `↩️ Return if not cancel: ${data.returnIfNotCancel || 'N/A'}\n`;
             output += `📡 Latency: ${data.latency || 'N/A'}\n\n`;
             
-            // Scheduled times
             output += `⏱️ Will arrive at: ${data.willArriveAt || 'N/A'}\n`;
             output += `⏱️ Will return at: ${data.willReturnAt || 'N/A'}\n\n`;
             
-            // Settings
             output += `⚙️ Settings:\n`;
             output += `  🔄 Update (ms): ${data.updateInterval || 'N/A'}\n`;
             output += `  ⏰ Max Cancel (min): ${data.maxCancel || 'N/A'}\n`;
             output += `  ⏱️ Attack Delay (ms): ${data.attackDelay || 'N/A'}\n\n`;
             
-            // Server info
             output += `🌐 Server Info:\n`;
             output += `  🎯 Enemy: ${data.enemy || 'N/A'}\n`;
             output += `  ⚡ Offset: ${data.offset || 'N/A'}\n`;
@@ -132,10 +128,428 @@
     // Initialize attack data storage
     AttackDataStorage.init();
     
-    // Add CSS styles (same as before, just adding export section)
+    // Add CSS styles with enhanced white theme
     const style = document.createElement('style');
     style.textContent = `
-        /* ... all previous CSS styles ... */
+        .tw-container {
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+            color: #212529;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        .tw-title {
+            margin: 0 0 20px 0;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 15px;
+        }
+        
+        .tw-title-icon {
+            font-size: 28px;
+        }
+        
+        .tw-mode-selector {
+            margin-bottom: 20px;
+        }
+        
+        .tw-mode-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        
+        .tw-mode-button {
+            flex: 1;
+            padding: 12px;
+            background: #e9ecef;
+            border: 2px solid #dee2e6;
+            color: #495057;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .tw-mode-button:hover {
+            background: #dee2e6;
+            transform: translateY(-1px);
+        }
+        
+        .tw-mode-button.active {
+            background: linear-gradient(145deg, #4CAF50, #388E3C);
+            border-color: #2E7D32;
+            color: white;
+            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
+        }
+        
+        .tw-mode-button.active.arrive-mode {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+            border-color: #0D47A1;
+            box-shadow: 0 3px 10px rgba(33, 150, 243, 0.2);
+        }
+        
+        .tw-mode-description {
+            font-size: 13px;
+            color: #6c757d;
+            margin-top: 4px;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .tw-mode-description.arrive-mode {
+            border-left-color: #2196F3;
+        }
+        
+        .tw-status-box {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border-left: 4px solid #6c757d;
+            color: #495057;
+            font-size: 14px;
+            min-height: 24px;
+            background: #f8f9fa;
+        }
+        
+        .tw-status-error {
+            border-left-color: #dc3545 !important;
+            color: #721c24 !important;
+            background: #f8d7da !important;
+        }
+        
+        .tw-status-warning {
+            border-left-color: #ffc107 !important;
+            color: #856404 !important;
+            background: #fff3cd !important;
+        }
+        
+        .tw-status-success {
+            border-left-color: #28a745 !important;
+            color: #155724 !important;
+            background: #d4edda !important;
+        }
+        
+        .tw-status-info {
+            border-left-color: #17a2b8 !important;
+            color: #0c5460 !important;
+            background: #d1ecf1 !important;
+        }
+        
+        .tw-calibration-status {
+            padding: 15px;
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            color: #004085;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .tw-duration-info {
+            padding: 12px;
+            background: #e7f3ff;
+            border: 1px solid #b8daff;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            color: #004085;
+            font-size: 14px;
+        }
+        
+        .tw-duration-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tw-times-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .tw-time-box {
+            border-radius: 8px;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s;
+        }
+        
+        .tw-time-box:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+        
+        .tw-arrive-box {
+            border-left: 4px solid #28a745;
+        }
+        
+        .tw-return-box {
+            border-left: 4px solid #fd7e14;
+        }
+        
+        .tw-time-label {
+            margin-bottom: 8px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .tw-arrive-label {
+            color: #28a745;
+        }
+        
+        .tw-return-label {
+            color: #fd7e14;
+        }
+        
+        .tw-time-icon {
+            font-size: 20px;
+        }
+        
+        .tw-time-value {
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            color: #212529;
+        }
+        
+        .tw-arrive-value {
+            color: #28a745;
+        }
+        
+        .tw-return-value {
+            color: #fd7e14;
+        }
+        
+        .tw-fixed-times-container {
+            display: none;
+            margin-bottom: 20px;
+        }
+        
+        .tw-fixed-times-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        
+        .tw-fixed-times-label {
+            color: #495057;
+            margin-bottom: 12px;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+        
+        .tw-fixed-times-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .tw-fixed-time-box {
+            border-radius: 6px;
+            padding: 12px;
+            background: white;
+            border: 1px solid #e9ecef;
+        }
+        
+        .tw-fixed-arrive-box {
+            border-left: 3px solid #28a745;
+        }
+        
+        .tw-fixed-return-box {
+            border-left: 3px solid #fd7e14;
+        }
+        
+        .tw-fixed-time-label {
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #6c757d;
+        }
+        
+        .tw-fixed-arrive-label {
+            color: #28a745;
+        }
+        
+        .tw-fixed-return-label {
+            color: #fd7e14;
+        }
+        
+        .tw-fixed-time-value {
+            font-family: 'Courier New', monospace;
+            font-size: 15px;
+            font-weight: bold;
+            color: #212529;
+        }
+        
+        .tw-fixed-arrive-value {
+            color: #28a745;
+        }
+        
+        .tw-fixed-return-value {
+            color: #fd7e14;
+        }
+        
+        .tw-target-input-container {
+            margin-bottom: 20px;
+        }
+        
+        .tw-input-label {
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+        }
+        
+        .tw-time-format {
+            color: #6c757d;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        
+        .tw-input {
+            width: 100%;
+            padding: 12px;
+            background: white;
+            border: 2px solid #e9ecef;
+            color: #212529;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 15px;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+        
+        .tw-input:focus {
+            border-color: #4CAF50;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+        
+        .tw-settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .tw-buttons-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .tw-button {
+            padding: 14px;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.3s;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .tw-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        
+        .tw-start-button {
+            background: linear-gradient(145deg, #4CAF50, #388E3C);
+            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
+        }
+        
+        .tw-start-button:hover {
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .tw-stop-button {
+            background: linear-gradient(145deg, #dc3545, #c82333);
+            box-shadow: 0 3px 10px rgba(220, 53, 69, 0.2);
+        }
+        
+        .tw-stop-button:hover {
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .tw-time-display {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .tw-current-display {
+            color: #495057;
+            font-family: 'Courier New', monospace;
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .tw-target-display {
+            color: #fd7e14;
+            font-family: 'Courier New', monospace;
+            font-size: 17px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: none;
+        }
+        
+        .tw-click-display {
+            color: #2196F3;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            display: none;
+        }
+        
+        .tw-remaining-display {
+            color: #495057;
+            font-family: 'Courier New', monospace;
+            font-size: 17px;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .tw-remaining-low {
+            color: #fd7e14 !important;
+        }
+        
+        .tw-remaining-critical {
+            color: #dc3545 !important;
+            font-weight: bold !important;
+        }
         
         .tw-export-container {
             margin-top: 20px;
@@ -143,14 +557,14 @@
         }
         
         .tw-export-box {
-            background: rgba(96, 125, 139, 0.08);
-            border: 1px solid #607D8B;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
             border-radius: 8px;
             padding: 15px;
         }
         
         .tw-export-header {
-            color: #455A64;
+            color: #495057;
             margin-bottom: 12px;
             font-size: 15px;
             display: flex;
@@ -169,7 +583,7 @@
         
         .tw-export-button {
             padding: 8px 16px;
-            background: linear-gradient(145deg, #607D8B, #455A64);
+            background: #6c757d;
             border: none;
             color: white;
             border-radius: 6px;
@@ -177,38 +591,76 @@
             font-weight: 500;
             font-size: 13px;
             transition: all 0.3s;
-            box-shadow: 0 2px 5px rgba(96, 125, 139, 0.2);
         }
         
         .tw-export-button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(96, 125, 139, 0.3);
+            background: #5a6268;
         }
         
         .tw-export-button-copy {
-            background: linear-gradient(145deg, #2196F3, #1976D2);
+            background: #17a2b8;
+        }
+        
+        .tw-export-button-copy:hover {
+            background: #138496;
         }
         
         .tw-export-button-download {
-            background: linear-gradient(145deg, #4CAF50, #388E3C);
+            background: #28a745;
+        }
+        
+        .tw-export-button-download:hover {
+            background: #218838;
         }
         
         .tw-export-button-clear {
-            background: linear-gradient(145deg, #F44336, #D32F2F);
+            background: #dc3545;
+        }
+        
+        .tw-export-button-clear:hover {
+            background: #c82333;
         }
         
         .tw-data-display {
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            color: #37474F;
-            background: rgba(255, 255, 255, 0.7);
+            color: #212529;
+            background: white;
             padding: 10px;
             border-radius: 4px;
-            border: 1px solid #ddd;
+            border: 1px solid #dee2e6;
             max-height: 200px;
             overflow-y: auto;
             white-space: pre-wrap;
             word-break: break-all;
+        }
+        
+        .tw-logs-toggle, .tw-export-toggle {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+        }
+        
+        .tw-logs-toggle:hover, .tw-export-toggle:hover {
+            color: #495057;
+        }
+        
+        @media (max-width: 768px) {
+            .tw-settings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tw-times-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tw-fixed-times-grid {
+                grid-template-columns: 1fr;
+            }
         }
     `;
     document.head.appendChild(style);
@@ -304,7 +756,7 @@
         }
     }
     
-    // Add main UI with export section
+    // Add main UI with mode selector
     function addMainUI(attackBtn) {
         const current = getEstimatedServerTime();
         const duration = getDurationTime();
@@ -324,6 +776,24 @@
                 
                 <div id="tw-calibration-status" class="tw-calibration-status">
                     🔄 Calibrating server time...
+                </div>
+                
+                <!-- Mode Selector -->
+                <div class="tw-mode-selector">
+                    <div class="tw-input-label">
+                        ⚡ Attack Mode:
+                    </div>
+                    <div class="tw-mode-buttons">
+                        <button id="tw-mode-cancel" class="tw-mode-button active">
+                            🛡️ Anti-Noble (On Cancel)
+                        </button>
+                        <button id="tw-mode-arrive" class="tw-mode-button">
+                            ⚡ Snipe (On Arrive)
+                        </button>
+                    </div>
+                    <div id="tw-mode-description" class="tw-mode-description">
+                        <strong>Anti-Noble Mode:</strong> Attack early to allow cancellation. Arrives with max cancel time before enemy.
+                    </div>
                 </div>
                 
                 <div id="tw-duration-info" class="tw-duration-info">
@@ -476,7 +946,7 @@
                                 <span style="font-size: 20px;">💾</span>
                                 <span>Attack Data</span>
                             </span>
-                            <button id="tw-export-toggle" class="tw-logs-toggle">
+                            <button id="tw-export-toggle" class="tw-export-toggle">
                                 Show/Hide
                             </button>
                         </div>
@@ -514,6 +984,17 @@
             e.stopPropagation();
             stopMainTimer();
             return false;
+        });
+        
+        // Mode selection
+        document.getElementById('tw-mode-cancel').addEventListener('click', function(e) {
+            e.preventDefault();
+            setAttackMode(ATTACK_MODES.ON_CANCEL);
+        });
+        
+        document.getElementById('tw-mode-arrive').addEventListener('click', function(e) {
+            e.preventDefault();
+            setAttackMode(ATTACK_MODES.ON_ARRIVE);
         });
         
         // Export toggle
@@ -554,6 +1035,33 @@
         });
         
         startDisplayUpdates();
+    }
+    
+    // Set attack mode
+    function setAttackMode(mode) {
+        state.currentMode = mode;
+        
+        const cancelBtn = document.getElementById('tw-mode-cancel');
+        const arriveBtn = document.getElementById('tw-mode-arrive');
+        const description = document.getElementById('tw-mode-description');
+        
+        // Update button states
+        cancelBtn.classList.remove('active');
+        arriveBtn.classList.remove('active');
+        description.classList.remove('arrive-mode');
+        
+        if (mode === ATTACK_MODES.ON_CANCEL) {
+            cancelBtn.classList.add('active');
+            description.textContent = '🛡️ Anti-Noble Mode: Attack early to allow cancellation. Arrives with max cancel time before enemy.';
+            description.classList.remove('arrive-mode');
+        } else {
+            arriveBtn.classList.add('active', 'arrive-mode');
+            description.textContent = '⚡ Snipe Mode: Arrive just before enemy attack. No cancellation possible after launch.';
+            description.classList.add('arrive-mode');
+        }
+        
+        // Update status to reflect mode change
+        updateStatus(`Mode set to: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble (On Cancel)' : 'Snipe (On Arrive)'}`, 'info');
     }
     
     // Update attack data display
@@ -619,6 +1127,9 @@
         }
         
         const attackData = {
+            // Mode
+            mode: state.currentMode,
+            
             // Timings
             startTime: formatTime(new Date()),
             enemyArrival: formatTime(state.targetTime),
@@ -644,7 +1155,9 @@
             offset: `${Math.round(state.serverTimeOffset)}ms`,
             
             // Additional info
-            notes: `Cancel time adjusted to ${state.currentAttackData.adjustedMaxCancel.toFixed(1)}min (requested: ${document.getElementById('tw-cancel-input').value}min)`
+            notes: state.currentAttackData.adjustedMaxCancel ? 
+                   `Cancel time adjusted to ${state.currentAttackData.adjustedMaxCancel.toFixed(1)}min (requested: ${document.getElementById('tw-cancel-input').value}min)` :
+                   'Using snipe timing (arrive just before enemy)'
         };
         
         const savedAttack = AttackDataStorage.saveAttackData(attackData);
@@ -821,100 +1334,81 @@
         }
     }
     
-    // Calculate attack time with EXACT millisecond timing
+    // Calculate attack time based on selected mode
     function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
         const current = getEstimatedServerTime();
         const latency = getLatency();
+        const duration = getDurationTime();
         
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
         const twoTimesCancel = maxCancelMs * 2;
         const timeAvailable = targetTime.getTime() - current.getTime();
         
         console.log('=== CALCULATION START ===');
-        console.log('Target (enemy):', formatTime(targetTime), 'ms=', targetTime.getMilliseconds());
-        console.log('Current time:', formatTime(current));
-        console.log('Attack delay:', attackDelay, 'ms');
-        console.log('Latency:', latency, 'ms');
-        console.log('Time available:', timeAvailable, 'ms');
-        console.log('2x cancel needed:', twoTimesCancel, 'ms');
+        console.log('Mode:', state.currentMode);
+        console.log('Target (enemy):', formatTime(targetTime));
+        console.log('Current:', formatTime(current));
+        console.log('Duration:', formatDuration(duration));
         
         let adjustedMaxCancelMs = maxCancelMs;
         let clickTime;
         
-        if (timeAvailable >= twoTimesCancel) {
-            // CASE 1: Enough time for full 2x cancel
-            const latestAttackMs = targetTime.getTime() - twoTimesCancel;
-            clickTime = new Date(latestAttackMs - attackDelay - latency);
-            console.log('Using FULL cancel time');
-            console.log('Latest attack:', formatTime(new Date(latestAttackMs)));
-        } else {
-            // CASE 2: Not enough time for full 2x cancel
-            // BUT we still want to match the milliseconds pattern
-            
-            // Calculate the milliseconds pattern we want:
-            // click_ms = target_ms - attackDelay - latency (mod 1000)
-            const targetMs = targetTime.getMilliseconds();
-            let desiredClickMs = targetMs - attackDelay - latency;
-            
-            // Handle negative milliseconds (wrap around)
-            while (desiredClickMs < 0) {
-                desiredClickMs += 1000;
-            }
-            desiredClickMs = desiredClickMs % 1000;
-            
-            console.log('Target milliseconds:', targetMs);
-            console.log('Desired click milliseconds:', desiredClickMs, '(target - delay - latency)');
-            
-            // We need to click at least 100ms from now for safety
-            const minClickTime = new Date(current.getTime() + 100);
-            
-            // Find the next time with the desired milliseconds that's at least 100ms from now
-            let candidateTime = new Date(minClickTime);
-            
-            // Adjust candidate time to have the right milliseconds
-            const currentCandidateMs = candidateTime.getMilliseconds();
-            let msToAdd = desiredClickMs - currentCandidateMs;
-            
-            if (msToAdd < 0) {
-                msToAdd += 1000; // Add a second if we need to wrap around
-            }
-            
-            candidateTime = new Date(candidateTime.getTime() + msToAdd);
-            
-            // Double-check it's still in the future
-            if (candidateTime.getTime() - current.getTime() < 100) {
-                candidateTime = new Date(candidateTime.getTime() + 1000); // Add another second
-            }
-            
-            clickTime = candidateTime;
-            
-            // Calculate what cancel time this gives us
-            // Formula: click = target - 2x cancel - delay - latency
-            // So: 2x cancel = target - click - delay - latency
-            const timeFromClickToTarget = targetTime.getTime() - clickTime.getTime();
-            const totalForCancel = timeFromClickToTarget - attackDelay - latency;
-            
-            if (totalForCancel < 2000) { // Less than 2 seconds total
-                adjustedMaxCancelMs = 1000; // Minimum 1 second cancel
+        if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
+            // ANTI-NOBLE MODE: Attack early, can cancel
+            if (timeAvailable >= twoTimesCancel) {
+                // Enough time for full 2x cancel
+                const latestAttackMs = targetTime.getTime() - twoTimesCancel;
+                clickTime = new Date(latestAttackMs - attackDelay - latency);
+                console.log('Anti-Noble: Using full cancel time');
             } else {
-                adjustedMaxCancelMs = Math.floor(totalForCancel / 2);
+                // Not enough time for full cancel - adjust
+                const minNeeded = attackDelay + latency + 100;
+                
+                if (timeAvailable < minNeeded) {
+                    console.error('Not enough time even for immediate attack');
+                    return null;
+                }
+                
+                const maxCancelPossible = Math.floor((timeAvailable - attackDelay - latency - 100) / 2);
+                
+                if (maxCancelPossible < 1000) {
+                    clickTime = new Date(current.getTime() + 100);
+                    adjustedMaxCancelMs = 1000;
+                } else {
+                    adjustedMaxCancelMs = maxCancelPossible;
+                    const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * 2);
+                    clickTime = new Date(latestAttackMs - attackDelay - latency);
+                }
+                console.log('Anti-Noble: Using adjusted cancel time');
+            }
+        } else {
+            // SNIPE MODE: Arrive just before enemy
+            // Click time = Enemy Time - Duration - Attack Delay - Latency
+            const desiredArrivalTime = targetTime.getTime() - attackDelay - latency;
+            clickTime = new Date(desiredArrivalTime - duration);
+            
+            // Ensure we have at least 100ms margin
+            if (clickTime.getTime() - current.getTime() < 100) {
+                console.error('Not enough time for snipe attack');
+                return null;
             }
             
-            console.log('Using ADJUSTED timing with milliseconds match');
-            console.log('Found click time:', formatTime(clickTime), 'ms=', clickTime.getMilliseconds());
-            console.log('Time from click to target:', timeFromClickToTarget, 'ms');
-            console.log('Adjusted cancel:', adjustedMaxCancelMs, 'ms');
+            // For snipe mode, we don't use cancel time
+            adjustedMaxCancelMs = 0;
+            console.log('Snipe: Targeting arrival just before enemy');
         }
         
         const remaining = clickTime.getTime() - current.getTime();
         
-        console.log('Final click time:', formatTime(clickTime));
+        console.log('Click time:', formatTime(clickTime));
         console.log('Remaining until click:', remaining, 'ms');
-        console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(2), 'min');
+        if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
+            console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(2), 'min');
+        }
         console.log('=== CALCULATION END ===');
         
         if (remaining < 100) {
-            console.error('Click time is too close! Need at least 100ms');
+            console.error('Click time too close! Need at least 100ms');
             return null;
         }
         
@@ -981,11 +1475,14 @@
         // Store current attack data for saving
         state.currentAttackData = calc;
         
-        // Show warning if max cancel was adjusted
-        if (calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
+        // Show warning if max cancel was adjusted (only for Anti-Noble mode)
+        if (state.currentMode === ATTACK_MODES.ON_CANCEL && 
+            calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
             updateStatus(`⚠️ Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
-        } else {
+        } else if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
             updateStatus(`✅ Using ${maxCancel}min cancel time`, 'success');
+        } else {
+            updateStatus(`✅ Snipe mode: Arriving just before enemy`, 'success');
         }
         
         const duration = getDurationTime();
@@ -1010,7 +1507,8 @@
         document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
-        updateStatus(`✅ Timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
+        const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
+        updateStatus(`✅ ${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
         
         startPrecisionTimer();
     }
