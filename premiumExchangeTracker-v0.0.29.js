@@ -136,12 +136,11 @@ class ExchangeTracker {
             
             .tw-summary-table th {
                 background-color: #2196F3;
-                color: white;
+                color: #000;
                 font-weight: bold;
             }
             
             .tw-summary-table td {
-                font-weight: bold;
             }
             
             .tw-summary-table .min-col {
@@ -166,7 +165,6 @@ class ExchangeTracker {
             
             .tw-exchange-stat-table th,
             .tw-exchange-stat-table td {
-                border: 1px solid #ddd;
                 padding: 3px 5px;
                 text-align: center;
             }
