@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.5
 // @description  Precision attack timer with anti-noble and snipe modes, attack naming, and cancel tracking
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -534,61 +534,12 @@
                         if (cancelButton && endTimeSpan) {
                             const attackId = `${enemyArriveAt}-${durationStr}-${index}`;
                             
-                            // Parse times
-                            const enemyArrive = parseTimeString(enemyArriveAt);
-                            const duration = parseDuration(durationStr);
-                            const timeLeft = parseTimeLeft(endTimeSpan.textContent);
-                            
-                            if (enemyArrive && duration && timeLeft !== null) {
-                                const serverTime = getEstimatedServerTime();
-                                const currentTime = serverTime.getTime();
-                                
-                                // Calculate time traveled
-                                const timeTraveled = duration - timeLeft;
-                                
-                                // Calculate when we should cancel:
-                                // Cancel when: current_time + 2 * timeTraveled = enemy_arrive_time
-                                // Or: timeTraveled = (enemy_arrive_time - current_time) / 2
-                                
-                                const timeUntilCancelFormula = enemyArrive.getTime() - (currentTime + 2 * timeTraveled);
-                                
-                                // Alternative calculation: timeTraveled needed = (enemyArrive - currentTime)/2
-                                const neededTimeTraveled = (enemyArrive.getTime() - currentTime) / 2;
-                                const timeUntilCancel = (neededTimeTraveled - timeTraveled) * 1000; // convert to ms difference
-                                
-                                // Calculate cancel time: when timeTraveled = (enemyArrive - cancelTime)/2
-                                // cancelTime = enemyArrive - 2*timeTraveled
-                                const cancelTime = enemyArrive.getTime() - 2 * timeTraveled;
-                                
-                                // Add/update cancel tracker cell
-                                updateCancelTrackerCell(row, enemyArrive, cancelTime, currentTime, timeUntilCancel);
-                                
-                                // Track this attack
-                                if (!state.cancelTrackers.has(attackId)) {
-                                    state.cancelTrackers.set(attackId, {
-                                        row: row,
-                                        cancelButton: cancelButton,
-                                        enemyArriveTime: enemyArrive.getTime(),
-                                        duration: duration,
-                                        tracker: null
-                                    });
-                                    
-                                    console.log(`Tracking attack ${attackId}:`);
-                                    console.log(`  Enemy arrive: ${formatTime(enemyArrive)}`);
-                                    console.log(`  Duration: ${formatDuration(duration)}`);
-                                    console.log(`  Current time: ${formatTime(serverTime)}`);
-                                    console.log(`  Time left: ${formatDuration(timeLeft)}`);
-                                    console.log(`  Time traveled: ${formatDuration(timeTraveled)}`);
-                                    console.log(`  Should cancel at: ${formatTime(new Date(cancelTime))}`);
-                                    
-                                    // Start tracking
-                                    trackCancelAttack(attackId);
-                                }
-                                
-                                // Check if it's time to cancel
-                                if (Math.abs(timeUntilCancelFormula) <= CONFIG.cancelPrecision) {
-                                    executeCancel(attackId);
-                                }
+                            // If we're not tracking this attack yet, initialize it
+                            if (!state.cancelTrackers.has(attackId)) {
+                                initializeCancelTracker(attackId, row, cancelButton, enemyArriveAt, durationStr, endTimeSpan);
+                            } else {
+                                // Update existing tracker
+                                updateCancelTracker(attackId);
                             }
                         }
                     }
@@ -599,7 +550,85 @@
         }
     }
     
-    function updateCancelTrackerCell(row, enemyArrive, cancelTime, currentTime, timeUntilCancel) {
+    function initializeCancelTracker(attackId, row, cancelButton, enemyArriveAt, durationStr, endTimeSpan) {
+        // Parse times ONCE when we first detect the attack
+        const enemyArrive = parseTimeString(enemyArriveAt);
+        const duration = parseDuration(durationStr);
+        const initialTimeLeft = parseTimeLeft(endTimeSpan.textContent);
+        const initialServerTime = getEstimatedServerTime();
+        const initialCurrentTime = initialServerTime.getTime();
+        
+        if (!enemyArrive || !duration || initialTimeLeft === null) {
+            return;
+        }
+        
+        // Calculate initial time traveled
+        const initialTimeTraveled = duration - initialTimeLeft;
+        
+        // Calculate cancel time ONCE: when current_time + 2*timeTraveled = enemy_arrive_time
+        // But we need to account for time passing...
+        // Actually: cancelTime = enemyArriveTime - 2*timeTraveled_at_cancel_time
+        // But timeTraveled_at_cancel_time = initialTimeTraveled + (cancelTime - initialCurrentTime)
+        // So: cancelTime = enemyArriveTime - 2*(initialTimeTraveled + (cancelTime - initialCurrentTime))
+        // cancelTime = enemyArriveTime - 2*initialTimeTraveled - 2*cancelTime + 2*initialCurrentTime
+        // 3*cancelTime = enemyArriveTime - 2*initialTimeTraveled + 2*initialCurrentTime
+        // cancelTime = (enemyArriveTime - 2*initialTimeTraveled + 2*initialCurrentTime) / 3
+        
+        // Wait, that's wrong. Let's think differently:
+        // At cancel time: timeTraveled = duration - timeLeft
+        // We want: cancelTime + 2*timeTraveled = enemyArriveTime
+        // But timeLeft decreases by 1 second every second
+        // So: timeLeft_at_cancel = initialTimeLeft - (cancelTime - initialCurrentTime)
+        // timeTraveled_at_cancel = duration - (initialTimeLeft - (cancelTime - initialCurrentTime))
+        // timeTraveled_at_cancel = duration - initialTimeLeft + cancelTime - initialCurrentTime
+        // timeTraveled_at_cancel = initialTimeTraveled + cancelTime - initialCurrentTime
+        
+        // Equation: cancelTime + 2*(initialTimeTraveled + cancelTime - initialCurrentTime) = enemyArriveTime
+        // cancelTime + 2*initialTimeTraveled + 2*cancelTime - 2*initialCurrentTime = enemyArriveTime
+        // 3*cancelTime = enemyArriveTime - 2*initialTimeTraveled + 2*initialCurrentTime
+        // cancelTime = (enemyArriveTime - 2*initialTimeTraveled + 2*initialCurrentTime) / 3
+        
+        const cancelTime = (enemyArrive.getTime() - 2 * initialTimeTraveled + 2 * initialCurrentTime) / 3;
+        
+        console.log(`Initializing tracker for ${attackId}:`);
+        console.log(`  Enemy arrive: ${formatTime(enemyArrive)} (${enemyArrive.getTime()})`);
+        console.log(`  Duration: ${formatDuration(duration)} (${duration}ms)`);
+        console.log(`  Initial server time: ${formatTime(initialServerTime)} (${initialCurrentTime})`);
+        console.log(`  Initial time left: ${formatDuration(initialTimeLeft)} (${initialTimeLeft}ms)`);
+        console.log(`  Initial time traveled: ${formatDuration(initialTimeTraveled)} (${initialTimeTraveled}ms)`);
+        console.log(`  Calculated cancel time: ${formatTime(new Date(cancelTime))} (${cancelTime})`);
+        
+        // Store the tracker with FIXED cancel time
+        state.cancelTrackers.set(attackId, {
+            row: row,
+            cancelButton: cancelButton,
+            enemyArriveTime: enemyArrive.getTime(),
+            duration: duration,
+            cancelTime: cancelTime, // FIXED - calculated once
+            tracker: null,
+            initializedAt: initialCurrentTime,
+            initialTimeTraveled: initialTimeTraveled
+        });
+        
+        // Add tracker cell
+        updateCancelTrackerCell(row, cancelTime, initialCurrentTime);
+        
+        // Start tracking
+        trackCancelAttack(attackId);
+    }
+    
+    function updateCancelTracker(attackId) {
+        const tracker = state.cancelTrackers.get(attackId);
+        if (!tracker) return;
+        
+        const serverTime = getEstimatedServerTime();
+        const currentTime = serverTime.getTime();
+        
+        // Update display with the FIXED cancel time
+        updateCancelTrackerCell(tracker.row, tracker.cancelTime, currentTime);
+    }
+    
+    function updateCancelTrackerCell(row, cancelTime, currentTime) {
         let trackerCell = row.querySelector('.tw-cancel-tracker-cell');
         
         if (!trackerCell) {
@@ -614,6 +643,7 @@
         
         if (trackerCell) {
             const cancelTimeDate = new Date(cancelTime);
+            const timeUntilCancel = cancelTime - currentTime;
             const secondsUntilCancel = Math.round(timeUntilCancel / 1000);
             
             let display;
@@ -642,31 +672,9 @@
         tracker.tracker = setInterval(() => {
             const serverTime = getEstimatedServerTime();
             const currentTime = serverTime.getTime();
+            const timeUntilCancel = tracker.cancelTime - currentTime;
             
-            // We need to get fresh timeLeft from the DOM
-            const row = tracker.row;
-            const endTimeSpan = row.querySelector('span[data-endtime]');
-            if (!endTimeSpan) {
-                clearInterval(tracker.tracker);
-                state.cancelTrackers.delete(attackId);
-                return;
-            }
-            
-            const timeLeft = parseTimeLeft(endTimeSpan.textContent);
-            if (timeLeft === null) {
-                clearInterval(tracker.tracker);
-                state.cancelTrackers.delete(attackId);
-                return;
-            }
-            
-            const timeTraveled = tracker.duration - timeLeft;
-            
-            // Calculate cancel time: cancel when current_time + 2*timeTraveled = enemy_arrive_time
-            // Or: cancelTime = enemyArriveTime - 2*timeTraveled
-            const cancelTime = tracker.enemyArriveTime - 2 * timeTraveled;
-            const timeUntilCancel = cancelTime - currentTime;
-            
-            updateCancelTrackerCell(row, new Date(tracker.enemyArriveTime), cancelTime, currentTime, timeUntilCancel);
+            updateCancelTrackerCell(tracker.row, tracker.cancelTime, currentTime);
             
             // Cancel when we're within the precision window
             if (Math.abs(timeUntilCancel) <= CONFIG.cancelPrecision) {
@@ -677,7 +685,7 @@
                 state.cancelTrackers.delete(attackId);
                 
                 // Update cell to show missed
-                const trackerCell = row.querySelector('.tw-cancel-tracker-cell');
+                const trackerCell = tracker.row.querySelector('.tw-cancel-tracker-cell');
                 if (trackerCell) {
                     trackerCell.innerHTML = '<div class="tw-cancel-tracker" style="background:#f8d7da;border-color:#f5c6cb;color:#721c24;">✗ Missed cancel window</div>';
                 }
@@ -691,6 +699,7 @@
         
         const serverTime = getEstimatedServerTime();
         console.log(`Cancelling attack ${attackId} at ${formatTime(serverTime)}`);
+        console.log(`Calculated cancel time was: ${formatTime(new Date(tracker.cancelTime))}`);
         console.log(`Enemy arrival: ${formatTime(new Date(tracker.enemyArriveTime))}`);
         
         // Click the cancel button
@@ -768,13 +777,31 @@
         return null;
     }
     
-    // Get latency from serverTime element
+    // Get latency from serverTime element - FIXED
     function getLatency() {
         try {
             const serverTimeEl = document.querySelector('#serverTime');
-            if (!serverTimeEl) return 0;
+            if (!serverTimeEl) {
+                // Try alternative selectors
+                const altSelectors = [
+                    '#server_time',
+                    '.server-time',
+                    'span[data-title*="Latency"]',
+                    'span[title*="Latency"]'
+                ];
+                
+                for (const selector of altSelectors) {
+                    const el = document.querySelector(selector);
+                    if (el) {
+                        const title = el.getAttribute('data-title') || el.getAttribute('title') || '';
+                        const match = title.match(/Latency:\s*([\d.]+)ms/i);
+                        if (match) return parseFloat(match[1]);
+                    }
+                }
+                return 0;
+            }
             
-            const title = serverTimeEl.getAttribute('data-title') || '';
+            const title = serverTimeEl.getAttribute('data-title') || serverTimeEl.getAttribute('title') || '';
             const match = title.match(/Latency:\s*([\d.]+)ms/i);
             return match ? parseFloat(match[1]) : 0;
         } catch (error) {
@@ -896,7 +923,7 @@
                 </div>
                 
                 <div id="tw-status" class="tw-status-box">
-                    Initializing...
+                    Initializing... Latency: ${latency}ms
                 </div>
                 
                 <div class="tw-time-display">
@@ -1087,7 +1114,21 @@
     // Get server time from element
     function getServerTimeFromElement() {
         const el = document.querySelector('#serverTime');
-        if (!el) return null;
+        if (!el) {
+            // Try alternative selectors
+            const altSelectors = ['#server_time', '.server-time', 'span.server-time'];
+            for (const selector of altSelectors) {
+                const altEl = document.querySelector(selector);
+                if (altEl) {
+                    const text = altEl.textContent || '00:00:00';
+                    const parts = text.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0);
+                    return date;
+                }
+            }
+            return null;
+        }
         
         const text = el.textContent || '00:00:00';
         const parts = text.split(':').map(Number);
@@ -1195,7 +1236,8 @@
             state.serverTimeOffset = avgOffset;
             state.calibrationComplete = true;
             
-            statusEl.textContent = `Calibrated! Offset: ${Math.round(avgOffset)}ms`;
+            const latency = getLatency();
+            statusEl.textContent = `Calibrated! Offset: ${Math.round(avgOffset)}ms, Latency: ${latency.toFixed(1)}ms`;
         }
     }
     
@@ -1208,6 +1250,13 @@
             const latency = getLatency();
             
             document.getElementById('tw-current-display').textContent = `Server: ${formatTime(serverTime)}`;
+            
+            // Update latency display
+            const latencyEl = document.getElementById('tw-status');
+            if (latencyEl && state.calibrationComplete) {
+                const offsetText = state.serverTimeOffset !== 0 ? `Offset: ${Math.round(state.serverTimeOffset)}ms, ` : '';
+                latencyEl.textContent = `${offsetText}Latency: ${latency.toFixed(1)}ms`;
+            }
             
             updateDurationTimes(serverTime);
             
