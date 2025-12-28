@@ -42,7 +42,7 @@
         fixedReturnTime: null,
         currentAttackData: null,
         currentMode: ATTACK_MODES.ON_CANCEL,
-        cancelTrackers: new Map(), // Track cancel timers for ongoing attacks
+        cancelTrackers: new Map(),
         isOnCommandsPage: window.location.href.includes('screen=place') && 
                          !window.location.href.includes('try=confirm')
     };
@@ -494,8 +494,6 @@
         }
     }
     
-    // 2. Compact visualization - CSS already updated above
-    
     // 3. Cancel tracking functionality
     function initCancelTracking() {
         console.log('Initializing cancel tracking...');
@@ -701,9 +699,6 @@
         
         return (hours * 3600 + minutes * 60 + seconds) * 1000;
     }
-    
-    // Rest of existing functions (getLatency, getDurationTime, addMainUI, etc.)
-    // ... (keeping all the existing functions from your original script)
     
     // Get latency from serverTime element
     function getLatency() {
@@ -929,125 +924,96 @@
         updateStatus(`Mode: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe'}`, 'info');
     }
     
-    // Start main timer - MODIFIED to include attack naming
-    function startMainTimer() {
-        if (!state.calibrationComplete) {
-            updateStatus('Calibrating... please wait', 'warning');
+    // Update attack data display
+    function updateAttackDataDisplay() {
+        const exportContent = document.getElementById('tw-export-content');
+        if (!exportContent) return;
+        
+        const lastAttack = AttackDataStorage.getLastAttack();
+        
+        if (!lastAttack) {
+            exportContent.textContent = 'No attack data saved yet.';
             return;
         }
         
-        if (state.running) {
-            updateStatus('Timer already running!', 'warning');
-            return;
-        }
-        
-        const targetInput = document.getElementById('tw-target-input').value;
-        const parts = targetInput.split(':');
-        
-        if (parts.length < 3) {
-            updateStatus('Invalid time format!', 'error');
-            return;
-        }
-        
-        const h = parseInt(parts[0], 10) || 0;
-        const m = parseInt(parts[1], 10) || 0;
-        const s = parseInt(parts[2], 10) || 0;
-        const ms = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
-        
-        const current = getEstimatedServerTime();
-        const target = new Date(current);
-        target.setHours(h, m, s, ms);
-        
-        if (target <= current) {
-            target.setDate(target.getDate() + 1);
-        }
-        
-        const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
-        const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
-        const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
-        
-        const calc = calculateAttackTime(target, maxCancel, attackDelay);
-        
-        if (!calc) {
-            updateStatus('Cannot calculate attack time!', 'error');
-            return;
-        }
-        
-        if (calc.remaining < 100) {
-            updateStatus(`Time too close (${calc.remaining}ms)!`, 'error');
-            return;
-        }
-        
-        state.currentAttackData = calc;
-        
-        // Handle attack naming BEFORE starting timer
-        handleAttackNaming();
-        
-        const duration = getDurationTime();
-        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);
-        state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
-        
-        state.running = true;
-        state.targetTime = calc.targetTime;
-        state.clickTime = calc.clickTime;
-        state.updateInterval = Math.max(1, Math.min(100, updateInterval));
-        
-        document.getElementById('tw-start-btn').style.display = 'none';
-        document.getElementById('tw-stop-btn').style.display = 'block';
-        document.getElementById('tw-target-display').style.display = 'block';
-        document.getElementById('tw-click-display').style.display = 'block';
-        document.getElementById('tw-remaining-display').style.display = 'block';
-        document.getElementById('tw-fixed-times').style.display = 'block';
-        
-        document.getElementById('tw-fixed-arrive').textContent = formatTime(state.fixedArriveTime);
-        document.getElementById('tw-fixed-return').textContent = formatTime(state.fixedReturnTime);
-        document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
-        document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
-        
-        const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
-        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s`, 'success');
-        
-        startPrecisionTimer();
+        exportContent.textContent = AttackDataStorage.formatAttackForDisplay(lastAttack);
     }
     
-    // Execute attack - MODIFIED to save data
-    function executeAttack() {
-        saveAttackData();
-        stopMainTimer();
-        
-        const attackBtn = document.querySelector('#troop_confirm_submit');
-        if (!attackBtn) {
-            updateStatus('No attack button found!', 'error');
+    // Copy attack data to clipboard
+    function copyAttackDataToClipboard() {
+        const lastAttack = AttackDataStorage.getLastAttack();
+        if (!lastAttack) {
+            alert('No attack data to copy!');
             return;
         }
         
-        updateStatus('Executing attack...', 'success');
+        const text = AttackDataStorage.formatAttackForDisplay(lastAttack);
         
-        try {
-            attackBtn.click();
-            console.log('Attack executed!');
-        } catch (error) {
-            console.error('Error clicking attack button:', error);
-            updateStatus('Click error: ' + error.message, 'error');
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Attack data copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            alert('Failed to copy data. Please try again.');
+        });
+    }
+    
+    // Download attack data
+    function downloadAttackData() {
+        const lastAttack = AttackDataStorage.getLastAttack();
+        if (!lastAttack) {
+            alert('No attack data to download!');
+            return;
         }
+        
+        const text = AttackDataStorage.formatAttackForDisplay(lastAttack);
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        a.href = url;
+        a.download = `attack-data-${timestamp}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
     
-    // Format time
-    function formatTime(date) {
-        if (!date) return '--:--:--:---';
-        const h = date.getHours().toString().padStart(2, '0');
-        const m = date.getMinutes().toString().padStart(2, '0');
-        const s = date.getSeconds().toString().padStart(2, '0');
-        const ms = date.getMilliseconds().toString().padStart(3, '0');
-        return `${h}:${m}:${s}:${ms}`;
-    }
-    
-    // Format duration
-    function formatDuration(ms) {
-        const hours = Math.floor(ms / 3600000);
-        const minutes = Math.floor((ms % 3600000) / 60000);
-        const seconds = Math.floor((ms % 60000) / 1000);
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    // Save attack data to sessionStorage
+    function saveAttackData() {
+        if (!state.currentAttackData) {
+            console.warn('No attack data to save');
+            return;
+        }
+        
+        const attackData = {
+            mode: state.currentMode,
+            startTime: formatTime(new Date()),
+            enemyArrival: formatTime(state.targetTime),
+            clickAt: formatTime(state.clickTime),
+            duration: formatDuration(getDurationTime()),
+            arriveToDestination: formatTime(new Date(state.clickTime.getTime() + getDurationTime())),
+            returnIfNotCancel: formatTime(new Date(state.clickTime.getTime() + getDurationTime() * 2)),
+            latency: `${getLatency().toFixed(1)}ms`,
+            willArriveAt: formatTime(state.fixedArriveTime),
+            willReturnAt: formatTime(state.fixedReturnTime),
+            updateInterval: document.getElementById('tw-update-input').value + 'ms',
+            maxCancel: document.getElementById('tw-cancel-input').value + 'min',
+            attackDelay: document.getElementById('tw-delay-input').value + 'ms',
+            enemy: document.getElementById('tw-target-text').textContent,
+            offset: `${Math.round(state.serverTimeOffset)}ms`,
+            notes: state.currentAttackData.adjustedMaxCancel ? 
+                   `Cancel time adjusted to ${state.currentAttackData.adjustedMaxCancel.toFixed(1)}min` :
+                   'Using snipe timing'
+        };
+        
+        const savedAttack = AttackDataStorage.saveAttackData(attackData);
+        
+        // Show export section
+        document.getElementById('tw-export-container').style.display = 'block';
+        updateAttackDataDisplay();
+        
+        return savedAttack;
     }
     
     // Get server time from element
@@ -1068,6 +1034,7 @@
         if (!state.calibrationComplete) {
             const serverTime = getServerTimeFromElement();
             if (!serverTime) return new Date();
+            
             serverTime.setMilliseconds(new Date().getMilliseconds());
             return serverTime;
         }
@@ -1076,9 +1043,29 @@
         return new Date(now.getTime() + state.serverTimeOffset);
     }
     
+    // Format time
+    function formatTime(date) {
+        if (!date) return '--:--:--:---';
+        const h = date.getHours().toString().padStart(2, '0');
+        const m = date.getMinutes().toString().padStart(2, '0');
+        const s = date.getSeconds().toString().padStart(2, '0');
+        const ms = date.getMilliseconds().toString().padStart(3, '0');
+        return `${h}:${m}:${s}:${ms}`;
+    }
+    
+    // Format duration
+    function formatDuration(ms) {
+        const hours = Math.floor(ms / 3600000);
+        const minutes = Math.floor((ms % 3600000) / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000);
+        
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
     // Calibrate server time
     function calibrateServerTime() {
         const statusEl = document.getElementById('tw-status');
+        
         if (!statusEl) return;
         
         statusEl.textContent = 'Calibrating server time...';
@@ -1131,17 +1118,19 @@
                 statusEl.textContent = 'Using estimated server time';
                 state.calibrationComplete = true;
             }
-        }, 5000);
+        }, 10000);
         
         function finishCalibration() {
             observer.disconnect();
+            
             const avgOffset = state.calibrationData.reduce((sum, d) => sum + d.offset, 0) / samples;
             state.serverTimeOffset = avgOffset;
             state.calibrationComplete = true;
+            
             statusEl.textContent = `Calibrated! Offset: ${Math.round(avgOffset)}ms`;
         }
     }
-      
+    
     // Start display updates
     function startDisplayUpdates() {
         const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
@@ -1150,16 +1139,7 @@
             const serverTime = getEstimatedServerTime();
             const latency = getLatency();
             
-            document.getElementById('tw-current-display').textContent = `⏰ Server: ${formatTime(serverTime)}`;
-            
-            const durationInfo = document.getElementById('tw-duration-info');
-            if (durationInfo) {
-                const duration = getDurationTime();
-                durationInfo.innerHTML = `<div class="tw-duration-stats">
-                    <span>📊 Duration: ${formatDuration(duration)}</span>
-                    <span>📡 Latency: ${latency.toFixed(1)}ms</span>
-                </div>`;
-            }
+            document.getElementById('tw-current-display').textContent = `Server: ${formatTime(serverTime)}`;
             
             updateDurationTimes(serverTime);
             
@@ -1197,12 +1177,6 @@
         const twoTimesCancel = maxCancelMs * 2;
         const timeAvailable = targetTime.getTime() - current.getTime();
         
-        console.log('=== CALCULATION START ===');
-        console.log('Mode:', state.currentMode);
-        console.log('Target (enemy):', formatTime(targetTime));
-        console.log('Current:', formatTime(current));
-        console.log('Duration:', formatDuration(duration));
-        
         let adjustedMaxCancelMs = maxCancelMs;
         let clickTime;
         
@@ -1212,7 +1186,6 @@
                 // Enough time for full 2x cancel
                 const latestAttackMs = targetTime.getTime() - twoTimesCancel;
                 clickTime = new Date(latestAttackMs - attackDelay - latency);
-                console.log('Anti-Noble: Using full cancel time');
             } else {
                 // Not enough time for full cancel - adjust
                 const minNeeded = attackDelay + latency + 100;
@@ -1232,7 +1205,6 @@
                     const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * 2);
                     clickTime = new Date(latestAttackMs - attackDelay - latency);
                 }
-                console.log('Anti-Noble: Using adjusted cancel time');
             }
         } else {
             // SNIPE MODE: Arrive just before enemy
@@ -1248,17 +1220,9 @@
             
             // For snipe mode, we don't use cancel time
             adjustedMaxCancelMs = 0;
-            console.log('Snipe: Targeting arrival just before enemy');
         }
         
         const remaining = clickTime.getTime() - current.getTime();
-        
-        console.log('Click time:', formatTime(clickTime));
-        console.log('Remaining until click:', remaining, 'ms');
-        if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
-            console.log('Adjusted max cancel:', adjustedMaxCancelMs, 'ms =', (adjustedMaxCancelMs/60000).toFixed(2), 'min');
-        }
-        console.log('=== CALCULATION END ===');
         
         if (remaining < 100) {
             console.error('Click time too close! Need at least 100ms');
@@ -1328,14 +1292,17 @@
         // Store current attack data for saving
         state.currentAttackData = calc;
         
+        // Handle attack naming BEFORE starting timer
+        handleAttackNaming();
+        
         // Show warning if max cancel was adjusted (only for Anti-Noble mode)
         if (state.currentMode === ATTACK_MODES.ON_CANCEL && 
             calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
-            updateStatus(`⚠️ Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
+            updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
         } else if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
-            updateStatus(`✅ Using ${maxCancel}min cancel time`, 'success');
+            updateStatus(`Using ${maxCancel}min cancel time`, 'success');
         } else {
-            updateStatus(`✅ Snipe mode: Arriving just before enemy`, 'success');
+            updateStatus(`Snipe mode: Arriving just before enemy`, 'success');
         }
         
         const duration = getDurationTime();
@@ -1361,7 +1328,7 @@
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
         const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
-        updateStatus(`✅ ${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
+        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
         
         startPrecisionTimer();
     }
@@ -1384,7 +1351,7 @@
             if (now - lastDisplayUpdate >= 50) {
                 lastDisplayUpdate = now;
                 
-                document.getElementById('tw-current-display').textContent = `⏰ Server: ${formatTime(current)}`;
+                document.getElementById('tw-current-display').textContent = `Server: ${formatTime(current)}`;
                 document.getElementById('tw-remaining-text').textContent = `${remaining}ms`;
                 
                 updateDurationTimes(current);
@@ -1416,35 +1383,18 @@
         
         const attackBtn = document.querySelector('#troop_confirm_submit');
         if (!attackBtn) {
-            updateStatus('❌ No attack button found!', 'error');
+            updateStatus('No attack button found!', 'error');
             return;
         }
         
-        updateStatus('✅ Executing attack...', 'success');
+        updateStatus('Executing attack...', 'success');
         
         try {
-            const originalOnclick = attackBtn.onclick;
-            attackBtn.onclick = null;
             attackBtn.click();
-            
-            if (originalOnclick) {
-                attackBtn.onclick = originalOnclick;
-            }
-            
-            console.log('Attack data saved and button clicked!');
-            
+            console.log('Attack executed!');
         } catch (error) {
             console.error('Error clicking attack button:', error);
-            updateStatus('❌ Click error: ' + error.message, 'error');
-            
-            try {
-                const form = attackBtn.closest('form');
-                if (form) {
-                    form.submit();
-                }
-            } catch (e) {
-                console.error('Form submission failed:', e);
-            }
+            updateStatus('Click error: ' + error.message, 'error');
         }
     }
     
@@ -1479,10 +1429,18 @@
         el.className = 'tw-status-box';
         
         switch (type) {
-            case 'error': el.classList.add('tw-status-error'); break;
-            case 'warning': el.classList.add('tw-status-warning'); break;
-            case 'success': el.classList.add('tw-status-success'); break;
-            case 'info': el.classList.add('tw-status-info'); break;
+            case 'error':
+                el.classList.add('tw-status-error');
+                break;
+            case 'warning':
+                el.classList.add('tw-status-warning');
+                break;
+            case 'success':
+                el.classList.add('tw-status-success');
+                break;
+            case 'info':
+                el.classList.add('tw-status-info');
+                break;
         }
     }
     
