@@ -124,14 +124,12 @@ class ExchangeTracker {
             
             .tw-summary-table {
                 width: 100%;
-                border-collapse: collapse;
                 margin-bottom: 20px;
                 font-size: 11px;
             }
             
             .tw-summary-table th,
             .tw-summary-table td {
-                border: 1px solid #ddd;
                 padding: 4px 6px;
                 text-align: center;
             }
@@ -223,7 +221,7 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stat-controls button {
-                background: linear-gradient(to bottom, #947a62 0%,#7b5c3d 22%,#6c4824 30%,#6c4824 100%)
+                background: linear-gradient(to bottom, #947a62 0%,#7b5c3d 22%,#6c4824 30%,#6c4824 100%);
                 color: white;
                 border: none;
                 padding: 6px 12px;
