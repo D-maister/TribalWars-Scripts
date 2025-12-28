@@ -15,9 +15,9 @@ class ExchangeTracker {
             'iron': 'Iron'
         };
         this.chartColors = {
-            'wood': '#8B4513',
-            'stone': '#708090',
-            'iron': '#C0C0C0'
+            'wood': '#874D26',
+            'stone': '#E66E1E',
+            'iron': '#95ADAD'
         };
         this.minMaxCache = {};
         this.recentMinMaxCache = {};
@@ -82,12 +82,8 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stats-container {
-                background: white;
-                border: 2px solid #4CAF50;
-                border-radius: 8px;
                 padding: 15px;
                 margin: 20px 0;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
             
             .tw-exchange-stats-header {
@@ -100,8 +96,8 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stats-title {
-                color: #2E7D32;
-                font-size: 18px;
+                color: #000;
+                font-size: 12pt;
                 font-weight: bold;
                 margin: 0;
             }
@@ -167,7 +163,6 @@ class ExchangeTracker {
             
             .tw-exchange-stat-table {
                 width: 100%;
-                border-collapse: collapse;
                 font-size: 11px;
             }
             
@@ -179,8 +174,10 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stat-table th {
-                background-color: #4CAF50;
-                color: white;
+                background-color: #c1a264 !important;
+                background-image: url(https://dsru.innogamescdn.com/asset/fc339a06/graphic/screen/tableheader_bg3.webp);
+                background-repeat: repeat-x;
+                color: #000;
                 font-weight: bold;
                 position: sticky;
                 top: 0;
@@ -208,14 +205,13 @@ class ExchangeTracker {
                 gap: 10px;
                 margin-bottom: 15px;
                 padding: 10px;
-                background-color: #f5f5f5;
                 border-radius: 4px;
                 flex-wrap: wrap;
             }
             
             .tw-exchange-stat-controls label {
                 font-weight: bold;
-                color: #333;
+                color: #000;
                 white-space: nowrap;
             }
             
@@ -408,22 +404,23 @@ class ExchangeTracker {
             }
             
             .tw-chart-container {
-                background: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 10px;
+                background: #F4E4BC;
+                border: 1px solid #7d510f;
+                border-radius: 0px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                height: 250px;
+                height: 280px;
                 display: flex;
                 flex-direction: column;
             }
             
             .tw-chart-title {
-                color: #333;
-                font-size: 14px;
-                font-weight: bold;
-                margin: 0 0 10px 0;
-                text-align: center;
+                font-size: 9pt;
+                text-align: left;
+                font-weight: 700;
+                background-color: #c1a264 !important;
+                background-image: url(https://dsru.innogamescdn.com/asset/fc339a06/graphic/screen/tableheader_bg3.webp);
+                background-repeat: repeat-x;
+                position: relative;
             }
             
             .tw-chart-svg-container {
@@ -1414,7 +1411,7 @@ class ExchangeTracker {
         
         const secLabel = document.createElement('label');
         secLabel.textContent = 'seconds';
-        secLabel.style.color = '#666';
+        secLabel.style.color = '#000';
         
         const hideDupesBtn = document.createElement('button');
         hideDupesBtn.id = 'tw-hide-dupes-btn';
