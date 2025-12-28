@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      2.3
+// @version      2.4
 // @description  Precision attack timer with anti-noble and snipe modes, attack naming, and cancel tracking
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
@@ -543,29 +543,25 @@
                                 const serverTime = getEstimatedServerTime();
                                 const currentTime = serverTime.getTime();
                                 
-                                // CORRECTED CALCULATION:
-                                // We need to cancel when: enemy_arrive_at = current_time + 2*(duration - time_left)
-                                // This is when troops would return at exactly enemy arrival time
+                                // Calculate time traveled
+                                const timeTraveled = duration - timeLeft;
                                 
-                                const timeTraveled = duration - timeLeft; // time already traveled
-                                const returnTimeIfCancelNow = currentTime + 2 * timeTraveled; // when troops would return if cancelled now
+                                // Calculate when we should cancel:
+                                // Cancel when: current_time + 2 * timeTraveled = enemy_arrive_time
+                                // Or: timeTraveled = (enemy_arrive_time - current_time) / 2
                                 
-                                // Calculate time until perfect cancel moment
-                                // We want: enemyArriveTime = currentTime + 2*(duration - timeLeft)
-                                // Rearranged: currentTime = enemyArriveTime - 2*(duration - timeLeft)
-                                // But timeLeft changes every second, so we check if the equation holds
+                                const timeUntilCancelFormula = enemyArrive.getTime() - (currentTime + 2 * timeTraveled);
                                 
-                                const timeUntilPerfectCancel = enemyArrive.getTime() - returnTimeIfCancelNow;
+                                // Alternative calculation: timeTraveled needed = (enemyArrive - currentTime)/2
+                                const neededTimeTraveled = (enemyArrive.getTime() - currentTime) / 2;
+                                const timeUntilCancel = (neededTimeTraveled - timeTraveled) * 1000; // convert to ms difference
                                 
-                                // For display: calculate when we SHOULD cancel
-                                // enemyArriveTime = cancelTime + 2*(duration - (timeLeft at cancelTime))
-                                // This is complex because timeLeft changes...
-                                
-                                // Actually simpler: we should cancel when returnTimeIfCancelNow ≈ enemyArriveTime
-                                const timeUntilCancel = timeUntilPerfectCancel;
+                                // Calculate cancel time: when timeTraveled = (enemyArrive - cancelTime)/2
+                                // cancelTime = enemyArrive - 2*timeTraveled
+                                const cancelTime = enemyArrive.getTime() - 2 * timeTraveled;
                                 
                                 // Add/update cancel tracker cell
-                                updateCancelTrackerCell(row, timeUntilCancel, enemyArrive.getTime(), returnTimeIfCancelNow);
+                                updateCancelTrackerCell(row, enemyArrive, cancelTime, currentTime, timeUntilCancel);
                                 
                                 // Track this attack
                                 if (!state.cancelTrackers.has(attackId)) {
@@ -574,22 +570,23 @@
                                         cancelButton: cancelButton,
                                         enemyArriveTime: enemyArrive.getTime(),
                                         duration: duration,
-                                        tracker: null,
-                                        lastTimeLeft: timeLeft
+                                        tracker: null
                                     });
                                     
-                                    console.log(`Tracking attack ${attackId}: Enemy arrive: ${formatTime(enemyArrive)}, Duration: ${formatDuration(duration)}`);
+                                    console.log(`Tracking attack ${attackId}:`);
+                                    console.log(`  Enemy arrive: ${formatTime(enemyArrive)}`);
+                                    console.log(`  Duration: ${formatDuration(duration)}`);
+                                    console.log(`  Current time: ${formatTime(serverTime)}`);
+                                    console.log(`  Time left: ${formatDuration(timeLeft)}`);
+                                    console.log(`  Time traveled: ${formatDuration(timeTraveled)}`);
+                                    console.log(`  Should cancel at: ${formatTime(new Date(cancelTime))}`);
                                     
                                     // Start tracking
                                     trackCancelAttack(attackId);
-                                } else {
-                                    // Update time left
-                                    const tracker = state.cancelTrackers.get(attackId);
-                                    tracker.lastTimeLeft = timeLeft;
                                 }
                                 
-                                // Check if it's time to cancel (when returnTimeIfCancelNow ≈ enemyArriveTime)
-                                if (Math.abs(timeUntilPerfectCancel) <= CONFIG.cancelPrecision) {
+                                // Check if it's time to cancel
+                                if (Math.abs(timeUntilCancelFormula) <= CONFIG.cancelPrecision) {
                                     executeCancel(attackId);
                                 }
                             }
@@ -602,7 +599,7 @@
         }
     }
     
-    function updateCancelTrackerCell(row, timeUntilCancel, enemyArriveTime, returnTimeIfCancelNow) {
+    function updateCancelTrackerCell(row, enemyArrive, cancelTime, currentTime, timeUntilCancel) {
         let trackerCell = row.querySelector('.tw-cancel-tracker-cell');
         
         if (!trackerCell) {
@@ -616,42 +613,19 @@
         }
         
         if (trackerCell) {
-            const serverTime = getEstimatedServerTime();
-            const currentTime = serverTime.getTime();
+            const cancelTimeDate = new Date(cancelTime);
+            const secondsUntilCancel = Math.round(timeUntilCancel / 1000);
             
             let display;
-            if (returnTimeIfCancelNow) {
-                const timeDiff = returnTimeIfCancelNow - enemyArriveTime;
-                const secondsDiff = Math.abs(timeDiff / 1000);
-                
-                if (Math.abs(timeDiff) <= 1000) {
-                    // Perfect timing
-                    display = `Cancel NOW! (Return: ${formatTime(new Date(returnTimeIfCancelNow))})`;
-                } else if (timeDiff > 0) {
-                    // Would return after enemy
-                    display = `Cancel in ${secondsDiff.toFixed(1)}s (Return ${secondsDiff.toFixed(1)}s late)`;
-                } else {
-                    // Would return before enemy
-                    display = `Cancel in ${(-timeDiff/1000).toFixed(1)}s (Return ${(-timeDiff/1000).toFixed(1)}s early)`;
-                }
-                
-                trackerCell.innerHTML = `<div class="tw-cancel-tracker ${Math.abs(timeDiff) <= 1000 ? 'critical' : ''}">${display}</div>`;
+            if (secondsUntilCancel > 0) {
+                display = `Cancel at ${formatTime(cancelTimeDate)} (${secondsUntilCancel} sec left)`;
+            } else if (secondsUntilCancel > -5) {
+                display = `Cancel NOW! (${-secondsUntilCancel} sec ago)`;
             } else {
-                // Fallback display
-                const seconds = Math.floor(timeUntilCancel / 1000);
-                const absSeconds = Math.abs(seconds);
-                const hours = Math.floor(absSeconds / 3600);
-                const minutes = Math.floor((absSeconds % 3600) / 60);
-                const secs = absSeconds % 60;
-                
-                if (seconds > 0) {
-                    display = `Cancel in ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                } else {
-                    display = `Cancel NOW! (${-seconds}s ago)`;
-                }
-                
-                trackerCell.innerHTML = `<div class="tw-cancel-tracker ${seconds <= 1 ? 'critical' : ''}">${display}</div>`;
+                display = `Missed cancel (${-secondsUntilCancel} sec ago)`;
             }
+            
+            trackerCell.innerHTML = `<div class="tw-cancel-tracker ${Math.abs(secondsUntilCancel) <= 10 ? 'critical' : ''}">${display}</div>`;
         }
     }
     
@@ -685,19 +659,20 @@
                 return;
             }
             
-            tracker.lastTimeLeft = timeLeft;
-            
             const timeTraveled = tracker.duration - timeLeft;
-            const returnTimeIfCancelNow = currentTime + 2 * timeTraveled;
-            const timeDiff = returnTimeIfCancelNow - tracker.enemyArriveTime;
             
-            updateCancelTrackerCell(row, timeDiff, tracker.enemyArriveTime, returnTimeIfCancelNow);
+            // Calculate cancel time: cancel when current_time + 2*timeTraveled = enemy_arrive_time
+            // Or: cancelTime = enemyArriveTime - 2*timeTraveled
+            const cancelTime = tracker.enemyArriveTime - 2 * timeTraveled;
+            const timeUntilCancel = cancelTime - currentTime;
             
-            // Cancel when return time is approximately equal to enemy arrival time
-            if (Math.abs(timeDiff) <= CONFIG.cancelPrecision) {
+            updateCancelTrackerCell(row, new Date(tracker.enemyArriveTime), cancelTime, currentTime, timeUntilCancel);
+            
+            // Cancel when we're within the precision window
+            if (Math.abs(timeUntilCancel) <= CONFIG.cancelPrecision) {
                 executeCancel(attackId);
-            } else if (timeDiff > 5000) {
-                // Stop tracking if we're way past the optimal time (5 seconds)
+            } else if (timeUntilCancel < -5000) {
+                // Stop tracking if we're way past cancel time (5 seconds)
                 clearInterval(tracker.tracker);
                 state.cancelTrackers.delete(attackId);
                 
@@ -717,7 +692,6 @@
         const serverTime = getEstimatedServerTime();
         console.log(`Cancelling attack ${attackId} at ${formatTime(serverTime)}`);
         console.log(`Enemy arrival: ${formatTime(new Date(tracker.enemyArriveTime))}`);
-        console.log(`Time left: ${formatDuration(tracker.lastTimeLeft)}`);
         
         // Click the cancel button
         try {
@@ -1261,7 +1235,7 @@
         }
     }
     
-    // Calculate attack time based on selected mode
+    // Calculate attack time based on selected mode - UPDATED with your logic
     function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
         const current = getEstimatedServerTime();
         const latency = getLatency();
@@ -1269,36 +1243,37 @@
         
         const maxCancelMs = maxCancelMinutes * 60 * 1000;
         const twoTimesCancel = maxCancelMs * 2;
-        const timeAvailable = targetTime.getTime() - current.getTime();
+        const fiveSeconds = 5000;
+        const tenSeconds = 10000;
         
-        let adjustedMaxCancelMs = maxCancelMs;
+        const earliestClickTime = new Date(targetTime.getTime() - twoTimesCancel + fiveSeconds);
+        const latestClickTime = new Date(targetTime.getTime() - tenSeconds);
+        
         let clickTime;
         
         if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
-            // ANTI-NOBLE MODE: Attack early, can cancel
-            if (timeAvailable >= twoTimesCancel) {
-                // Enough time for full 2x cancel
-                const latestAttackMs = targetTime.getTime() - twoTimesCancel;
-                clickTime = new Date(latestAttackMs - attackDelay - latency);
+            // ANTI-NOBLE MODE: Click between earliest and latest times
+            const currentTime = current.getTime();
+            
+            if (currentTime >= latestClickTime.getTime()) {
+                // We're already past the latest time, click now (with small delay)
+                clickTime = new Date(currentTime + Math.max(100, attackDelay + latency));
+                console.log('Late: Clicking now with minimal delay');
+            } else if (currentTime >= earliestClickTime.getTime()) {
+                // We're in the valid window, click now with normal delay
+                clickTime = new Date(currentTime + attackDelay + latency);
+                console.log('In window: Clicking with normal delay');
             } else {
-                // Not enough time for full cancel - adjust
-                const minNeeded = attackDelay + latency + 100;
-                
-                if (timeAvailable < minNeeded) {
-                    console.error('Not enough time even for immediate attack');
-                    return null;
-                }
-                
-                const maxCancelPossible = Math.floor((timeAvailable - attackDelay - latency - 100) / 2);
-                
-                if (maxCancelPossible < 1000) {
-                    clickTime = new Date(current.getTime() + 100);
-                    adjustedMaxCancelMs = 1000;
-                } else {
-                    adjustedMaxCancelMs = maxCancelPossible;
-                    const latestAttackMs = targetTime.getTime() - (adjustedMaxCancelMs * 2);
-                    clickTime = new Date(latestAttackMs - attackDelay - latency);
-                }
+                // We're before the earliest time, wait until earliest time
+                const waitTime = earliestClickTime.getTime() - currentTime;
+                clickTime = new Date(earliestClickTime.getTime() + attackDelay + latency);
+                console.log('Early: Waiting ' + (waitTime/1000).toFixed(1) + 's until earliest time');
+            }
+            
+            // Ensure we don't click after latest time
+            if (clickTime.getTime() > latestClickTime.getTime()) {
+                clickTime = new Date(latestClickTime.getTime());
+                console.log('Adjusted: Would be too late, using latest time');
             }
         } else {
             // SNIPE MODE: Arrive just before enemy
@@ -1311,9 +1286,6 @@
                 console.error('Not enough time for snipe attack');
                 return null;
             }
-            
-            // For snipe mode, we don't use cancel time
-            adjustedMaxCancelMs = 0;
         }
         
         const remaining = clickTime.getTime() - current.getTime();
@@ -1326,7 +1298,9 @@
         return {
             targetTime: targetTime,
             clickTime: clickTime,
-            adjustedMaxCancel: adjustedMaxCancelMs / 60000,
+            earliestClickTime: earliestClickTime,
+            latestClickTime: latestClickTime,
+            maxCancelMinutes: maxCancelMinutes,
             attackDelay: attackDelay,
             latency: latency,
             remaining: remaining,
@@ -1389,14 +1363,11 @@
         // Handle attack naming BEFORE starting timer
         handleAttackNaming();
         
-        // Show warning if max cancel was adjusted (only for Anti-Noble mode)
-        if (state.currentMode === ATTACK_MODES.ON_CANCEL && 
-            calc.adjustedMaxCancel.toFixed(1) !== maxCancel.toFixed(1)) {
-            updateStatus(`Max cancel adjusted to ${calc.adjustedMaxCancel.toFixed(1)}min`, 'warning');
-        } else if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
-            updateStatus(`Using ${maxCancel}min cancel time`, 'success');
+        // Show timing info
+        if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
+            updateStatus(`Anti-Noble: Click between ${formatTime(calc.earliestClickTime)} and ${formatTime(calc.latestClickTime)}`, 'success');
         } else {
-            updateStatus(`Snipe mode: Arriving just before enemy`, 'success');
+            updateStatus(`Snipe: Arriving just before enemy`, 'success');
         }
         
         const duration = getDurationTime();
@@ -1422,7 +1393,7 @@
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
         const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
-        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
+        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (${calc.attackDelay}ms delay + ${calc.latency.toFixed(1)}ms latency)`, 'success');
         
         startPrecisionTimer();
     }
