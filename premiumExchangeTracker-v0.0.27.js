@@ -223,7 +223,7 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stat-controls button {
-                background: linear-gradient(to bottom, #f44336, #d32f2f);
+                background: linear-gradient(to bottom, #947a62 0%,#7b5c3d 22%,#6c4824 30%,#6c4824 100%)
                 color: white;
                 border: none;
                 padding: 6px 12px;
@@ -234,7 +234,7 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stat-controls button:hover {
-                background: linear-gradient(to bottom, #d32f2f, #b71c1c);
+                background: linear-gradient(to bottom, #b69471 0%, #9f764d 22%, #8f6133 30%, #6c4d2d 100%);
             }
             
             .tw-exchange-stat-timestamp {
@@ -421,6 +421,7 @@ class ExchangeTracker {
                 background-image: url(https://dsru.innogamescdn.com/asset/fc339a06/graphic/screen/tableheader_bg3.webp);
                 background-repeat: repeat-x;
                 position: relative;
+                padding: 3px;
             }
             
             .tw-chart-svg-container {
@@ -1842,12 +1843,6 @@ class ExchangeTracker {
         if (button) {
             button.textContent = this.hideDuplicates ? 'Show All' : 'Hide Duplicates';
             button.title = this.hideDuplicates ? 'Show all rows including duplicates' : 'Hide rows with no changes from previous record (applies to table and charts)';
-            
-            if (this.hideDuplicates) {
-                button.style.background = 'linear-gradient(to bottom, #2196F3, #1976D2)';
-            } else {
-                button.style.background = 'linear-gradient(to bottom, #f44336, #d32f2f)';
-            }
         }
         
         this.updateStatsUI();
