@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Tribal Wars Precision Attack Timer
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Precision attack timer with anti-noble and snipe modes
+// @version      2.1
+// @description  Precision attack timer with anti-noble and snipe modes, attack naming, and cancel tracking
 // @author       D-maister
 // @match        https://*.voynaplemyon.com/game.php?*screen=place*try=confirm*
+// @match        https://*.voynaplemyon.com/game.php?*screen=place*
 // @grant        none
 // ==/UserScript==
 
@@ -18,7 +19,8 @@
         defaultMaxCancelMinutes: 10,
         defaultAttackDelay: 50,
         maxCancelMultiplier: 2,
-        calibrationSamples: 10
+        calibrationSamples: 10,
+        cancelCheckInterval: 100 // ms for checking cancel timings
     };
     
     const ATTACK_MODES = {
@@ -39,7 +41,10 @@
         fixedArriveTime: null,
         fixedReturnTime: null,
         currentAttackData: null,
-        currentMode: ATTACK_MODES.ON_CANCEL
+        currentMode: ATTACK_MODES.ON_CANCEL,
+        cancelTrackers: new Map(), // Track cancel timers for ongoing attacks
+        isOnCommandsPage: window.location.href.includes('screen=place') && 
+                         !window.location.href.includes('try=confirm')
     };
     
     // Storage functions for attack data
@@ -128,85 +133,75 @@
     // Initialize attack data storage
     AttackDataStorage.init();
     
-    // Add CSS styles with enhanced white theme
+    // Compact CSS styles
     const style = document.createElement('style');
     style.textContent = `
         .tw-container {
-            background: linear-gradient(145deg, #ffffff, #f8f9fa);
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            padding: 25px;
-            margin: 25px 0;
-            color: #212529;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-family: Arial, sans-serif;
+            font-size: 13px;
         }
         
         .tw-title {
-            margin: 0 0 20px 0;
-            color: #495057;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 20px;
-            border-bottom: 2px solid #dee2e6;
-            padding-bottom: 15px;
-        }
-        
-        .tw-title-icon {
-            font-size: 28px;
+            margin: 0 0 10px 0;
+            color: #555;
+            font-size: 16px;
+            font-weight: bold;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
         }
         
         .tw-mode-selector {
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         
         .tw-mode-buttons {
             display: flex;
-            gap: 10px;
-            margin-top: 8px;
+            gap: 8px;
+            margin: 5px 0;
         }
         
         .tw-mode-button {
             flex: 1;
-            padding: 12px;
-            background: #e9ecef;
-            border: 2px solid #dee2e6;
-            color: #495057;
-            border-radius: 8px;
+            padding: 8px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            color: #555;
+            border-radius: 4px;
             cursor: pointer;
-            font-weight: 600;
-            font-size: 14px;
-            transition: all 0.3s;
-            text-align: center;
+            font-size: 12px;
+            transition: all 0.2s;
         }
         
         .tw-mode-button:hover {
-            background: #dee2e6;
-            transform: translateY(-1px);
+            background: #e9e9e9;
         }
         
         .tw-mode-button.active {
-            background: linear-gradient(145deg, #4CAF50, #388E3C);
-            border-color: #2E7D32;
+            background: #4CAF50;
+            border-color: #388E3C;
             color: white;
-            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
         }
         
         .tw-mode-button.active.arrive-mode {
-            background: linear-gradient(145deg, #2196F3, #1976D2);
-            border-color: #0D47A1;
-            box-shadow: 0 3px 10px rgba(33, 150, 243, 0.2);
+            background: #2196F3;
+            border-color: #1976D2;
         }
         
         .tw-mode-description {
-            font-size: 13px;
-            color: #6c757d;
-            margin-top: 4px;
-            padding: 8px;
-            background: #f8f9fa;
-            border-radius: 6px;
-            border-left: 3px solid #4CAF50;
+            font-size: 11px;
+            color: #666;
+            margin-top: 3px;
+            padding: 6px;
+            background: #f9f9f9;
+            border-radius: 4px;
+            border-left: 2px solid #4CAF50;
         }
         
         .tw-mode-description.arrive-mode {
@@ -214,450 +209,227 @@
         }
         
         .tw-status-box {
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 25px;
-            border-left: 4px solid #6c757d;
-            color: #495057;
-            font-size: 14px;
-            min-height: 24px;
-            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            border-left: 3px solid #999;
+            background: #f8f8f8;
+            min-height: 20px;
+            font-size: 12px;
         }
         
-        .tw-status-error {
-            border-left-color: #dc3545 !important;
-            color: #721c24 !important;
-            background: #f8d7da !important;
-        }
-        
-        .tw-status-warning {
-            border-left-color: #ffc107 !important;
-            color: #856404 !important;
-            background: #fff3cd !important;
-        }
-        
-        .tw-status-success {
-            border-left-color: #28a745 !important;
-            color: #155724 !important;
-            background: #d4edda !important;
-        }
-        
-        .tw-status-info {
-            border-left-color: #17a2b8 !important;
-            color: #0c5460 !important;
-            background: #d1ecf1 !important;
-        }
-        
-        .tw-calibration-status {
-            padding: 15px;
-            background: #e7f3ff;
-            border: 1px solid #b8daff;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            color: #004085;
-            font-size: 14px;
-            display: none;
-        }
-        
-        .tw-duration-info {
-            padding: 12px;
-            background: #e7f3ff;
-            border: 1px solid #b8daff;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            color: #004085;
-            font-size: 14px;
-        }
-        
-        .tw-duration-stats {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .tw-status-error { border-left-color: #dc3545; background: #fdd; }
+        .tw-status-warning { border-left-color: #ffc107; background: #ffe; }
+        .tw-status-success { border-left-color: #28a745; background: #dfd; }
+        .tw-status-info { border-left-color: #17a2b8; background: #dff; }
         
         .tw-times-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .tw-time-box {
-            border-radius: 8px;
-            padding: 15px;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            transition: all 0.3s;
+            padding: 10px;
+            background: #f8f8f8;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            font-size: 12px;
         }
         
-        .tw-time-box:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-            transform: translateY(-2px);
-        }
-        
-        .tw-arrive-box {
-            border-left: 4px solid #28a745;
-        }
-        
-        .tw-return-box {
-            border-left: 4px solid #fd7e14;
-        }
+        .tw-arrive-box { border-left: 3px solid #28a745; }
+        .tw-return-box { border-left: 3px solid #fd7e14; }
         
         .tw-time-label {
-            margin-bottom: 8px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-            color: #495057;
-        }
-        
-        .tw-arrive-label {
-            color: #28a745;
-        }
-        
-        .tw-return-label {
-            color: #fd7e14;
-        }
-        
-        .tw-time-icon {
-            font-size: 20px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 11px;
         }
         
         .tw-time-value {
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
+            font-family: monospace;
+            font-size: 13px;
             font-weight: bold;
-            color: #212529;
         }
         
-        .tw-arrive-value {
-            color: #28a745;
-        }
-        
-        .tw-return-value {
-            color: #fd7e14;
-        }
+        .tw-arrive-value { color: #28a745; }
+        .tw-return-value { color: #fd7e14; }
         
         .tw-fixed-times-container {
+            margin-bottom: 15px;
             display: none;
-            margin-bottom: 20px;
-        }
-        
-        .tw-fixed-times-box {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-        }
-        
-        .tw-fixed-times-label {
-            color: #495057;
-            margin-bottom: 12px;
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
         }
         
         .tw-fixed-times-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 10px;
         }
         
         .tw-fixed-time-box {
-            border-radius: 6px;
-            padding: 12px;
+            padding: 8px;
             background: white;
-            border: 1px solid #e9ecef;
-        }
-        
-        .tw-fixed-arrive-box {
-            border-left: 3px solid #28a745;
-        }
-        
-        .tw-fixed-return-box {
-            border-left: 3px solid #fd7e14;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            font-size: 11px;
         }
         
         .tw-fixed-time-label {
-            margin-bottom: 6px;
-            font-size: 13px;
-            font-weight: 500;
-            color: #6c757d;
-        }
-        
-        .tw-fixed-arrive-label {
-            color: #28a745;
-        }
-        
-        .tw-fixed-return-label {
-            color: #fd7e14;
+            margin-bottom: 3px;
+            font-weight: bold;
         }
         
         .tw-fixed-time-value {
-            font-family: 'Courier New', monospace;
-            font-size: 15px;
+            font-family: monospace;
+            font-size: 12px;
             font-weight: bold;
-            color: #212529;
-        }
-        
-        .tw-fixed-arrive-value {
-            color: #28a745;
-        }
-        
-        .tw-fixed-return-value {
-            color: #fd7e14;
-        }
-        
-        .tw-target-input-container {
-            margin-bottom: 20px;
         }
         
         .tw-input-label {
-            color: #495057;
-            margin-bottom: 8px;
-            font-size: 14px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 500;
-        }
-        
-        .tw-time-format {
-            color: #6c757d;
-            font-size: 12px;
-            font-family: monospace;
+            margin: 5px 0 3px 0;
+            font-size: 11px;
+            font-weight: bold;
         }
         
         .tw-input {
             width: 100%;
-            padding: 12px;
-            background: white;
-            border: 2px solid #e9ecef;
-            color: #212529;
-            border-radius: 6px;
-            font-family: 'Courier New', monospace;
-            font-size: 15px;
-            transition: all 0.3s;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
             box-sizing: border-box;
+            margin-bottom: 8px;
         }
         
         .tw-input:focus {
             border-color: #4CAF50;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
         }
         
         .tw-settings-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .tw-buttons-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-        
-        .tw-button {
-            padding: 14px;
-            border: none;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 15px;
-            transition: all 0.3s;
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .tw-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-        }
-        
-        .tw-start-button {
-            background: linear-gradient(145deg, #4CAF50, #388E3C);
-            box-shadow: 0 3px 10px rgba(76, 175, 80, 0.2);
-        }
-        
-        .tw-start-button:hover {
-            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
-        }
-        
-        .tw-stop-button {
-            background: linear-gradient(145deg, #dc3545, #c82333);
-            box-shadow: 0 3px 10px rgba(220, 53, 69, 0.2);
-        }
-        
-        .tw-stop-button:hover {
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
-        }
-        
-        .tw-time-display {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        
-        .tw-current-display {
-            color: #495057;
-            font-family: 'Courier New', monospace;
-            font-size: 17px;
-            font-weight: bold;
+            gap: 10px;
             margin-bottom: 15px;
         }
         
-        .tw-target-display {
-            color: #fd7e14;
-            font-family: 'Courier New', monospace;
-            font-size: 17px;
+        .tw-button {
+            padding: 8px;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
             font-weight: bold;
-            margin-bottom: 12px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .tw-button:hover {
+            opacity: 0.9;
+        }
+        
+        .tw-start-button { background: #4CAF50; }
+        .tw-stop-button { background: #dc3545; }
+        .tw-rename-button { background: #2196F3; }
+        
+        .tw-time-display {
+            background: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
+        }
+        
+        .tw-current-display {
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .tw-target-display, .tw-click-display, .tw-remaining-display {
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 3px;
             display: none;
         }
         
-        .tw-click-display {
-            color: #2196F3;
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 12px;
-            display: none;
-        }
-        
-        .tw-remaining-display {
-            color: #495057;
-            font-family: 'Courier New', monospace;
-            font-size: 17px;
-            font-weight: bold;
-            display: none;
-        }
-        
-        .tw-remaining-low {
-            color: #fd7e14 !important;
-        }
-        
-        .tw-remaining-critical {
-            color: #dc3545 !important;
-            font-weight: bold !important;
-        }
+        .tw-remaining-critical { color: #dc3545; font-weight: bold; }
+        .tw-remaining-low { color: #fd7e14; }
         
         .tw-export-container {
-            margin-top: 20px;
+            margin-top: 15px;
             display: none;
         }
         
         .tw-export-box {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
         }
         
-        .tw-export-header {
-            color: #495057;
-            margin-bottom: 12px;
-            font-size: 15px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-            justify-content: space-between;
+        .tw-data-display {
+            font-family: monospace;
+            font-size: 11px;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 10px;
         }
         
         .tw-export-buttons {
             display: flex;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 8px;
             flex-wrap: wrap;
         }
         
         .tw-export-button {
-            padding: 8px 16px;
+            padding: 5px 10px;
             background: #6c757d;
             border: none;
             color: white;
-            border-radius: 6px;
+            border-radius: 3px;
             cursor: pointer;
-            font-weight: 500;
-            font-size: 13px;
-            transition: all 0.3s;
+            font-size: 11px;
         }
         
-        .tw-export-button:hover {
-            transform: translateY(-1px);
-            background: #5a6268;
+        .tw-export-button-copy { background: #17a2b8; }
+        .tw-export-button-download { background: #28a745; }
+        .tw-export-button-clear { background: #dc3545; }
+        
+        .tw-cancel-tracker {
+            padding: 4px 6px;
+            background: #ffeaa7;
+            border: 1px solid #fdcb6e;
+            border-radius: 3px;
+            font-size: 11px;
+            font-family: monospace;
+            text-align: center;
         }
         
-        .tw-export-button-copy {
-            background: #17a2b8;
-        }
-        
-        .tw-export-button-copy:hover {
-            background: #138496;
-        }
-        
-        .tw-export-button-download {
-            background: #28a745;
-        }
-        
-        .tw-export-button-download:hover {
-            background: #218838;
-        }
-        
-        .tw-export-button-clear {
-            background: #dc3545;
-        }
-        
-        .tw-export-button-clear:hover {
-            background: #c82333;
-        }
-        
-        .tw-data-display {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            color: #212529;
-            background: white;
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
-            max-height: 200px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        
-        .tw-logs-toggle, .tw-export-toggle {
-            background: none;
-            border: none;
-            color: #6c757d;
-            cursor: pointer;
-            font-size: 12px;
-            text-decoration: underline;
-        }
-        
-        .tw-logs-toggle:hover, .tw-export-toggle:hover {
-            color: #495057;
+        .tw-cancel-tracker.critical {
+            background: #fab1a0;
+            border-color: #e17055;
+            font-weight: bold;
         }
         
         @media (max-width: 768px) {
-            .tw-settings-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .tw-times-grid {
-                grid-template-columns: 1fr;
-            }
-            
+            .tw-settings-grid,
+            .tw-times-grid,
             .tw-fixed-times-grid {
                 grid-template-columns: 1fr;
             }
@@ -665,22 +437,273 @@
     `;
     document.head.appendChild(style);
     
-    // Initialize
+    // Initialize based on page type
     function init() {
-        setTimeout(() => {
-            const attackBtn = document.querySelector('#troop_confirm_submit');
-            if (!attackBtn) {
-                setTimeout(init, 1000);
-                return;
+        if (state.isOnCommandsPage) {
+            // On commands page, initialize cancel tracking
+            initCancelTracking();
+        } else {
+            // On attack confirmation page, initialize main timer
+            setTimeout(() => {
+                const attackBtn = document.querySelector('#troop_confirm_submit');
+                if (!attackBtn) {
+                    setTimeout(init, 1000);
+                    return;
+                }
+                
+                if (document.getElementById('tw-precision-main')) return;
+                
+                addMainUI(attackBtn);
+                setTimeout(calibrateServerTime, 500);
+            }, 1000);
+        }
+    }
+    
+    // 1. Function to handle attack naming when clicking Start Timer
+    function handleAttackNaming() {
+        try {
+            // Click on the default name span
+            const nameLink = document.querySelector("span#default_name_span > a");
+            if (nameLink) {
+                nameLink.click();
+                
+                // Wait a bit for the input to appear
+                setTimeout(() => {
+                    const nameInput = document.querySelector("input#new_attack_name");
+                    const nameBtn = document.querySelector("input#attack_name_btn");
+                    
+                    if (nameInput && nameBtn && state.currentAttackData) {
+                        // Create name using mask: '%mode type% - %enemy arrive at% - %duration%'
+                        const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
+                        const enemyArrive = formatTime(state.currentAttackData.targetTime);
+                        const duration = formatDuration(getDurationTime());
+                        
+                        const attackName = `${modeText} - ${enemyArrive} - ${duration}`;
+                        nameInput.value = attackName;
+                        
+                        // Click the save button
+                        setTimeout(() => {
+                            nameBtn.click();
+                            console.log('Attack named:', attackName);
+                        }, 50);
+                    }
+                }, 100);
+            }
+        } catch (error) {
+            console.error('Error handling attack naming:', error);
+        }
+    }
+    
+    // 2. Compact visualization - CSS already updated above
+    
+    // 3. Cancel tracking functionality
+    function initCancelTracking() {
+        console.log('Initializing cancel tracking...');
+        
+        // Start checking for attacks to cancel
+        setInterval(checkCancelTimings, CONFIG.cancelCheckInterval);
+        
+        // Also check immediately
+        setTimeout(checkCancelTimings, 1000);
+    }
+    
+    function checkCancelTimings() {
+        try {
+            // Find all command rows
+            const commandRows = document.querySelectorAll('div#commands_outgoings table.vis tr.command-row');
+            
+            commandRows.forEach((row, index) => {
+                const labelSpan = row.querySelector('span.quickedit-label');
+                if (!labelSpan) return;
+                
+                const labelText = labelSpan.textContent.trim();
+                
+                // Check if label matches our pattern
+                const pattern = /^(Anti-Noble|Snipe)\s*-\s*(\d{2}:\d{2}:\d{2}:\d{3})\s*-\s*(\d+:\d+:\d+)$/;
+                const match = labelText.match(pattern);
+                
+                if (match) {
+                    const modeType = match[1]; // "Anti-Noble" or "Snipe"
+                    const enemyArriveAt = match[2]; // HH:MM:SS:mmm
+                    const durationStr = match[3]; // HH:MM:SS
+                    
+                    // Only track Anti-Noble attacks
+                    if (modeType === 'Anti-Noble') {
+                        const cancelButton = row.querySelector('a.command-cancel');
+                        const endTimeSpan = row.querySelector('span[data-endtime]');
+                        
+                        if (cancelButton && endTimeSpan) {
+                            const attackId = `${enemyArriveAt}-${durationStr}`;
+                            
+                            // Parse times
+                            const enemyArrive = parseTimeString(enemyArriveAt);
+                            const duration = parseDuration(durationStr);
+                            const timeLeft = parseTimeLeft(endTimeSpan.textContent);
+                            
+                            if (enemyArrive && duration && timeLeft !== null) {
+                                const serverTime = getEstimatedServerTime();
+                                const currentTime = serverTime.getTime();
+                                
+                                // Calculate when to cancel: %enemy arrive at% = %current servertime% + 2 * (%duration% - %time left%)
+                                // Rearranged: cancelTime = enemyArrive - (2 * (duration - timeLeft))
+                                const cancelTime = enemyArrive.getTime() - (2 * (duration - timeLeft));
+                                
+                                const timeUntilCancel = cancelTime - currentTime;
+                                
+                                // Add/update cancel tracker cell
+                                updateCancelTrackerCell(row, timeUntilCancel);
+                                
+                                // Track this attack
+                                if (!state.cancelTrackers.has(attackId)) {
+                                    state.cancelTrackers.set(attackId, {
+                                        row: row,
+                                        cancelButton: cancelButton,
+                                        cancelTime: cancelTime,
+                                        tracker: null
+                                    });
+                                    
+                                    // Start tracking
+                                    trackCancelAttack(attackId);
+                                }
+                                
+                                // Check if it's time to cancel
+                                if (timeUntilCancel <= 0 && timeUntilCancel > -1000) {
+                                    executeCancel(attackId);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error in cancel tracking:', error);
+        }
+    }
+    
+    function updateCancelTrackerCell(row, timeUntilCancel) {
+        let trackerCell = row.querySelector('.tw-cancel-tracker-cell');
+        
+        if (!trackerCell) {
+            // Find the actions cell to insert before
+            const actionsCell = row.querySelector('td:last-child');
+            if (actionsCell) {
+                trackerCell = document.createElement('td');
+                trackerCell.className = 'tw-cancel-tracker-cell';
+                actionsCell.parentNode.insertBefore(trackerCell, actionsCell);
+            }
+        }
+        
+        if (trackerCell) {
+            const seconds = Math.floor(timeUntilCancel / 1000);
+            const absSeconds = Math.abs(seconds);
+            const hours = Math.floor(absSeconds / 3600);
+            const minutes = Math.floor((absSeconds % 3600) / 60);
+            const secs = absSeconds % 60;
+            
+            let display;
+            if (seconds > 0) {
+                display = `Cancel in ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')} (${seconds}sec left)`;
+            } else {
+                display = `Cancel now! (${-seconds}sec ago)`;
             }
             
-            if (document.getElementById('tw-precision-main')) return;
-            
-            addMainUI(attackBtn);
-            
-            setTimeout(calibrateServerTime, 500);
-        }, 1000);
+            trackerCell.innerHTML = `<div class="tw-cancel-tracker ${seconds <= 10 ? 'critical' : ''}">${display}</div>`;
+        }
     }
+    
+    function trackCancelAttack(attackId) {
+        const tracker = state.cancelTrackers.get(attackId);
+        if (!tracker) return;
+        
+        // Clear existing tracker
+        if (tracker.tracker) {
+            clearInterval(tracker.tracker);
+        }
+        
+        // Start new tracker
+        tracker.tracker = setInterval(() => {
+            const serverTime = getEstimatedServerTime();
+            const currentTime = serverTime.getTime();
+            const timeUntilCancel = tracker.cancelTime - currentTime;
+            
+            updateCancelTrackerCell(tracker.row, timeUntilCancel);
+            
+            if (timeUntilCancel <= 0 && timeUntilCancel > -1000) {
+                executeCancel(attackId);
+            } else if (timeUntilCancel < -2000) {
+                // Stop tracking if way past cancel time
+                clearInterval(tracker.tracker);
+                state.cancelTrackers.delete(attackId);
+            }
+        }, CONFIG.cancelCheckInterval);
+    }
+    
+    function executeCancel(attackId) {
+        const tracker = state.cancelTrackers.get(attackId);
+        if (!tracker || !tracker.cancelButton) return;
+        
+        console.log('Cancelling attack:', attackId);
+        
+        // Click the cancel button
+        try {
+            tracker.cancelButton.click();
+            
+            // Remove from trackers after a delay
+            setTimeout(() => {
+                if (tracker.tracker) {
+                    clearInterval(tracker.tracker);
+                }
+                state.cancelTrackers.delete(attackId);
+                
+                // Update the tracker cell to show cancelled
+                const trackerCell = tracker.row.querySelector('.tw-cancel-tracker-cell');
+                if (trackerCell) {
+                    trackerCell.innerHTML = '<div class="tw-cancel-tracker" style="background:#d4edda;border-color:#c3e6cb;color:#155724;">✓ Cancelled</div>';
+                }
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Error cancelling attack:', error);
+        }
+    }
+    
+    // Helper functions for time parsing
+    function parseTimeString(timeStr) {
+        // Format: HH:MM:SS:mmm
+        const parts = timeStr.split(':');
+        if (parts.length !== 4) return null;
+        
+        const date = new Date();
+        date.setHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3]));
+        return date;
+    }
+    
+    function parseDuration(durationStr) {
+        // Format: HH:MM:SS
+        const parts = durationStr.split(':');
+        if (parts.length !== 3) return 0;
+        
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const seconds = parseInt(parts[2]) || 0;
+        
+        return (hours * 3600 + minutes * 60 + seconds) * 1000;
+    }
+    
+    function parseTimeLeft(timeLeftStr) {
+        // Format could be "HH:MM:SS" or similar
+        const parts = timeLeftStr.split(':');
+        if (parts.length !== 3) return null;
+        
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const seconds = parseInt(parts[2]) || 0;
+        
+        return (hours * 3600 + minutes * 60 + seconds) * 1000;
+    }
+    
+    // Rest of existing functions (getLatency, getDurationTime, addMainUI, etc.)
+    // ... (keeping all the existing functions from your original script)
     
     // Get latency from serverTime element
     function getLatency() {
@@ -700,10 +723,8 @@
     // Get duration time from the page
     function getDurationTime() {
         try {
-            // Try the new selector
             const durationElement = document.querySelector("#command-data-form table.vis tbody tr:nth-child(4) td:nth-child(2)");
             
-            // Fallback to old selector
             if (!durationElement) {
                 const oldElement = document.querySelector("#command-data-form > div:nth-child(9) > table > tbody > tr:nth-child(4) > td:nth-child(2)");
                 if (oldElement) {
@@ -727,28 +748,6 @@
                 }
             }
             
-            const alternativeSelectors = [
-                'td[data-duration]',
-                '.duration',
-                'td:contains("Duration") + td',
-                'tr:contains("Duration") td:nth-child(2)'
-            ];
-            
-            for (const selector of alternativeSelectors) {
-                const element = document.querySelector(selector);
-                if (element) {
-                    const text = element.textContent.trim();
-                    const match = text.match(/(\d+):(\d+):(\d+)/);
-                    if (match) {
-                        const hours = parseInt(match[1], 10) || 0;
-                        const minutes = parseInt(match[2], 10) || 0;
-                        const seconds = parseInt(match[3], 10) || 0;
-                        return (hours * 3600 + minutes * 60 + seconds) * 1000;
-                    }
-                }
-            }
-            
-            console.warn('Could not find duration time element');
             return 0;
         } catch (error) {
             console.error('Error getting duration time:', error);
@@ -769,56 +768,28 @@
         div.id = 'tw-precision-main';
         div.innerHTML = `
             <div class="tw-container">
-                <h3 class="tw-title">
-                    <span class="tw-title-icon">🎯</span>
-                    <span>Precision Attack Timer</span>
-                </h3>
+                <h3 class="tw-title">🎯 Precision Attack Timer</h3>
                 
-                <div id="tw-calibration-status" class="tw-calibration-status">
-                    🔄 Calibrating server time...
-                </div>
-                
-                <!-- Mode Selector -->
                 <div class="tw-mode-selector">
-                    <div class="tw-input-label">
-                        ⚡ Attack Mode:
-                    </div>
+                    <div class="tw-input-label">Attack Mode:</div>
                     <div class="tw-mode-buttons">
-                        <button id="tw-mode-cancel" class="tw-mode-button active">
-                            🛡️ Anti-Noble (On Cancel)
-                        </button>
-                        <button id="tw-mode-arrive" class="tw-mode-button">
-                            ⚡ Snipe (On Arrive)
-                        </button>
+                        <button id="tw-mode-cancel" class="tw-mode-button active">🛡️ Anti-Noble</button>
+                        <button id="tw-mode-arrive" class="tw-mode-button">⚡ Snipe</button>
                     </div>
                     <div id="tw-mode-description" class="tw-mode-description">
-                        <strong>Anti-Noble Mode:</strong> Attack early to allow cancellation. Arrives with max cancel time before enemy.
-                    </div>
-                </div>
-                
-                <div id="tw-duration-info" class="tw-duration-info">
-                    <div class="tw-duration-stats">
-                        <span>📊 Duration: ${formatDuration(duration)}</span>
-                        <span>📡 Latency: ${latency.toFixed(1)}ms</span>
+                        Anti-Noble: Attack early to allow cancellation
                     </div>
                 </div>
                 
                 <div class="tw-times-grid">
                     <div class="tw-time-box tw-arrive-box">
-                        <div class="tw-time-label tw-arrive-label">
-                            <span class="tw-time-icon">📍</span>
-                            <span>Arrive to destination:</span>
-                        </div>
+                        <div class="tw-time-label">Arrive to destination:</div>
                         <div id="tw-arrive-time" class="tw-time-value tw-arrive-value">
                             ${formatTime(arriveTime)}
                         </div>
                     </div>
-                    
                     <div class="tw-time-box tw-return-box">
-                        <div class="tw-time-label tw-return-label">
-                            <span class="tw-time-icon">↩️</span>
-                            <span>Return if not cancel:</span>
-                        </div>
+                        <div class="tw-time-label">Return if not cancel:</div>
                         <div id="tw-return-time" class="tw-time-value tw-return-value">
                             ${formatTime(returnTime)}
                         </div>
@@ -826,143 +797,59 @@
                 </div>
                 
                 <div id="tw-fixed-times" class="tw-fixed-times-container">
-                    <div class="tw-fixed-times-box">
-                        <div class="tw-fixed-times-label">
-                            <span style="font-size: 20px;">⏱️</span>
-                            <span>Scheduled Attack Times</span>
+                    <div class="tw-fixed-times-grid">
+                        <div class="tw-fixed-time-box tw-fixed-arrive-box">
+                            <div class="tw-fixed-time-label">Will arrive at:</div>
+                            <div id="tw-fixed-arrive" class="tw-fixed-time-value">--:--:--:---</div>
                         </div>
-                        <div class="tw-fixed-times-grid">
-                            <div class="tw-fixed-time-box tw-fixed-arrive-box">
-                                <div class="tw-fixed-time-label tw-fixed-arrive-label">
-                                    Will arrive at:
-                                </div>
-                                <div id="tw-fixed-arrive" class="tw-fixed-time-value tw-fixed-arrive-value">
-                                    --:--:--:---
-                                </div>
-                            </div>
-                            
-                            <div class="tw-fixed-time-box tw-fixed-return-box">
-                                <div class="tw-fixed-time-label tw-fixed-return-label">
-                                    Will return at:
-                                </div>
-                                <div id="tw-fixed-return" class="tw-fixed-time-value tw-fixed-return-value">
-                                    --:--:--:---
-                                </div>
-                            </div>
+                        <div class="tw-fixed-time-box tw-fixed-return-box">
+                            <div class="tw-fixed-time-label">Will return at:</div>
+                            <div id="tw-fixed-return" class="tw-fixed-time-value">--:--:--:---</div>
                         </div>
                     </div>
                 </div>
                 
-                <div class="tw-target-input-container">
-                    <div class="tw-input-label">
-                        <span>🎯 Enemy Arrival Time:</span>
-                        <span class="tw-time-format">HH:MM:SS:mmm</span>
-                    </div>
-                    <input type="text" 
-                           id="tw-target-input" 
-                           class="tw-input"
-                           value="${formatTime(current)}"
-                           placeholder="13:44:30:054">
-                </div>
+                <div class="tw-input-label">Enemy Arrival Time (HH:MM:SS:mmm):</div>
+                <input type="text" id="tw-target-input" class="tw-input" value="${formatTime(current)}">
                 
                 <div class="tw-settings-grid">
                     <div>
-                        <div class="tw-input-label">
-                            🔄 Update (ms):
-                        </div>
-                        <input type="number" 
-                               id="tw-update-input" 
-                               class="tw-input"
-                               value="10"
-                               min="1" 
-                               max="100"
-                               step="1">
+                        <div class="tw-input-label">Update (ms):</div>
+                        <input type="number" id="tw-update-input" class="tw-input" value="10">
                     </div>
-                    
                     <div>
-                        <div class="tw-input-label">
-                            ⏰ Max Cancel (min):
-                        </div>
-                        <input type="number" 
-                               id="tw-cancel-input" 
-                               class="tw-input"
-                               value="10"
-                               min="1" 
-                               max="60"
-                               step="1">
+                        <div class="tw-input-label">Max Cancel (min):</div>
+                        <input type="number" id="tw-cancel-input" class="tw-input" value="10">
                     </div>
-                    
                     <div>
-                        <div class="tw-input-label">
-                            ⏱️ Attack Delay (ms):
-                        </div>
-                        <input type="number" 
-                               id="tw-delay-input" 
-                               class="tw-input"
-                               value="50"
-                               min="1" 
-                               max="500"
-                               step="1">
+                        <div class="tw-input-label">Attack Delay (ms):</div>
+                        <input type="number" id="tw-delay-input" class="tw-input" value="50">
                     </div>
                 </div>
                 
                 <div class="tw-buttons-grid">
-                    <button id="tw-start-btn" class="tw-button tw-start-button">
-                        🚀 Start Timer
-                    </button>
-                    
-                    <button id="tw-stop-btn" class="tw-button tw-stop-button" style="display: none;">
-                        ⏹️ Stop
-                    </button>
+                    <button id="tw-start-btn" class="tw-button tw-start-button">🚀 Start Timer</button>
+                    <button id="tw-stop-btn" class="tw-button tw-stop-button" style="display:none;">⏹️ Stop</button>
                 </div>
                 
                 <div id="tw-status" class="tw-status-box">
-                    🔄 Calibrating server time...
+                    Initializing...
                 </div>
                 
                 <div class="tw-time-display">
-                    <div id="tw-current-display" class="tw-current-display">
-                        ⏰ Server: ${formatTime(current)}
-                    </div>
-                    
-                    <div id="tw-target-display" class="tw-target-display">
-                        🎯 Enemy: <span id="tw-target-text">--:--:--:---</span>
-                    </div>
-                    
-                    <div id="tw-click-display" class="tw-click-display">
-                        🖱️ Click at: <span id="tw-click-text">--:--:--:---</span>
-                    </div>
-                    
-                    <div id="tw-remaining-display" class="tw-remaining-display">
-                        ⏳ Remaining: <span id="tw-remaining-text">0ms</span>
-                    </div>
+                    <div id="tw-current-display" class="tw-current-display">Server: ${formatTime(current)}</div>
+                    <div id="tw-target-display" class="tw-target-display">Enemy: <span id="tw-target-text">--:--:--:---</span></div>
+                    <div id="tw-click-display" class="tw-click-display">Click at: <span id="tw-click-text">--:--:--:---</span></div>
+                    <div id="tw-remaining-display" class="tw-remaining-display">Remaining: <span id="tw-remaining-text">0ms</span></div>
                 </div>
                 
-                <!-- Attack Data Export Section -->
                 <div id="tw-export-container" class="tw-export-container">
                     <div class="tw-export-box">
-                        <div class="tw-export-header">
-                            <span>
-                                <span style="font-size: 20px;">💾</span>
-                                <span>Attack Data</span>
-                            </span>
-                            <button id="tw-export-toggle" class="tw-export-toggle">
-                                Show/Hide
-                            </button>
-                        </div>
-                        <div id="tw-export-content" class="tw-data-display" style="display: none;">
-                            <!-- Data will be inserted here -->
-                        </div>
-                        <div id="tw-export-buttons" class="tw-export-buttons" style="display: none;">
-                            <button id="tw-copy-data" class="tw-export-button tw-export-button-copy">
-                                📋 Copy Data
-                            </button>
-                            <button id="tw-download-data" class="tw-export-button tw-export-button-download">
-                                ⬇️ Download
-                            </button>
-                            <button id="tw-clear-history" class="tw-export-button tw-export-button-clear">
-                                🗑️ Clear History
-                            </button>
+                        <div id="tw-export-content" class="tw-data-display"></div>
+                        <div id="tw-export-buttons" class="tw-export-buttons">
+                            <button id="tw-copy-data" class="tw-export-button tw-export-button-copy">📋 Copy</button>
+                            <button id="tw-download-data" class="tw-export-button tw-export-button-download">⬇️ Download</button>
+                            <button id="tw-clear-history" class="tw-export-button tw-export-button-clear">🗑️ Clear</button>
                         </div>
                     </div>
                 </div>
@@ -997,41 +884,22 @@
             setAttackMode(ATTACK_MODES.ON_ARRIVE);
         });
         
-        // Export toggle
-        document.getElementById('tw-export-toggle').addEventListener('click', function(e) {
-            e.preventDefault();
-            const exportContent = document.getElementById('tw-export-content');
-            const exportButtons = document.getElementById('tw-export-buttons');
-            
-            if (exportContent.style.display === 'none') {
-                exportContent.style.display = 'block';
-                exportButtons.style.display = 'flex';
-                updateAttackDataDisplay();
-            } else {
-                exportContent.style.display = 'none';
-                exportButtons.style.display = 'none';
-            }
-        });
-        
-        // Copy data button
-        document.getElementById('tw-copy-data').addEventListener('click', function(e) {
-            e.preventDefault();
-            copyAttackDataToClipboard();
-        });
-        
-        // Download data button
-        document.getElementById('tw-download-data').addEventListener('click', function(e) {
-            e.preventDefault();
-            downloadAttackData();
-        });
-        
-        // Clear history button
-        document.getElementById('tw-clear-history').addEventListener('click', function(e) {
-            e.preventDefault();
-            if (confirm('Clear all attack history?')) {
-                AttackDataStorage.clearHistory();
-                updateAttackDataDisplay();
-            }
+        // Export buttons
+        const exportButtons = ['tw-copy-data', 'tw-download-data', 'tw-clear-history'];
+        exportButtons.forEach(id => {
+            document.getElementById(id).addEventListener('click', function(e) {
+                e.preventDefault();
+                switch(id) {
+                    case 'tw-copy-data': copyAttackDataToClipboard(); break;
+                    case 'tw-download-data': downloadAttackData(); break;
+                    case 'tw-clear-history': 
+                        if (confirm('Clear history?')) {
+                            AttackDataStorage.clearHistory();
+                            updateAttackDataDisplay();
+                        }
+                        break;
+                }
+            });
         });
         
         startDisplayUpdates();
@@ -1045,127 +913,141 @@
         const arriveBtn = document.getElementById('tw-mode-arrive');
         const description = document.getElementById('tw-mode-description');
         
-        // Update button states
         cancelBtn.classList.remove('active');
         arriveBtn.classList.remove('active');
         description.classList.remove('arrive-mode');
         
         if (mode === ATTACK_MODES.ON_CANCEL) {
             cancelBtn.classList.add('active');
-            description.textContent = '🛡️ Anti-Noble Mode: Attack early to allow cancellation. Arrives with max cancel time before enemy.';
-            description.classList.remove('arrive-mode');
+            description.textContent = 'Anti-Noble: Attack early to allow cancellation';
         } else {
             arriveBtn.classList.add('active', 'arrive-mode');
-            description.textContent = '⚡ Snipe Mode: Arrive just before enemy attack. No cancellation possible after launch.';
+            description.textContent = 'Snipe: Arrive just before enemy attack';
             description.classList.add('arrive-mode');
         }
         
-        // Update status to reflect mode change
-        updateStatus(`Mode set to: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble (On Cancel)' : 'Snipe (On Arrive)'}`, 'info');
+        updateStatus(`Mode: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe'}`, 'info');
     }
     
-    // Update attack data display
-    function updateAttackDataDisplay() {
-        const exportContent = document.getElementById('tw-export-content');
-        if (!exportContent) return;
-        
-        const lastAttack = AttackDataStorage.getLastAttack();
-        
-        if (!lastAttack) {
-            exportContent.textContent = 'No attack data saved yet.';
+    // Start main timer - MODIFIED to include attack naming
+    function startMainTimer() {
+        if (!state.calibrationComplete) {
+            updateStatus('Calibrating... please wait', 'warning');
             return;
         }
         
-        exportContent.textContent = AttackDataStorage.formatAttackForDisplay(lastAttack);
-    }
-    
-    // Copy attack data to clipboard
-    function copyAttackDataToClipboard() {
-        const lastAttack = AttackDataStorage.getLastAttack();
-        if (!lastAttack) {
-            alert('No attack data to copy!');
+        if (state.running) {
+            updateStatus('Timer already running!', 'warning');
             return;
         }
         
-        const text = AttackDataStorage.formatAttackForDisplay(lastAttack);
+        const targetInput = document.getElementById('tw-target-input').value;
+        const parts = targetInput.split(':');
         
-        navigator.clipboard.writeText(text).then(() => {
-            alert('Attack data copied to clipboard!');
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-            alert('Failed to copy data. Please try again.');
-        });
-    }
-    
-    // Download attack data
-    function downloadAttackData() {
-        const lastAttack = AttackDataStorage.getLastAttack();
-        if (!lastAttack) {
-            alert('No attack data to download!');
+        if (parts.length < 3) {
+            updateStatus('Invalid time format!', 'error');
             return;
         }
         
-        const text = AttackDataStorage.formatAttackForDisplay(lastAttack);
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        const s = parseInt(parts[2], 10) || 0;
+        const ms = parts[3] ? parseInt(parts[3], 10) || 0 : 0;
         
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        a.href = url;
-        a.download = `attack-data-${timestamp}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-    
-    // Save attack data to sessionStorage
-    function saveAttackData() {
-        if (!state.currentAttackData) {
-            console.warn('No attack data to save');
+        const current = getEstimatedServerTime();
+        const target = new Date(current);
+        target.setHours(h, m, s, ms);
+        
+        if (target <= current) {
+            target.setDate(target.getDate() + 1);
+        }
+        
+        const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
+        const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
+        const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
+        
+        const calc = calculateAttackTime(target, maxCancel, attackDelay);
+        
+        if (!calc) {
+            updateStatus('Cannot calculate attack time!', 'error');
             return;
         }
         
-        const attackData = {
-            // Mode
-            mode: state.currentMode,
-            
-            // Timings
-            startTime: formatTime(new Date()),
-            enemyArrival: formatTime(state.targetTime),
-            clickAt: formatTime(state.clickTime),
-            
-            // Travel info
-            duration: formatDuration(getDurationTime()),
-            arriveToDestination: formatTime(new Date(state.clickTime.getTime() + getDurationTime())),
-            returnIfNotCancel: formatTime(new Date(state.clickTime.getTime() + getDurationTime() * 2)),
-            latency: `${getLatency().toFixed(1)}ms`,
-            
-            // Scheduled times
-            willArriveAt: formatTime(state.fixedArriveTime),
-            willReturnAt: formatTime(state.fixedReturnTime),
-            
-            // Settings
-            updateInterval: document.getElementById('tw-update-input').value + 'ms',
-            maxCancel: document.getElementById('tw-cancel-input').value + 'min',
-            attackDelay: document.getElementById('tw-delay-input').value + 'ms',
-            
-            // Server info
-            enemy: document.getElementById('tw-target-text').textContent,
-            offset: `${Math.round(state.serverTimeOffset)}ms`,
-            
-            // Additional info
-            notes: state.currentAttackData.adjustedMaxCancel ? 
-                   `Cancel time adjusted to ${state.currentAttackData.adjustedMaxCancel.toFixed(1)}min (requested: ${document.getElementById('tw-cancel-input').value}min)` :
-                   'Using snipe timing (arrive just before enemy)'
-        };
+        if (calc.remaining < 100) {
+            updateStatus(`Time too close (${calc.remaining}ms)!`, 'error');
+            return;
+        }
         
-        const savedAttack = AttackDataStorage.saveAttackData(attackData);
+        state.currentAttackData = calc;
         
-        // Show export section
-        document.getElementById('tw-export-container').style.display = 'block';
+        // Handle attack naming BEFORE starting timer
+        handleAttackNaming();
         
-        return savedAttack;
+        const duration = getDurationTime();
+        state.fixedArriveTime = new Date(calc.clickTime.getTime() + duration);
+        state.fixedReturnTime = new Date(state.fixedArriveTime.getTime() + duration);
+        
+        state.running = true;
+        state.targetTime = calc.targetTime;
+        state.clickTime = calc.clickTime;
+        state.updateInterval = Math.max(1, Math.min(100, updateInterval));
+        
+        document.getElementById('tw-start-btn').style.display = 'none';
+        document.getElementById('tw-stop-btn').style.display = 'block';
+        document.getElementById('tw-target-display').style.display = 'block';
+        document.getElementById('tw-click-display').style.display = 'block';
+        document.getElementById('tw-remaining-display').style.display = 'block';
+        document.getElementById('tw-fixed-times').style.display = 'block';
+        
+        document.getElementById('tw-fixed-arrive').textContent = formatTime(state.fixedArriveTime);
+        document.getElementById('tw-fixed-return').textContent = formatTime(state.fixedReturnTime);
+        document.getElementById('tw-target-text').textContent = formatTime(calc.targetTime);
+        document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
+        
+        const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
+        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s`, 'success');
+        
+        startPrecisionTimer();
+    }
+    
+    // Execute attack - MODIFIED to save data
+    function executeAttack() {
+        saveAttackData();
+        stopMainTimer();
+        
+        const attackBtn = document.querySelector('#troop_confirm_submit');
+        if (!attackBtn) {
+            updateStatus('No attack button found!', 'error');
+            return;
+        }
+        
+        updateStatus('Executing attack...', 'success');
+        
+        try {
+            attackBtn.click();
+            console.log('Attack executed!');
+        } catch (error) {
+            console.error('Error clicking attack button:', error);
+            updateStatus('Click error: ' + error.message, 'error');
+        }
+    }
+    
+    // Format time
+    function formatTime(date) {
+        if (!date) return '--:--:--:---';
+        const h = date.getHours().toString().padStart(2, '0');
+        const m = date.getMinutes().toString().padStart(2, '0');
+        const s = date.getSeconds().toString().padStart(2, '0');
+        const ms = date.getMilliseconds().toString().padStart(3, '0');
+        return `${h}:${m}:${s}:${ms}`;
+    }
+    
+    // Format duration
+    function formatDuration(ms) {
+        const hours = Math.floor(ms / 3600000);
+        const minutes = Math.floor((ms % 3600000) / 60000);
+        const seconds = Math.floor((ms % 60000) / 1000);
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
     
     // Get server time from element
@@ -1186,7 +1068,6 @@
         if (!state.calibrationComplete) {
             const serverTime = getServerTimeFromElement();
             if (!serverTime) return new Date();
-            
             serverTime.setMilliseconds(new Date().getMilliseconds());
             return serverTime;
         }
@@ -1195,38 +1076,16 @@
         return new Date(now.getTime() + state.serverTimeOffset);
     }
     
-    // Format time
-    function formatTime(date) {
-        if (!date) return '--:--:--:---';
-        const h = date.getHours().toString().padStart(2, '0');
-        const m = date.getMinutes().toString().padStart(2, '0');
-        const s = date.getSeconds().toString().padStart(2, '0');
-        const ms = date.getMilliseconds().toString().padStart(3, '0');
-        return `${h}:${m}:${s}:${ms}`;
-    }
-    
-    // Format duration
-    function formatDuration(ms) {
-        const hours = Math.floor(ms / 3600000);
-        const minutes = Math.floor((ms % 3600000) / 60000);
-        const seconds = Math.floor((ms % 60000) / 1000);
-        
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    
     // Calibrate server time
     function calibrateServerTime() {
         const statusEl = document.getElementById('tw-status');
-        const calibrationStatus = document.getElementById('tw-calibration-status');
+        if (!statusEl) return;
         
-        if (!statusEl || !calibrationStatus) return;
-        
-        calibrationStatus.style.display = 'block';
-        statusEl.textContent = '🔄 Calibrating server time...';
+        statusEl.textContent = 'Calibrating server time...';
         
         const serverEl = document.querySelector('#serverTime');
         if (!serverEl) {
-            statusEl.textContent = '❌ No server time element!';
+            statusEl.textContent = 'No server time element!';
             return;
         }
         
@@ -1252,8 +1111,6 @@
                 const avgOffset = state.calibrationData.reduce((sum, d) => sum + d.offset, 0) / samples;
                 state.serverTimeOffset = avgOffset;
                 
-                calibrationStatus.innerHTML = `🔄 Calibrating... ${samples}/${CONFIG.calibrationSamples}<br>Offset: ${Math.round(avgOffset)}ms`;
-                
                 if (samples >= CONFIG.calibrationSamples) {
                     finishCalibration();
                 }
@@ -1271,24 +1128,20 @@
             if (samples > 0) {
                 finishCalibration();
             } else {
-                statusEl.textContent = '⚠️ Using estimated server time';
-                calibrationStatus.style.display = 'none';
+                statusEl.textContent = 'Using estimated server time';
                 state.calibrationComplete = true;
             }
-        }, 10000);
+        }, 5000);
         
         function finishCalibration() {
             observer.disconnect();
-            
             const avgOffset = state.calibrationData.reduce((sum, d) => sum + d.offset, 0) / samples;
             state.serverTimeOffset = avgOffset;
             state.calibrationComplete = true;
-            
-            calibrationStatus.style.display = 'none';
-            statusEl.textContent = `✅ Calibrated! Offset: ${Math.round(avgOffset)}ms`;
+            statusEl.textContent = `Calibrated! Offset: ${Math.round(avgOffset)}ms`;
         }
     }
-    
+      
     // Start display updates
     function startDisplayUpdates() {
         const updateInterval = parseInt(document.getElementById('tw-update-input').value, 10) || 10;
@@ -1626,18 +1479,10 @@
         el.className = 'tw-status-box';
         
         switch (type) {
-            case 'error':
-                el.classList.add('tw-status-error');
-                break;
-            case 'warning':
-                el.classList.add('tw-status-warning');
-                break;
-            case 'success':
-                el.classList.add('tw-status-success');
-                break;
-            case 'info':
-                el.classList.add('tw-status-info');
-                break;
+            case 'error': el.classList.add('tw-status-error'); break;
+            case 'warning': el.classList.add('tw-status-warning'); break;
+            case 'success': el.classList.add('tw-status-success'); break;
+            case 'info': el.classList.add('tw-status-info'); break;
         }
     }
     
