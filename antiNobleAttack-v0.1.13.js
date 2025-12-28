@@ -535,9 +535,7 @@
             return;
         }
         
-        // CORRECT FORMULA:
-        // cancelTime = (enemyArrivalTime - 2*duration + 2*dataEndtime) / 3
-        const cancelTime = (enemyArrive.getTime() - 2 * duration + 2 * dataEndtime) / 3;
+        const cancelTime = (enemyArrive.getTime() - duration + dataEndtime) / 2;
         
         console.log(`=== CORRECT CALCULATION ===`);
         console.log(`Attack ID: ${attackId}`);
