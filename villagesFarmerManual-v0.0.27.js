@@ -1574,6 +1574,17 @@
         var selectedBuild = null;
         var attempts = 0;
         
+        // First, get available troops to check what builds we can use
+        var availableTroops = {};
+        try {
+            availableTroops = getAvailableTroops();
+            console.log("Available troops for auto-attack:", availableTroops);
+        } catch (e) {
+            console.error("Could not get available troops:", e);
+            // If we can't get troop data, assume we have no troops
+            // This will make all builds fail the troop check
+        }
+        
         do {
             var currentTarget = targets[targetIndex];
             var cooldownInfo = getCooldownInfo(currentTarget);
@@ -1586,9 +1597,35 @@
                 for (var i = 0; i < buildOrder.length; i++) {
                     var buildKey = buildOrder[i];
                     if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
-                        selectedTarget = currentTarget;
-                        selectedBuild = buildKey;
-                        break;
+                        // Check if we have enough troops for this build
+                        var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
+                        var hasEnoughTroops = true;
+                        
+                        // Only check troop availability if we have troop data
+                        if (Object.keys(availableTroops).length > 0) {
+                            for (var troopType in build) {
+                                if (build[troopType] > 0) {
+                                    var available = availableTroops[troopType] || 0;
+                                    if (available < build[troopType]) {
+                                        hasEnoughTroops = false;
+                                        console.log("Skipping Build " + buildKey + " for " + currentTarget + 
+                                                    " - need " + build[troopType] + " " + troopType + 
+                                                    ", have " + available);
+                                        break;
+                                    }
+                                }
+                            }
+                        } else {
+                            // If we don't have troop data, assume we don't have enough troops
+                            hasEnoughTroops = false;
+                            console.log("No troop data available, skipping Build " + buildKey + " for " + currentTarget);
+                        }
+                        
+                        if (hasEnoughTroops) {
+                            selectedTarget = currentTarget;
+                            selectedBuild = buildKey;
+                            break;
+                        }
                     }
                 }
                 
@@ -1603,30 +1640,73 @@
             setCookie(cookieName, nextIndex.toString(), 365);
             attackTarget(selectedTarget, selectedBuild);
         } else {
-            var shortestCooldown = Infinity;
-            var shortestCooldownTarget = null;
-            var shortestCooldownMinutes = 0;
+            // Check if we skipped all villages due to troop shortages
+            var anyVillageHasEnabledBuilds = false;
+            var anyVillageOffCooldown = false;
             
-            targets.forEach(function(target) {
+            for (var i = 0; i < targets.length; i++) {
+                var target = targets[i];
                 var cooldownInfo = getCooldownInfo(target);
-                if (cooldownInfo.onCooldown && cooldownInfo.minutesLeft < shortestCooldown) {
-                    shortestCooldown = cooldownInfo.minutesLeft;
-                    shortestCooldownTarget = target;
-                    shortestCooldownMinutes = cooldownInfo.minutesLeft;
+                
+                if (!cooldownInfo.onCooldown) {
+                    anyVillageOffCooldown = true;
+                    var targetBuildSettings = getTargetBuilds(target);
+                    
+                    // Check if this village has any builds enabled
+                    for (var buildKey in targetBuildSettings) {
+                        if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                            anyVillageHasEnabledBuilds = true;
+                            break;
+                        }
+                    }
+                    
+                    if (anyVillageHasEnabledBuilds) break;
                 }
-            });
+            }
             
-            if (shortestCooldownTarget) {
-                showStatus('All targets on cooldown. Waiting for ' + shortestCooldownTarget + ' (' + shortestCooldownMinutes + 'm left)', 'info');
+            if (anyVillageOffCooldown && anyVillageHasEnabledBuilds) {
+                // We have villages off cooldown with enabled builds, but not enough troops
+                showStatus('All available villages skipped due to troop shortages. Waiting 30 seconds...', 'info');
                 
-                var checkDelay = Math.max(60000, shortestCooldownMinutes * 60000);
-                
+                // Retry after 30 seconds to check for troop replenishment
                 setTimeout(function() {
-                    console.log('Re-checking for available targets after cooldown...');
+                    console.log('Re-checking for villages with available troops...');
                     autoAttackNext();
-                }, checkDelay);
+                }, 30000);
+            } else if (anyVillageOffCooldown && !anyVillageHasEnabledBuilds) {
+                showStatus('Villages available but no builds enabled for them. Check build settings.', 'error');
+                
+                // Retry after 60 seconds
+                setTimeout(function() {
+                    autoAttackNext();
+                }, 60000);
             } else {
-                showStatus('All targets are on cooldown', 'error');
+                // All villages are on cooldown
+                var shortestCooldown = Infinity;
+                var shortestCooldownTarget = null;
+                var shortestCooldownMinutes = 0;
+                
+                targets.forEach(function(target) {
+                    var cooldownInfo = getCooldownInfo(target);
+                    if (cooldownInfo.onCooldown && cooldownInfo.minutesLeft < shortestCooldown) {
+                        shortestCooldown = cooldownInfo.minutesLeft;
+                        shortestCooldownTarget = target;
+                        shortestCooldownMinutes = cooldownInfo.minutesLeft;
+                    }
+                });
+                
+                if (shortestCooldownTarget) {
+                    showStatus('All targets on cooldown. Waiting for ' + shortestCooldownTarget + ' (' + shortestCooldownMinutes + 'm left)', 'info');
+                    
+                    var checkDelay = Math.max(60000, shortestCooldownMinutes * 60000);
+                    
+                    setTimeout(function() {
+                        console.log('Re-checking for available targets after cooldown...');
+                        autoAttackNext();
+                    }, checkDelay);
+                } else {
+                    showStatus('No targets available for auto-attack', 'error');
+                }
             }
         }
     }
