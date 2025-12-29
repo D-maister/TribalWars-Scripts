@@ -1,5 +1,5 @@
 (function() {
-    console.log('🚀 TW Attack Script - Combined Version');
+    console.log('🚀 TW Attack Script - Combined Version with Individual Build Cooldowns');
 
     // ===== STYLES =====
     const styles = `
@@ -688,6 +688,33 @@
             display: inline-block;
         }
         
+        /* Build cooldown indicators */
+        .tw-attack-build-cooldown-indicator {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-left: 3px;
+            font-weight: bold;
+        }
+        
+        .tw-attack-build-cooldown-ready {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .tw-attack-build-cooldown-waiting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .tw-attack-build-cooldown-cooldown {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
         @keyframes twSubmitSpin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -708,6 +735,7 @@
     var ignoreStorageKey = "twAttackIgnoreList";
     var submitMarkerKey = "twAttackSubmitMarker";
     var targetBuildsKey = "twAttackTargetBuilds";
+    var buildCooldownsKey = "twAttackBuildCooldowns"; // NEW: For individual build cooldowns
     
     var defaultCooldown = 30;
     var homeCoords = "";
@@ -716,10 +744,23 @@
     var configVisible = false;
     var updateInterval = null;
     
+    // Default builds with individual cooldowns and enabled state
     var defaultBuilds = {
-        "A": { spear: 0, sword: 0, axe: 0, spy: 0, light: 2, heavy: 0, ram: 0, catapult: 0, knight: 0 },
-        "B": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 },
-        "C": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 }
+        "A": { 
+            spear: 0, sword: 0, axe: 0, spy: 0, light: 2, heavy: 0, ram: 0, catapult: 0, knight: 0,
+            cooldown: defaultCooldown,
+            enabled: true
+        },
+        "B": { 
+            spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0,
+            cooldown: defaultCooldown,
+            enabled: false
+        },
+        "C": { 
+            spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0,
+            cooldown: defaultCooldown,
+            enabled: false
+        }
     };
     
     var troopBuilds = {};
@@ -802,6 +843,77 @@
         console.log("Attack " + target + " (distance: " + distance + ")");
     }
     
+    // ===== BUILD COOLDOWN FUNCTIONS =====
+    
+    function loadBuildCooldownsFromStorage() {
+        try {
+            var storedData = localStorage.getItem(buildCooldownsKey);
+            if (storedData) {
+                var allCooldowns = JSON.parse(storedData);
+                if (allCooldowns[currentWorld]) {
+                    return allCooldowns[currentWorld];
+                }
+            }
+        } catch (e) {
+            console.error("Error loading build cooldowns:", e);
+        }
+        return {};
+    }
+    
+    function saveBuildCooldownsToStorage(buildCooldowns) {
+        try {
+            var storedData = localStorage.getItem(buildCooldownsKey);
+            var allCooldowns = storedData ? JSON.parse(storedData) : {};
+            allCooldowns[currentWorld] = buildCooldowns;
+            localStorage.setItem(buildCooldownsKey, JSON.stringify(allCooldowns));
+        } catch (e) {
+            console.error("Error saving build cooldowns:", e);
+        }
+    }
+    
+    function getBuildCooldownInfo(target, buildKey) {
+        var buildCooldowns = loadBuildCooldownsFromStorage();
+        var currentTime = (new Date()).getTime();
+        
+        if (buildCooldowns[target] && buildCooldowns[target][buildKey]) {
+            var lastAttackTime = buildCooldowns[target][buildKey];
+            var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
+            var buildCooldownMinutes = build.cooldown || settings.cooldown || defaultCooldown;
+            var minutesSinceAttack = (currentTime - lastAttackTime) / 60000;
+            var minutesLeft = buildCooldownMinutes - minutesSinceAttack;
+            
+            return {
+                onCooldown: minutesSinceAttack < buildCooldownMinutes,
+                minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
+                lastAttack: new Date(lastAttackTime),
+                cooldown: buildCooldownMinutes
+            };
+        }
+        
+        return {
+            onCooldown: false,
+            minutesLeft: 0,
+            lastAttack: null,
+            cooldown: (troopBuilds[buildKey] ? troopBuilds[buildKey].cooldown : null) || settings.cooldown || defaultCooldown
+        };
+    }
+    
+    function recordBuildAttack(target, buildKey) {
+        // Record general attack history (for backward compatibility)
+        recordAttack(target);
+        
+        // Record build-specific attack
+        var buildCooldowns = loadBuildCooldownsFromStorage();
+        if (!buildCooldowns[target]) {
+            buildCooldowns[target] = {};
+        }
+        buildCooldowns[target][buildKey] = (new Date()).getTime();
+        saveBuildCooldownsToStorage(buildCooldowns);
+        
+        var distance = calculateDistance(homeCoords, target);
+        console.log("Attack " + target + " with Build " + buildKey + " (distance: " + distance + ")");
+    }
+    
     function cleanupOldHistory() {
         var history = getAttackHistory();
         var currentTime = (new Date()).getTime();
@@ -816,6 +928,28 @@
         
         if (changed) {
             saveAttackHistory(history);
+        }
+        
+        // Also cleanup build-specific cooldowns
+        var buildCooldowns = loadBuildCooldownsFromStorage();
+        var buildCooldownsChanged = false;
+        
+        for (var target in buildCooldowns) {
+            for (var buildKey in buildCooldowns[target]) {
+                if ((currentTime - buildCooldowns[target][buildKey]) > 86400000) {
+                    delete buildCooldowns[target][buildKey];
+                    buildCooldownsChanged = true;
+                }
+            }
+            // Remove empty target entries
+            if (Object.keys(buildCooldowns[target]).length === 0) {
+                delete buildCooldowns[target];
+                buildCooldownsChanged = true;
+            }
+        }
+        
+        if (buildCooldownsChanged) {
+            saveBuildCooldownsToStorage(buildCooldowns);
         }
     }
     
@@ -871,10 +1005,20 @@
                 var allBuilds = JSON.parse(storedData);
                 if (allBuilds[currentWorld]) {
                     troopBuilds = allBuilds[currentWorld];
-                    // Ensure all three builds exist
-                    if (!troopBuilds["A"]) troopBuilds["A"] = JSON.parse(JSON.stringify(defaultBuilds["A"]));
-                    if (!troopBuilds["B"]) troopBuilds["B"] = JSON.parse(JSON.stringify(defaultBuilds["B"]));
-                    if (!troopBuilds["C"]) troopBuilds["C"] = JSON.parse(JSON.stringify(defaultBuilds["C"]));
+                    // Ensure all three builds exist with proper structure
+                    ['A', 'B', 'C'].forEach(function(buildKey) {
+                        if (!troopBuilds[buildKey]) {
+                            troopBuilds[buildKey] = JSON.parse(JSON.stringify(defaultBuilds[buildKey]));
+                        } else {
+                            // Ensure cooldown and enabled properties exist
+                            if (troopBuilds[buildKey].cooldown === undefined) {
+                                troopBuilds[buildKey].cooldown = defaultCooldown;
+                            }
+                            if (troopBuilds[buildKey].enabled === undefined) {
+                                troopBuilds[buildKey].enabled = buildKey === 'A'; // Default: only A enabled
+                            }
+                        }
+                    });
                 } else {
                     troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
                 }
@@ -930,15 +1074,25 @@
     
     function getTargetBuilds(target) {
         if (!targetBuilds[target]) {
-            // Default: all builds enabled
-            targetBuilds[target] = { A: true, B: true, C: true };
+            // Default: check which builds are enabled globally
+            var enabledBuilds = {};
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
+                enabledBuilds[buildKey] = build.enabled !== false; // Default to build's enabled state
+            });
+            targetBuilds[target] = enabledBuilds;
         }
         return targetBuilds[target];
     }
     
     function setTargetBuild(target, buildKey, enabled) {
         if (!targetBuilds[target]) {
-            targetBuilds[target] = { A: true, B: true, C: true };
+            // Initialize with default enabled states
+            targetBuilds[target] = {};
+            ['A', 'B', 'C'].forEach(function(bk) {
+                var build = troopBuilds[bk] || defaultBuilds[bk];
+                targetBuilds[target][bk] = build.enabled !== false;
+            });
         }
         targetBuilds[target][buildKey] = enabled;
         saveTargetBuildsToStorage();
@@ -1462,32 +1616,19 @@
             }
             
             if (!hasEnoughTroops) {
-                console.log("Not enough troops for Build " + buildKey + ":", missingTroops);
-                showStatus('Not enough troops for Build ' + buildKey + '. Trying fallback...', 'error');
+                console.log("Not enough troops for Build " + buildKey + " on village " + target + ":", missingTroops);
+                showStatus('Not enough troops for Build ' + buildKey + ' on ' + target + '. Skipping village.', 'error');
                 
-                // Try other builds in order A -> B -> C
-                var buildOrder = ['A', 'B', 'C'];
-                var currentIndex = buildOrder.indexOf(buildKey);
-                var nextBuild = null;
+                // Instead of trying fallback builds, mark this village as on cooldown temporarily
+                // so it gets skipped in the current auto-attack cycle
+                recordBuildAttack(target, buildKey); // Record as attacked to skip it for now
                 
-                for (var i = currentIndex + 1; i < buildOrder.length; i++) {
-                    if (settings.autoAttackBuilds[buildOrder[i]]) {
-                        nextBuild = buildOrder[i];
-                        break;
-                    }
-                }
-                
-                if (nextBuild) {
-                    console.log("Trying Build " + nextBuild + " as fallback...");
+                // In auto-attack mode, this will cause it to move to the next village
+                if (settings.autoAttackEnabled) {
+                    // Immediately try the next target
                     setTimeout(function() {
-                        attackTarget(target, nextBuild);
+                        autoAttackNext();
                     }, 1000);
-                } else {
-                    // Schedule next check in 30 seconds
-                    setTimeout(function() {
-                        console.log('Re-checking troop availability...');
-                        attackTarget(target, buildKey);
-                    }, 30000);
                 }
                 
                 return;
@@ -1507,14 +1648,14 @@
             setUnitCount(doc.forms[0].catapult, build.catapult);
             setUnitCount(doc.forms[0].knight, build.knight);
             
-            recordAttack(target);
+            recordBuildAttack(target, buildKey);
             showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
             updateTargetsListUI();
             
             // Auto-click submit button
             setTimeout(function() {
                 if (clickAttackButton()) {
-                    showStatus('Auto-attack: Attack sent to ' + target, 'success');
+                    showStatus('Auto-attack: Attack sent to ' + target + ' with Build ' + buildKey, 'success');
                 } else {
                     showStatus('Auto-attack: Could not find submit button', 'error');
                 }
@@ -1531,7 +1672,10 @@
         for (var i = 0; i < buildOrder.length; i++) {
             var buildKey = buildOrder[i];
             if (targetBuildSettings[buildKey]) {
-                return buildKey;
+                var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                if (!buildCooldownInfo.onCooldown) {
+                    return buildKey;
+                }
             }
         }
         return null;
@@ -1542,7 +1686,7 @@
         if (buildKey) {
             attackTarget(target, buildKey);
         } else {
-            showStatus('No builds enabled for target ' + target, 'error');
+            showStatus('All builds for target ' + target + ' are on cooldown', 'error');
         }
     }
     
@@ -1587,44 +1731,60 @@
         
         do {
             var currentTarget = targets[targetIndex];
-            var cooldownInfo = getCooldownInfo(currentTarget);
             
-            if (!cooldownInfo.onCooldown) {
+            // Check if ANY build is off cooldown for this target
+            var anyBuildOffCooldown = false;
+            var targetBuildSettings = getTargetBuilds(currentTarget);
+            for (var buildKey in targetBuildSettings) {
+                if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                    var buildCooldownInfo = getBuildCooldownInfo(currentTarget, buildKey);
+                    if (!buildCooldownInfo.onCooldown) {
+                        anyBuildOffCooldown = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (anyBuildOffCooldown) {
                 // Check which builds are enabled for this target
-                var targetBuildSettings = getTargetBuilds(currentTarget);
                 var buildOrder = ['A', 'B', 'C'];
                 
                 for (var i = 0; i < buildOrder.length; i++) {
                     var buildKey = buildOrder[i];
                     if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
-                        // Check if we have enough troops for this build
-                        var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
-                        var hasEnoughTroops = true;
+                        // Check if this specific build is off cooldown
+                        var buildCooldownInfo = getBuildCooldownInfo(currentTarget, buildKey);
                         
-                        // Only check troop availability if we have troop data
-                        if (Object.keys(availableTroops).length > 0) {
-                            for (var troopType in build) {
-                                if (build[troopType] > 0) {
-                                    var available = availableTroops[troopType] || 0;
-                                    if (available < build[troopType]) {
-                                        hasEnoughTroops = false;
-                                        console.log("Skipping Build " + buildKey + " for " + currentTarget + 
-                                                    " - need " + build[troopType] + " " + troopType + 
-                                                    ", have " + available);
-                                        break;
+                        if (!buildCooldownInfo.onCooldown) {
+                            // Check if we have enough troops for this build
+                            var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
+                            var hasEnoughTroops = true;
+                            
+                            // Only check troop availability if we have troop data
+                            if (Object.keys(availableTroops).length > 0) {
+                                for (var troopType in build) {
+                                    if (build[troopType] > 0) {
+                                        var available = availableTroops[troopType] || 0;
+                                        if (available < build[troopType]) {
+                                            hasEnoughTroops = false;
+                                            console.log("Skipping Build " + buildKey + " for " + currentTarget + 
+                                                        " - need " + build[troopType] + " " + troopType + 
+                                                        ", have " + available);
+                                            break;
+                                        }
                                     }
                                 }
+                            } else {
+                                // If we don't have troop data, assume we don't have enough troops
+                                hasEnoughTroops = false;
+                                console.log("No troop data available, skipping Build " + buildKey + " for " + currentTarget);
                             }
-                        } else {
-                            // If we don't have troop data, assume we don't have enough troops
-                            hasEnoughTroops = false;
-                            console.log("No troop data available, skipping Build " + buildKey + " for " + currentTarget);
-                        }
-                        
-                        if (hasEnoughTroops) {
-                            selectedTarget = currentTarget;
-                            selectedBuild = buildKey;
-                            break;
+                            
+                            if (hasEnoughTroops) {
+                                selectedTarget = currentTarget;
+                                selectedBuild = buildKey;
+                                break;
+                            }
                         }
                     }
                 }
@@ -1646,22 +1806,21 @@
             
             for (var i = 0; i < targets.length; i++) {
                 var target = targets[i];
-                var cooldownInfo = getCooldownInfo(target);
+                var targetBuildSettings = getTargetBuilds(target);
                 
-                if (!cooldownInfo.onCooldown) {
-                    anyVillageOffCooldown = true;
-                    var targetBuildSettings = getTargetBuilds(target);
-                    
-                    // Check if this village has any builds enabled
-                    for (var buildKey in targetBuildSettings) {
-                        if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                // Check if any build is off cooldown for this target
+                for (var buildKey in targetBuildSettings) {
+                    if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                        var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                        if (!buildCooldownInfo.onCooldown) {
+                            anyVillageOffCooldown = true;
                             anyVillageHasEnabledBuilds = true;
                             break;
                         }
                     }
-                    
-                    if (anyVillageHasEnabledBuilds) break;
                 }
+                
+                if (anyVillageHasEnabledBuilds) break;
             }
             
             if (anyVillageOffCooldown && anyVillageHasEnabledBuilds) {
@@ -1686,12 +1845,18 @@
                 var shortestCooldownTarget = null;
                 var shortestCooldownMinutes = 0;
                 
+                // Check all builds for all targets to find the shortest cooldown
                 targets.forEach(function(target) {
-                    var cooldownInfo = getCooldownInfo(target);
-                    if (cooldownInfo.onCooldown && cooldownInfo.minutesLeft < shortestCooldown) {
-                        shortestCooldown = cooldownInfo.minutesLeft;
-                        shortestCooldownTarget = target;
-                        shortestCooldownMinutes = cooldownInfo.minutesLeft;
+                    var targetBuildSettings = getTargetBuilds(target);
+                    for (var buildKey in targetBuildSettings) {
+                        if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                            var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                            if (buildCooldownInfo.onCooldown && buildCooldownInfo.minutesLeft < shortestCooldown) {
+                                shortestCooldown = buildCooldownInfo.minutesLeft;
+                                shortestCooldownTarget = target;
+                                shortestCooldownMinutes = buildCooldownInfo.minutesLeft;
+                            }
+                        }
                     }
                 });
                 
@@ -2222,11 +2387,60 @@
                 var borderColor = buildKey === 'A' ? '#4CAF50' : buildKey === 'B' ? '#2196F3' : '#9C27B0';
                 buildHeader.style.borderBottomColor = borderColor;
                 
+                // Build title with enabled checkbox
+                var buildTitleContainer = document.createElement('div');
+                buildTitleContainer.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+                
+                var enabledCheckbox = document.createElement('input');
+                enabledCheckbox.type = 'checkbox';
+                enabledCheckbox.checked = build.enabled !== false;
+                enabledCheckbox.style.transform = 'scale(1.2)';
+                enabledCheckbox.dataset.build = buildKey;
+                
                 var buildTitle = document.createElement('div');
                 buildTitle.className = 'tw-attack-build-title';
                 if (buildKey === 'B') buildTitle.classList.add('tw-attack-build-title-b');
                 if (buildKey === 'C') buildTitle.classList.add('tw-attack-build-title-c');
                 buildTitle.textContent = 'Build ' + buildKey;
+                
+                enabledCheckbox.onchange = function() {
+                    if (!troopBuilds[buildKey]) {
+                        troopBuilds[buildKey] = JSON.parse(JSON.stringify(defaultBuilds[buildKey]));
+                    }
+                    troopBuilds[buildKey].enabled = this.checked;
+                };
+                
+                buildTitleContainer.appendChild(enabledCheckbox);
+                buildTitleContainer.appendChild(buildTitle);
+                
+                // Cooldown input
+                var cooldownContainer = document.createElement('div');
+                cooldownContainer.style.cssText = 'display: flex; align-items: center; gap: 5px; margin-left: 10px;';
+                
+                var cooldownLabel = document.createElement('span');
+                cooldownLabel.textContent = 'Cooldown:';
+                cooldownLabel.style.fontSize = '12px';
+                cooldownLabel.style.color = '#666';
+                
+                var cooldownInput = document.createElement('input');
+                cooldownInput.type = 'number';
+                cooldownInput.min = '1';
+                cooldownInput.max = '1440';
+                cooldownInput.value = build.cooldown || defaultCooldown;
+                cooldownInput.style.cssText = 'width: 50px; padding: 2px; font-size: 12px;';
+                cooldownInput.dataset.build = buildKey;
+                
+                cooldownInput.onchange = function() {
+                    if (!troopBuilds[buildKey]) {
+                        troopBuilds[buildKey] = JSON.parse(JSON.stringify(defaultBuilds[buildKey]));
+                    }
+                    troopBuilds[buildKey].cooldown = parseInt(this.value) || defaultCooldown;
+                };
+                
+                cooldownContainer.appendChild(cooldownLabel);
+                cooldownContainer.appendChild(cooldownInput);
+                
+                buildTitleContainer.appendChild(cooldownContainer);
                 
                 var saveBtn = document.createElement('button');
                 saveBtn.textContent = '💾 Save';
@@ -2240,7 +2454,7 @@
                     };
                 })(buildKey);
                 
-                buildHeader.appendChild(buildTitle);
+                buildHeader.appendChild(buildTitleContainer);
                 buildHeader.appendChild(saveBtn);
                 
                 var troopsContainer = document.createElement('div');
@@ -2486,9 +2700,8 @@
             targetInfo.className = 'tw-attack-target-info';
             
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
-            var cooldownInfo = getCooldownInfo(target);
-            var targetBuildSettings = getTargetBuilds(target);
             var villageData = getVillageData(target);
+            var targetBuildSettings = getTargetBuilds(target);
             
             // Village info container
             var villageInfoContainer = document.createElement('div');
@@ -2600,12 +2813,35 @@
             distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
             
             var lastAttackSpan = document.createElement('span');
-            lastAttackSpan.innerHTML = `<strong>Last:</strong> ${formatTimeSince(cooldownInfo.lastAttack)}`;
+            // Get the most recent attack from any build
+            var mostRecentAttack = null;
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                if (targetBuildSettings[buildKey]) {
+                    var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                    if (buildCooldownInfo.lastAttack && (!mostRecentAttack || buildCooldownInfo.lastAttack > mostRecentAttack)) {
+                        mostRecentAttack = buildCooldownInfo.lastAttack;
+                    }
+                }
+            });
+            lastAttackSpan.innerHTML = `<strong>Last:</strong> ${formatTimeSince(mostRecentAttack)}`;
             
+            // Build cooldown indicators
             var cooldownSpan = document.createElement('span');
-            if (cooldownInfo.onCooldown) {
-                cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${cooldownInfo.minutesLeft}m</strong>`;
-                cooldownSpan.title = 'Attacked ' + formatTimeSince(cooldownInfo.lastAttack);
+            var cooldownDetails = [];
+            
+            // Check cooldown for each enabled build
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                    var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                    if (buildCooldownInfo.onCooldown) {
+                        cooldownDetails.push(`${buildKey}:${buildCooldownInfo.minutesLeft}m`);
+                    }
+                }
+            });
+            
+            if (cooldownDetails.length > 0) {
+                cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${cooldownDetails.join(', ')}</strong>`;
+                cooldownSpan.title = 'Build cooldowns: ' + cooldownDetails.join(', ');
             } else {
                 cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
             }
@@ -2622,7 +2858,7 @@
             var actionButtons = document.createElement('div');
             actionButtons.className = 'tw-attack-action-buttons';
             
-            // Build selection checkboxes
+            // Build selection checkboxes with cooldown indicators
             ['A', 'B', 'C'].forEach(function(buildKey) {
                 var isEnabled = targetBuildSettings[buildKey];
                 var btn = document.createElement('button');
@@ -2631,7 +2867,24 @@
                 if (isEnabled) btn.classList.add('checked');
                 if (buildKey === 'B') btn.classList.add('b');
                 if (buildKey === 'C') btn.classList.add('c');
-                btn.title = 'Toggle Build ' + buildKey + ' for this target';
+                
+                // Add cooldown indicator
+                var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                var cooldownIndicator = document.createElement('span');
+                cooldownIndicator.className = 'tw-attack-build-cooldown-indicator';
+                
+                if (buildCooldownInfo.onCooldown) {
+                    cooldownIndicator.classList.add('tw-attack-build-cooldown-cooldown');
+                    cooldownIndicator.textContent = buildCooldownInfo.minutesLeft + 'm';
+                    cooldownIndicator.title = 'Build ' + buildKey + ' on cooldown: ' + buildCooldownInfo.minutesLeft + ' minutes remaining';
+                } else {
+                    cooldownIndicator.classList.add('tw-attack-build-cooldown-ready');
+                    cooldownIndicator.textContent = '✓';
+                    cooldownIndicator.title = 'Build ' + buildKey + ' ready';
+                }
+                
+                btn.appendChild(cooldownIndicator);
+                btn.title = 'Toggle Build ' + buildKey + ' for this target. Cooldown: ' + buildCooldownInfo.cooldown + ' minutes';
                 
                 btn.onclick = (function(buildKey, targetCoords) {
                     return function(e) {
@@ -2643,6 +2896,7 @@
                         } else {
                             this.classList.remove('checked');
                         }
+                        updateTargetsListUI();
                     };
                 })(buildKey, target);
                 
@@ -2653,8 +2907,20 @@
             attackBtn.textContent = '⚔️';
             attackBtn.title = 'Attack with first available build';
             attackBtn.className = 'tw-attack-attack-btn';
-            attackBtn.disabled = cooldownInfo.onCooldown;
-            if (cooldownInfo.onCooldown) {
+            
+            // Check if any build is off cooldown and enabled
+            var anyBuildReady = false;
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                    var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
+                    if (!buildCooldownInfo.onCooldown) {
+                        anyBuildReady = true;
+                    }
+                }
+            });
+            
+            if (!anyBuildReady) {
+                attackBtn.disabled = true;
                 attackBtn.style.opacity = '0.5';
                 attackBtn.style.cursor = 'not-allowed';
             } else {
