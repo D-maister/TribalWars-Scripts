@@ -566,6 +566,68 @@
             animation: twSubmitSpin 1s linear infinite;
             margin: 15px auto;
         }
+
+        .tw-attack-villages-container {
+            flex: 1;
+            overflow-y: auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background: #f8f9fa;
+            min-height: 300px;
+        }
+        
+        .tw-attack-village-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            margin: 8px 0;
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+            min-height: 50px;
+            box-sizing: border-box;
+        }
+        
+        .tw-attack-village-item:hover {
+            background-color: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .tw-attack-village-item-alt {
+            background: #f8f9fa;
+        }
+        
+        .tw-attack-village-item.selected {
+            background-color: #e8f5e9;
+        }
+        
+        .tw-attack-village-info {
+            display: flex;
+            flex-direction: column;
+            font-family: monospace;
+            font-size: 13px;
+            flex: 1;
+            min-width: 0; /* Important for text overflow */
+        }
+        
+        .tw-attack-village-details {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .tw-attack-village-checkbox {
+            margin-left: 15px;
+            transform: scale(1.2);
+            flex-shrink: 0;
+        }
         
         @keyframes twSubmitSpin {
             0% { transform: rotate(0deg); }
@@ -2422,6 +2484,13 @@
                 villageInfo.className = 'tw-attack-village-info';
                 
                 var villageName = document.createElement('span');
+                villageName.style.cssText = `
+                    font-weight: bold;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    margin-bottom: 2px;
+                `;
                 villageName.textContent = village.name + ' - ' + village.coords;
                 
                 // Add star for bonus villages or red circle for player villages
@@ -2458,8 +2527,7 @@
                 
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.style.marginLeft = '15px';
-                checkbox.style.transform = 'scale(1.2)';
+                checkbox.className = 'tw-attack-village-checkbox';
                 allVillageCheckboxes.push(checkbox);
                 
                 checkbox.onchange = function() {
@@ -2478,7 +2546,7 @@
                 };
                 
                 villageItem.onclick = function(e) {
-                    if (e.target !== checkbox) {
+                    if (e.target !== checkbox && !checkbox.contains(e.target)) {
                         checkbox.checked = !checkbox.checked;
                         checkbox.dispatchEvent(new Event('change'));
                     }
