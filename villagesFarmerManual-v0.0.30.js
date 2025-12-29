@@ -1637,14 +1637,20 @@
             var hasEnoughTroops = true;
             var missingTroops = [];
             
-            for (var troopType in build) {
-                if (build[troopType] > 0) {
+            // Define troop types to check (exclude cooldown and enabled properties)
+            var troopTypesToCheck = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
+            
+            for (var i = 0; i < troopTypesToCheck.length; i++) {
+                var troopType = troopTypesToCheck[i];
+                var troopCount = build[troopType] || 0;
+                
+                if (troopCount > 0) {
                     var available = availableTroops[troopType] || 0;
-                    if (available < build[troopType]) {
+                    if (available < troopCount) {
                         hasEnoughTroops = false;
                         missingTroops.push({
                             type: troopType,
-                            needed: build[troopType],
+                            needed: troopCount,
                             available: available
                         });
                     }
@@ -1674,15 +1680,16 @@
             doc.forms[0].x.value = coords[0];
             doc.forms[0].y.value = coords[1];
             
-            setUnitCount(doc.forms[0].spear, build.spear);
-            setUnitCount(doc.forms[0].sword, build.sword);
-            setUnitCount(doc.forms[0].axe, build.axe);
-            setUnitCount(doc.forms[0].spy, build.spy);
-            setUnitCount(doc.forms[0].light, build.light);
-            setUnitCount(doc.forms[0].heavy, build.heavy);
-            setUnitCount(doc.forms[0].ram, build.ram);
-            setUnitCount(doc.forms[0].catapult, build.catapult);
-            setUnitCount(doc.forms[0].knight, build.knight);
+            // Set troop counts (only for actual troop types)
+            setUnitCount(doc.forms[0].spear, build.spear || 0);
+            setUnitCount(doc.forms[0].sword, build.sword || 0);
+            setUnitCount(doc.forms[0].axe, build.axe || 0);
+            setUnitCount(doc.forms[0].spy, build.spy || 0);
+            setUnitCount(doc.forms[0].light, build.light || 0);
+            setUnitCount(doc.forms[0].heavy, build.heavy || 0);
+            setUnitCount(doc.forms[0].ram, build.ram || 0);
+            setUnitCount(doc.forms[0].catapult, build.catapult || 0);
+            setUnitCount(doc.forms[0].knight, build.knight || 0);
             
             recordBuildAttack(target, buildKey);
             showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
@@ -1798,13 +1805,19 @@
                             
                             // Only check troop availability if we have troop data
                             if (Object.keys(availableTroops).length > 0) {
-                                for (var troopType in build) {
-                                    if (build[troopType] > 0) {
+                                // List of actual troop types to check (exclude cooldown and enabled)
+                                var troopTypes = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
+                                
+                                for (var j = 0; j < troopTypes.length; j++) {
+                                    var troopType = troopTypes[j];
+                                    var troopCount = build[troopType] || 0;
+                                    
+                                    if (troopCount > 0) {
                                         var available = availableTroops[troopType] || 0;
-                                        if (available < build[troopType]) {
+                                        if (available < troopCount) {
                                             hasEnoughTroops = false;
                                             console.log("Skipping Build " + buildKey + " for " + currentTarget + 
-                                                        " - need " + build[troopType] + " " + troopType + 
+                                                        " - need " + troopCount + " " + troopType + 
                                                         ", have " + available);
                                             break;
                                         }
