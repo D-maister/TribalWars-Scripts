@@ -1,6 +1,9 @@
 (function() {
+    console.log('🚀 TW Attack Script - Combined Version');
+
     // ===== STYLES =====
     const styles = `
+        /* Main config styles */
         .tw-attack-config {
             position: fixed;
             top: 50px;
@@ -53,10 +56,6 @@
             transition: background 0.2s;
         }
         
-        .tw-attack-toggle-btn:hover {
-            background: #555;
-        }
-        
         .tw-attack-auto-container {
             display: flex;
             gap: 10px;
@@ -87,6 +86,10 @@
         
         .tw-attack-auto-btn-b {
             background: linear-gradient(to right, #2196F3, #1976D2);
+        }
+        
+        .tw-attack-auto-btn-c {
+            background: linear-gradient(to right, #9C27B0, #7B1FA2);
         }
         
         .tw-attack-world-info {
@@ -158,10 +161,6 @@
             transition: background 0.2s;
         }
         
-        .tw-attack-save-btn:hover {
-            background: #45a049;
-        }
-        
         .tw-attack-build-container {
             margin-bottom: 15px;
             padding: 12px;
@@ -189,6 +188,10 @@
             color: #2196F3;
         }
         
+        .tw-attack-build-title-c {
+            color: #9C27B0;
+        }
+        
         .tw-attack-build-save-btn {
             background: #4CAF50;
             color: white;
@@ -202,6 +205,10 @@
         
         .tw-attack-build-save-btn-b {
             background: #2196F3;
+        }
+        
+        .tw-attack-build-save-btn-c {
+            background: #9C27B0;
         }
         
         .tw-attack-troops-grid {
@@ -262,10 +269,6 @@
             transition: background 0.2s;
         }
         
-        .tw-attack-parse-btn:hover {
-            background: #45a049;
-        }
-        
         .tw-attack-status {
             font-size: 13px;
             margin-bottom: 15px;
@@ -284,12 +287,6 @@
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
-        }
-        
-        .tw-attack-status-info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
         }
         
         .tw-attack-targets-container {
@@ -313,29 +310,6 @@
             transition: background 0.2s;
         }
         
-        .tw-attack-clear-btn:hover {
-            background: #ff2222;
-        }
-        
-        .tw-attack-manage-btn {
-            background: #ff9800;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 13px;
-            margin-bottom: 15px;
-            width: 100%;
-            font-weight: bold;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: background 0.2s;
-        }
-        
-        .tw-attack-manage-btn:hover {
-            background: #f57c00;
-        }
-        
         .tw-attack-target-item {
             display: flex;
             justify-content: space-between;
@@ -353,10 +327,6 @@
         .tw-attack-target-item:hover {
             transform: translateY(-1px);
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .tw-attack-target-item-alt {
-            background: #fff;
         }
         
         .tw-attack-target-info {
@@ -401,6 +371,9 @@
             height: 24px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .tw-attack-action-btn:hover {
@@ -416,14 +389,36 @@
             background: #2196F3;
         }
         
+        .tw-attack-action-btn-c {
+            background: #9C27B0;
+        }
+        
         .tw-attack-action-btn-disabled {
             background: #cccccc;
             cursor: not-allowed;
+            opacity: 0.5;
         }
         
-        .tw-attack-action-btn-disabled:hover {
-            transform: none;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        .tw-attack-action-btn-checkbox {
+            background: #e0e0e0;
+            color: #666;
+            border: 2px solid #999;
+        }
+        
+        .tw-attack-action-btn-checkbox.checked {
+            background: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        
+        .tw-attack-action-btn-checkbox.checked.b {
+            background: #2196F3;
+            border-color: #2196F3;
+        }
+        
+        .tw-attack-action-btn-checkbox.checked.c {
+            background: #9C27B0;
+            border-color: #9C27B0;
         }
         
         .tw-attack-ignore-btn {
@@ -442,11 +437,6 @@
             flex-shrink: 0;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             transition: transform 0.2s, background 0.2s;
-        }
-        
-        .tw-attack-ignore-btn:hover {
-            transform: scale(1.05);
-            background: #f57c00;
         }
         
         .tw-attack-remove-btn {
@@ -468,13 +458,33 @@
             transition: transform 0.2s, background 0.2s;
         }
         
-        .tw-attack-remove-btn:hover {
-            transform: scale(1.05);
+        .tw-attack-attack-btn {
             background: #ff4444;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            width: 30px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            transition: transform 0.2s, background 0.2s;
         }
         
         .tw-attack-bonus-star {
             color: #FFD700;
+            font-size: 14px;
+            margin-left: 5px;
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+        }
+        
+        .tw-attack-player-circle {
+            color: #ff4444;
             font-size: 14px;
             margin-left: 5px;
             text-shadow: 0 0 2px rgba(0,0,0,0.5);
@@ -522,116 +532,44 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         
-        .tw-attack-selection-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 3px solid #4CAF50;
-        }
-        
-        .tw-attack-selection-title {
-            margin: 0;
-            color: #333;
-            font-size: 18px;
-        }
-        
-        .tw-attack-selection-close-btn {
-            background: #ff4444;
+        /* Submit script styles */
+        .tw-submit-loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
             color: white;
-            border: none;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            cursor: pointer;
+            padding: 20px 30px;
+            border-radius: 10px;
+            z-index: 99999;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            min-width: 300px;
+            border: 2px solid #4CAF50;
+        }
+        
+        .tw-submit-loading-title {
             font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .tw-attack-search-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-        
-        .tw-attack-villages-container {
-            flex: 1;
-            overflow-y: auto;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            background: #f8f9fa;
-        }
-        
-        .tw-attack-village-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 15px;
-            margin: 8px 0;
-            background: #fff;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.2s;
-        }
-        
-        .tw-attack-village-item:hover {
-            background-color: #e9ecef;
-            transform: translateX(5px);
-        }
-        
-        .tw-attack-village-item-alt {
-            background: #f8f9fa;
-        }
-        
-        .tw-attack-village-item.selected {
-            background-color: #e8f5e9;
-        }
-        
-        .tw-attack-village-info {
-            display: flex;
-            flex-direction: column;
-            font-family: monospace;
-            font-size: 13px;
-        }
-        
-        .tw-attack-village-details {
-            font-size: 11px;
-            color: #666;
-            margin-top: 2px;
-        }
-        
-        .tw-attack-select-all-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
             margin-bottom: 15px;
-            padding: 10px;
-            background: #f0f8ff;
-            border-radius: 6px;
-            border: 1px solid #b8d4ff;
+            color: #4CAF50;
+            font-weight: bold;
         }
         
-        .tw-attack-select-all-btn {
-            background: #2196F3;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
+        .tw-submit-loading-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #4CAF50;
+            width: 40px;
+            height: 40px;
+            animation: twSubmitSpin 1s linear infinite;
+            margin: 15px auto;
         }
         
-        .tw-attack-select-all-btn:hover {
-            background: #1976D2;
+        @keyframes twSubmitSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     `;
 
@@ -640,7 +578,7 @@
     styleElement.textContent = styles;
     document.head.appendChild(styleElement);
 
-    // ===== CONFIGURATION SECTION =====
+    // ===== CONFIGURATION =====
     var cookieName = "akk";
     var historyCookie = "attackHistory";
     var targetsStorageKey = "twAttackTargets";
@@ -648,8 +586,9 @@
     var settingsStorageKey = "twAttackSettings";
     var ignoreStorageKey = "twAttackIgnoreList";
     var submitMarkerKey = "twAttackSubmitMarker";
-    var defaultCooldown = 30;
+    var targetBuildsKey = "twAttackTargetBuilds";
     
+    var defaultCooldown = 30;
     var homeCoords = "";
     var targetList = "";
     var currentWorld = "";
@@ -658,10 +597,12 @@
     
     var defaultBuilds = {
         "A": { spear: 0, sword: 0, axe: 0, spy: 0, light: 2, heavy: 0, ram: 0, catapult: 0, knight: 0 },
-        "B": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 }
+        "B": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 },
+        "C": { spear: 0, sword: 0, axe: 0, spy: 0, light: 0, heavy: 0, ram: 0, catapult: 0, knight: 0 }
     };
     
     var troopBuilds = {};
+    var targetBuilds = {}; // Stores which builds are enabled for each target
     
     var settings = {
         cooldown: defaultCooldown,
@@ -670,17 +611,9 @@
         maxPlayerPoints: 1000,
         autoAttackEnabled: false,
         autoAttackPosition: { x: 10, y: 100 },
-        includeBonusVillages: true
+        includeBonusVillages: true,
+        autoAttackBuilds: { A: true, B: false, C: false }
     };
-
-    // ===== ANTIBOT CHECK =====
-    function checkForAntibot() {
-        if (document.querySelector('td.bot-protection-row, div#botprotection_quest.quest')) {
-            alert('Check for ANTIBOT CAPTCHA');
-            return true;
-        }
-        return false;
-    }
 
     // ===== UTILITY FUNCTIONS =====
     
@@ -765,37 +698,6 @@
         }
     }
     
-    function setUnitCount(field, count) {
-        if (field && count > 0) {
-            var unitType = field.name;
-            var availableElement = field.parentNode.querySelector('.units-entry-all');
-            var available = 0;
-            
-            if (availableElement) {
-                var match = availableElement.textContent.match(/\((\d+)\)/);
-                if (match) {
-                    available = parseInt(match[1]);
-                }
-            }
-            
-            var actualCount = Math.min(count, available);
-            field.value = actualCount;
-            
-            if (actualCount < count) {
-                console.log("Warning: Only " + actualCount + " " + unitType + " available (requested " + count + ")");
-            }
-            
-            // Set session storage marker when setting troops (this happens before submit button click)
-            if (actualCount > 0) {
-                var worldName = getWorldName();
-                var key = submitMarkerKey + "_" + worldName;
-                var timestamp = new Date().getTime();
-                sessionStorage.setItem(key, timestamp.toString());
-                console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
-            }
-        }
-    }
-    
     function getCurrentVillageCoords() {
         var title = document.querySelector('head > title');
         if (title) {
@@ -848,6 +750,10 @@
                 var allBuilds = JSON.parse(storedData);
                 if (allBuilds[currentWorld]) {
                     troopBuilds = allBuilds[currentWorld];
+                    // Ensure all three builds exist
+                    if (!troopBuilds["A"]) troopBuilds["A"] = JSON.parse(JSON.stringify(defaultBuilds["A"]));
+                    if (!troopBuilds["B"]) troopBuilds["B"] = JSON.parse(JSON.stringify(defaultBuilds["B"]));
+                    if (!troopBuilds["C"]) troopBuilds["C"] = JSON.parse(JSON.stringify(defaultBuilds["C"]));
                 } else {
                     troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
                 }
@@ -871,6 +777,52 @@
         }
     }
     
+    function loadTargetBuildsFromStorage() {
+        try {
+            var storedData = localStorage.getItem(targetBuildsKey);
+            if (storedData) {
+                var allTargetBuilds = JSON.parse(storedData);
+                if (allTargetBuilds[currentWorld]) {
+                    targetBuilds = allTargetBuilds[currentWorld];
+                } else {
+                    targetBuilds = {};
+                }
+            } else {
+                targetBuilds = {};
+            }
+        } catch (e) {
+            console.error("Error loading target builds:", e);
+            targetBuilds = {};
+        }
+    }
+    
+    function saveTargetBuildsToStorage() {
+        try {
+            var storedData = localStorage.getItem(targetBuildsKey);
+            var allTargetBuilds = storedData ? JSON.parse(storedData) : {};
+            allTargetBuilds[currentWorld] = targetBuilds;
+            localStorage.setItem(targetBuildsKey, JSON.stringify(allTargetBuilds));
+        } catch (e) {
+            console.error("Error saving target builds:", e);
+        }
+    }
+    
+    function getTargetBuilds(target) {
+        if (!targetBuilds[target]) {
+            // Default: all builds enabled
+            targetBuilds[target] = { A: true, B: true, C: true };
+        }
+        return targetBuilds[target];
+    }
+    
+    function setTargetBuild(target, buildKey, enabled) {
+        if (!targetBuilds[target]) {
+            targetBuilds[target] = { A: true, B: true, C: true };
+        }
+        targetBuilds[target][buildKey] = enabled;
+        saveTargetBuildsToStorage();
+    }
+    
     function loadSettingsFromStorage() {
         try {
             var storedData = localStorage.getItem(settingsStorageKey);
@@ -880,14 +832,10 @@
                     settings = allSettings[currentWorld];
                     settings.autoAttack = true;
                     
-                    // Initialize autoAttackBuilds if not exists
+                    // Initialize missing properties
                     if (!settings.autoAttackBuilds) {
-                        settings.autoAttackBuilds = {
-                            A: true,
-                            B: false
-                        };
+                        settings.autoAttackBuilds = { A: true, B: false, C: false };
                     }
-                    
                     if (settings.includePlayers === undefined) settings.includePlayers = false;
                     if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
                     if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
@@ -901,10 +849,7 @@
                         maxPlayerPoints: 1000,
                         autoAttackEnabled: false,
                         autoAttackPosition: { x: 10, y: 100 },
-                        autoAttackBuilds: {
-                            A: true,
-                            B: false
-                        },
+                        autoAttackBuilds: { A: true, B: false, C: false },
                         includeBonusVillages: true
                     };
                 }
@@ -916,10 +861,7 @@
                     maxPlayerPoints: 1000,
                     autoAttackEnabled: false,
                     autoAttackPosition: { x: 10, y: 100 },
-                    autoAttackBuilds: {
-                        A: true,
-                        B: false
-                    },
+                    autoAttackBuilds: { A: true, B: false, C: false },
                     includeBonusVillages: true
                 };
             }
@@ -932,10 +874,7 @@
                 maxPlayerPoints: 1000,
                 autoAttackEnabled: false,
                 autoAttackPosition: { x: 10, y: 100 },
-                autoAttackBuilds: {
-                    A: true,
-                    B: false
-                },
+                autoAttackBuilds: { A: true, B: false, C: false },
                 includeBonusVillages: true
             };
         }
@@ -982,6 +921,11 @@
         if (targets.indexOf(targetToAdd) === -1) {
             targets.push(targetToAdd);
             updateTargetList(targets.join(' '));
+            // Initialize target builds
+            if (!targetBuilds[targetToAdd]) {
+                targetBuilds[targetToAdd] = { A: true, B: true, C: true };
+                saveTargetBuildsToStorage();
+            }
             return true;
         }
         return false;
@@ -1002,6 +946,8 @@
     
     function clearAllTargets() {
         updateTargetList('');
+        targetBuilds = {};
+        saveTargetBuildsToStorage();
     }
     
     function getCurrentTargets() {
@@ -1018,217 +964,125 @@
         else return Math.floor(diffMins / 1440) + "d ago";
     }
     
-    function startAutoUpdate() {
-        if (updateInterval) clearInterval(updateInterval);
-        updateInterval = setInterval(function() {
-            updateTargetsListUI();
-        }, 30000);
+    function loadIgnoreFromStorage() {
+        try {
+            var storedData = localStorage.getItem(ignoreStorageKey);
+            if (storedData) {
+                var allIgnores = JSON.parse(storedData);
+                if (allIgnores[currentWorld]) {
+                    return allIgnores[currentWorld];
+                }
+            }
+        } catch (e) {
+            console.error("Error loading ignore list:", e);
+        }
+        return [];
     }
     
-    function stopAutoUpdate() {
-        if (updateInterval) {
-            clearInterval(updateInterval);
-            updateInterval = null;
+    function saveIgnoreToStorage(ignoreList) {
+        try {
+            var storedData = localStorage.getItem(ignoreStorageKey);
+            var allIgnores = storedData ? JSON.parse(storedData) : {};
+            allIgnores[currentWorld] = ignoreList;
+            localStorage.setItem(ignoreStorageKey, JSON.stringify(allIgnores));
+        } catch (e) {
+            console.error("Error saving ignore list:", e);
         }
     }
     
-    function createExternalAutoAttackCheckbox() {
-        var existingCheckbox = document.getElementById('external-auto-attack');
-        if (existingCheckbox) existingCheckbox.remove();
-        
-        var checkboxContainer = document.createElement('div');
-        checkboxContainer.id = 'external-auto-attack';
-        checkboxContainer.className = 'tw-attack-external-auto';
-        checkboxContainer.style.top = settings.autoAttackPosition.y + 'px';
-        checkboxContainer.style.left = settings.autoAttackPosition.x + 'px';
-        
-        var isDragging = false;
-        var offsetX, offsetY;
-        
-        checkboxContainer.onmousedown = function(e) {
-            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') return;
-            isDragging = true;
-            offsetX = e.clientX - checkboxContainer.offsetLeft;
-            offsetY = e.clientY - checkboxContainer.offsetTop;
-            e.preventDefault();
-        };
-        
-        document.onmousemove = function(e) {
-            if (!isDragging) return;
-            var x = e.clientX - offsetX;
-            var y = e.clientY - offsetY;
-            x = Math.max(0, Math.min(x, window.innerWidth - checkboxContainer.offsetWidth));
-            y = Math.max(0, Math.min(y, window.innerHeight - checkboxContainer.offsetHeight));
-            checkboxContainer.style.left = x + 'px';
-            checkboxContainer.style.top = y + 'px';
-            settings.autoAttackPosition.x = x;
-            settings.autoAttackPosition.y = y;
-        };
-        
-        document.onmouseup = function() {
-            if (isDragging) {
-                isDragging = false;
-                saveSettingsToStorage();
-            }
-        };
-        
-        // Header
-        var header = document.createElement('div');
-        header.style.cssText = `display: flex; align-items: center; gap: 8px;`;
-        
-        var label = document.createElement('span');
-        label.textContent = 'Auto-Attack:';
-        label.style.fontWeight = 'bold';
-        label.style.fontSize = '14px';
-        
-        var sliderContainer = document.createElement('label');
-        sliderContainer.style.cssText = `
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 26px;
-        `;
-        
-        var checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = settings.autoAttackEnabled;
-        checkbox.style.cssText = `opacity: 0; width: 0; height: 0;`;
-        
-        var slider = document.createElement('span');
-        slider.style.cssText = `
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        `;
-        
-        var sliderKnob = document.createElement('span');
-        sliderKnob.style.cssText = `
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        `;
-        
-        function updateSlider() {
-            if (checkbox.checked) {
-                slider.style.backgroundColor = '#4CAF50';
-                sliderKnob.style.transform = 'translateX(24px)';
-            } else {
-                slider.style.backgroundColor = '#ccc';
-                sliderKnob.style.transform = 'translateX(0)';
-            }
+    function addToIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        if (ignoreList.indexOf(coords) === -1) {
+            ignoreList.push(coords);
+            saveIgnoreToStorage(ignoreList);
+            return true;
         }
-        
-        updateSlider();
-        
-        checkbox.onchange = function() {
-            settings.autoAttackEnabled = this.checked;
-            saveSettingsToStorage();
-            updateSlider();
+        return false;
+    }
+    
+    function removeFromIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        var index = ignoreList.indexOf(coords);
+        if (index !== -1) {
+            ignoreList.splice(index, 1);
+            saveIgnoreToStorage(ignoreList);
+            return true;
+        }
+        return false;
+    }
+    
+    function isInIgnoreList(coords) {
+        var ignoreList = loadIgnoreFromStorage();
+        return ignoreList.indexOf(coords) !== -1;
+    }
+    
+    function clearAllIgnores() {
+        saveIgnoreToStorage([]);
+    }
+
+    // ===== ATTACK FUNCTIONS =====
+    
+    function checkForAntibot() {
+        if (document.querySelector('td.bot-protection-row, div#botprotection_quest.quest')) {
+            alert('Check for ANTIBOT CAPTCHA');
+            return true;
+        }
+        return false;
+    }
+    
+    function setUnitCount(field, count) {
+        if (field && count > 0) {
+            var unitType = field.name;
+            var availableElement = field.parentNode.querySelector('.units-entry-all');
+            var available = 0;
             
-            if (settings.autoAttackEnabled) {
-                showStatus('External auto-attack enabled', 'success');
-                // Start auto-attack with the appropriate build selection logic
-                setTimeout(function() {
-                    startExternalAutoAttack();
-                }, 2000);
-            } else {
-                showStatus('External auto-attack disabled', 'info');
+            if (availableElement) {
+                var match = availableElement.textContent.match(/\((\d+)\)/);
+                if (match) {
+                    available = parseInt(match[1]);
+                }
             }
-        };
-        
-        slider.appendChild(sliderKnob);
-        sliderContainer.appendChild(checkbox);
-        sliderContainer.appendChild(slider);
-        
-        header.appendChild(label);
-        header.appendChild(sliderContainer);
-        
-        // Build selection checkboxes
-        var buildSelection = document.createElement('div');
-        buildSelection.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 5px;
-        `;
-        
-        // Initialize settings.autoAttackBuilds if not exists
-        if (!settings.autoAttackBuilds) {
-            settings.autoAttackBuilds = {
-                A: true,
-                B: false
-            };
+            
+            var actualCount = Math.min(count, available);
+            field.value = actualCount;
+            
+            if (actualCount < count) {
+                console.log("Warning: Only " + actualCount + " " + unitType + " available (requested " + count + ")");
+            }
+            
+            // Set session storage marker
+            if (actualCount > 0) {
+                var worldName = getWorldName();
+                var key = submitMarkerKey + "_" + worldName;
+                var timestamp = new Date().getTime();
+                sessionStorage.setItem(key, timestamp.toString());
+                console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
+            }
         }
+    }
+    
+    function getAvailableTroops() {
+        var doc = window.frames.length > 0 ? window.main.document : document;
+        var availableTroops = {};
         
-        var buildAContainer = document.createElement('div');
-        buildAContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
+        var troopTypes = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
         
-        var buildACheckbox = document.createElement('input');
-        buildACheckbox.type = 'checkbox';
-        buildACheckbox.id = 'external-build-a';
-        buildACheckbox.checked = settings.autoAttackBuilds.A;
-        buildACheckbox.style.cssText = `transform: scale(1.1);`;
+        troopTypes.forEach(function(troopType) {
+            var element = doc.querySelector('#units_entry_all_' + troopType);
+            if (element) {
+                var match = element.textContent.match(/\((\d+)\)/);
+                if (match) {
+                    availableTroops[troopType] = parseInt(match[1]);
+                } else {
+                    availableTroops[troopType] = 0;
+                }
+            } else {
+                availableTroops[troopType] = 0;
+            }
+        });
         
-        var buildALabel = document.createElement('label');
-        buildALabel.htmlFor = 'external-build-a';
-        buildALabel.textContent = 'Build A';
-        buildALabel.style.cssText = `font-size: 13px; color: #4CAF50; font-weight: bold; cursor: pointer;`;
-        
-        buildAContainer.appendChild(buildACheckbox);
-        buildAContainer.appendChild(buildALabel);
-        
-        var buildBContainer = document.createElement('div');
-        buildBContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
-        
-        var buildBCheckbox = document.createElement('input');
-        buildBCheckbox.type = 'checkbox';
-        buildBCheckbox.id = 'external-build-b';
-        buildBCheckbox.checked = settings.autoAttackBuilds.B;
-        buildBCheckbox.style.cssText = `transform: scale(1.1);`;
-        
-        var buildBLabel = document.createElement('label');
-        buildBLabel.htmlFor = 'external-build-b';
-        buildBLabel.textContent = 'Build B';
-        buildBLabel.style.cssText = `font-size: 13px; color: #2196F3; font-weight: bold; cursor: pointer;`;
-        
-        buildBContainer.appendChild(buildBCheckbox);
-        buildBContainer.appendChild(buildBLabel);
-        
-        buildSelection.appendChild(buildAContainer);
-        buildSelection.appendChild(buildBContainer);
-        
-        // Save build selections when changed
-        function saveBuildSelections() {
-            settings.autoAttackBuilds = {
-                A: buildACheckbox.checked,
-                B: buildBCheckbox.checked
-            };
-            saveSettingsToStorage();
-        }
-        
-        buildACheckbox.onchange = saveBuildSelections;
-        buildBCheckbox.onchange = saveBuildSelections;
-        
-        var helpText = document.createElement('div');
-        helpText.textContent = 'Drag to move';
-        helpText.style.cssText = `font-size: 10px; color: #666; margin-top: 4px; text-align: center;`;
-        
-        checkboxContainer.appendChild(header);
-        checkboxContainer.appendChild(buildSelection);
-        checkboxContainer.appendChild(helpText);
-        document.body.appendChild(checkboxContainer);
+        console.log("Available troops:", availableTroops);
+        return availableTroops;
     }
     
     function clickAttackButton() {
@@ -1239,7 +1093,7 @@
         if (submitButton) {
             console.log("Auto-attack: Clicking submit button");
             
-            // Set session storage marker before clicking
+            // Set session storage marker
             var worldName = getWorldName();
             var key = submitMarkerKey + "_" + worldName;
             var timestamp = new Date().getTime();
@@ -1249,7 +1103,7 @@
             submitButton.click();
             return true;
         } else if (doc.forms[0]) {
-            // Set session storage marker before submitting form
+            // Set session storage marker
             var worldName = getWorldName();
             var key = submitMarkerKey + "_" + worldName;
             var timestamp = new Date().getTime();
@@ -1296,17 +1150,28 @@
                 console.log("Not enough troops for Build " + buildKey + ":", missingTroops);
                 showStatus('Not enough troops for Build ' + buildKey + '. Trying fallback...', 'error');
                 
-                // Check if we should try Build B as fallback
-                if (buildKey === 'A' && settings.autoAttackEnabled && settings.autoAttackBuilds && settings.autoAttackBuilds.B) {
-                    console.log("Trying Build B as fallback...");
+                // Try other builds in order A -> B -> C
+                var buildOrder = ['A', 'B', 'C'];
+                var currentIndex = buildOrder.indexOf(buildKey);
+                var nextBuild = null;
+                
+                for (var i = currentIndex + 1; i < buildOrder.length; i++) {
+                    if (settings.autoAttackBuilds[buildOrder[i]]) {
+                        nextBuild = buildOrder[i];
+                        break;
+                    }
+                }
+                
+                if (nextBuild) {
+                    console.log("Trying Build " + nextBuild + " as fallback...");
                     setTimeout(function() {
-                        autoAttackNext('B');
+                        attackTarget(target, nextBuild);
                     }, 1000);
                 } else {
                     // Schedule next check in 30 seconds
                     setTimeout(function() {
                         console.log('Re-checking troop availability...');
-                        autoAttackNext(buildKey);
+                        attackTarget(target, buildKey);
                     }, 30000);
                 }
                 
@@ -1331,7 +1196,7 @@
             showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
             updateTargetsListUI();
             
-            // Auto-attack is always enabled now (checkbox removed)
+            // Auto-click submit button
             setTimeout(function() {
                 if (clickAttackButton()) {
                     showStatus('Auto-attack: Attack sent to ' + target, 'success');
@@ -1344,11 +1209,30 @@
         }
     }
     
-    function autoAttackNext(buildKey) {
+    function getFirstAvailableBuildForTarget(target) {
+        var targetBuildSettings = getTargetBuilds(target);
+        var buildOrder = ['A', 'B', 'C'];
+        
+        for (var i = 0; i < buildOrder.length; i++) {
+            var buildKey = buildOrder[i];
+            if (targetBuildSettings[buildKey]) {
+                return buildKey;
+            }
+        }
+        return null;
+    }
+    
+    function attackTargetWithAvailableBuild(target) {
+        var buildKey = getFirstAvailableBuildForTarget(target);
+        if (buildKey) {
+            attackTarget(target, buildKey);
+        } else {
+            showStatus('No builds enabled for target ' + target, 'error');
+        }
+    }
+    
+    function autoAttackNext() {
         console.log("=== autoAttackNext called ===");
-        console.log("Requested build key:", buildKey);
-        console.log("Target list:", targetList);
-        console.log("Current targets array:", targetList.split(" ").filter(Boolean));
         
         if (checkForAntibot()) return;
         cleanupOldHistory();
@@ -1357,11 +1241,11 @@
         if (targets.length === 0) {
             showStatus('No targets in list for auto-attack', 'error');
             
-            // If external auto-attack is running, retry after delay
+            // Retry after delay
             if (settings.autoAttackEnabled) {
                 setTimeout(function() {
-                    startExternalAutoAttack();
-                }, 60000); // Retry in 1 minute
+                    autoAttackNext();
+                }, 60000);
             }
             return;
         }
@@ -1372,27 +1256,37 @@
         
         var startIndex = targetIndex;
         var selectedTarget = null;
+        var selectedBuild = null;
         var attempts = 0;
         
         do {
             var currentTarget = targets[targetIndex];
             var cooldownInfo = getCooldownInfo(currentTarget);
             
-            console.log("Checking target:", currentTarget);
-            console.log("Cooldown info:", cooldownInfo);
-            
             if (!cooldownInfo.onCooldown) {
-                selectedTarget = currentTarget;
-                break;
+                // Check which builds are enabled for this target
+                var targetBuildSettings = getTargetBuilds(currentTarget);
+                var buildOrder = ['A', 'B', 'C'];
+                
+                for (var i = 0; i < buildOrder.length; i++) {
+                    var buildKey = buildOrder[i];
+                    if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
+                        selectedTarget = currentTarget;
+                        selectedBuild = buildKey;
+                        break;
+                    }
+                }
+                
+                if (selectedTarget) break;
             }
             targetIndex = (targetIndex + 1) % targets.length;
             attempts++;
         } while (attempts < targets.length && targetIndex != startIndex);
         
-        if (selectedTarget) {
+        if (selectedTarget && selectedBuild) {
             var nextIndex = (targetIndex + 1) % targets.length;
             setCookie(cookieName, nextIndex.toString(), 365);
-            attackTarget(selectedTarget, buildKey);
+            attackTarget(selectedTarget, selectedBuild);
         } else {
             var shortestCooldown = Infinity;
             var shortestCooldownTarget = null;
@@ -1414,15 +1308,200 @@
                 
                 setTimeout(function() {
                     console.log('Re-checking for available targets after cooldown...');
-                    autoAttackNext(buildKey);
+                    autoAttackNext();
                 }, checkDelay);
             } else {
                 showStatus('All targets are on cooldown', 'error');
             }
         }
     }
+
+    // ===== SUBMIT SCRIPT FUNCTIONS =====
     
-    // ===== UI CREATION =====
+    let submitScriptExecuted = false;
+    let loadingOverlay = null;
+    
+    const SUBMIT_CONFIG = {
+        urlPattern: '&screen=place&try=confirm',
+        elementId: 'troop_confirm_submit',
+        maxRetries: 5,
+        retryDelay: 200,
+        initialDelay: { min: 100, max: 300 },
+        urlCheckInterval: 500
+    };
+    
+    function checkSessionMarker() {
+        const worldName = getWorldName();
+        const markerKey = submitMarkerKey + "_" + worldName;
+        const marker = sessionStorage.getItem(markerKey);
+        
+        if (marker) {
+            console.log(`✅ Session storage marker found: ${markerKey} = ${marker}`);
+            sessionStorage.removeItem(markerKey);
+            console.log(`🗑️ Session storage marker removed: ${markerKey}`);
+            return true;
+        }
+        
+        console.log(`❌ No session storage marker found for world: ${worldName}`);
+        return false;
+    }
+    
+    function createSubmitLoadingOverlay() {
+        if (loadingOverlay) return loadingOverlay;
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'tw-attack-overlay';
+        
+        const loadingContainer = document.createElement('div');
+        loadingContainer.className = 'tw-submit-loading';
+        
+        const title = document.createElement('div');
+        title.className = 'tw-submit-loading-title';
+        title.textContent = '⚔️ TW Attack - Auto Submit';
+        
+        const status = document.createElement('div');
+        status.className = 'tw-attack-status';
+        status.id = 'tw-submit-status';
+        status.textContent = 'Checking page...';
+        
+        const spinner = document.createElement('div');
+        spinner.className = 'tw-submit-loading-spinner';
+        
+        loadingContainer.appendChild(title);
+        loadingContainer.appendChild(status);
+        loadingContainer.appendChild(spinner);
+        overlay.appendChild(loadingContainer);
+        
+        document.body.appendChild(overlay);
+        loadingOverlay = overlay;
+        
+        return overlay;
+    }
+    
+    function updateSubmitStatus(message, isError = false, isSuccess = false) {
+        const statusElement = document.getElementById('tw-submit-status');
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.className = 'tw-attack-status';
+            if (isError) statusElement.classList.add('tw-attack-status-error');
+            if (isSuccess) statusElement.classList.add('tw-attack-status-success');
+        }
+    }
+    
+    function removeSubmitLoadingOverlay() {
+        if (loadingOverlay && loadingOverlay.parentNode) {
+            loadingOverlay.parentNode.removeChild(loadingOverlay);
+            loadingOverlay = null;
+        }
+    }
+    
+    function runSubmitScript() {
+        // Skip if already executed
+        if (submitScriptExecuted) {
+            return;
+        }
+        
+        // Check session storage marker
+        if (!checkSessionMarker()) {
+            console.log('⏹️ No session storage marker found - stopping submit script');
+            submitScriptExecuted = true;
+            return;
+        }
+
+        // Check if auto-attack is enabled
+        if (!settings.autoAttackEnabled) {
+            console.log('⏹️ Auto-attack is not enabled');
+            submitScriptExecuted = true;
+            return;
+        }
+        
+        // Antibot check
+        if (checkForAntibot()) {
+            submitScriptExecuted = true;
+            return;
+        }
+        
+        // Check URL pattern
+        if (!window.location.href.includes(SUBMIT_CONFIG.urlPattern)) {
+            console.log('⏳ Not the submit page, waiting...');
+            
+            if (!loadingOverlay) {
+                createSubmitLoadingOverlay();
+                updateSubmitStatus('⏳ Waiting for submit page...');
+            }
+            
+            return;
+        }
+        
+        console.log('✅ Submit page detected!');
+        submitScriptExecuted = true;
+        
+        createSubmitLoadingOverlay();
+        updateSubmitStatus('✅ Submit page detected!');
+        
+        const initialDelay = Math.floor(
+            Math.random() * (SUBMIT_CONFIG.initialDelay.max - SUBMIT_CONFIG.initialDelay.min + 1)
+        ) + SUBMIT_CONFIG.initialDelay.min;
+        
+        console.log(`⏳ Initial delay: ${initialDelay}ms before finding element...`);
+        updateSubmitStatus(`⏳ Waiting ${initialDelay}ms...`);
+        
+        setTimeout(() => {
+            let attempts = 0;
+            
+            function attemptClick() {
+                if (checkForAntibot()) {
+                    updateSubmitStatus('❌ Antibot captcha detected!', true);
+                    setTimeout(() => {
+                        removeSubmitLoadingOverlay();
+                    }, 3000);
+                    return;
+                }
+                
+                attempts++;
+                console.log(`🔍 Attempt ${attempts}/${SUBMIT_CONFIG.maxRetries}: Looking for button...`);
+                
+                const button = document.getElementById(SUBMIT_CONFIG.elementId);
+                
+                if (button) {
+                    console.log(`✅ Found on attempt ${attempts}! Clicking #${SUBMIT_CONFIG.elementId}...`);
+                    updateSubmitStatus(`✅ Found button! Clicking...`, false, true);
+                    
+                    setTimeout(() => {
+                        button.click();
+                        console.log('🎉 Success! Button clicked.');
+                        updateSubmitStatus('🎉 Success! Button clicked.', false, true);
+                        
+                        setTimeout(() => {
+                            removeSubmitLoadingOverlay();
+                        }, 1500);
+                        
+                    }, 100);
+                    
+                    return;
+                }
+                
+                if (attempts < SUBMIT_CONFIG.maxRetries) {
+                    console.log(`⚠️ Not found. Retrying in ${SUBMIT_CONFIG.retryDelay}ms...`);
+                    updateSubmitStatus(`⚠️ Button not found. Retrying...`);
+                    
+                    setTimeout(attemptClick, SUBMIT_CONFIG.retryDelay);
+                } else {
+                    console.error(`❌ Failed after ${SUBMIT_CONFIG.maxRetries} attempts.`);
+                    updateSubmitStatus(`❌ Failed after ${SUBMIT_CONFIG.maxRetries} attempts.`, true);
+                    
+                    setTimeout(() => {
+                        removeSubmitLoadingOverlay();
+                    }, 3000);
+                }
+            }
+            
+            attemptClick();
+            
+        }, initialDelay);
+    }
+    
+    // ===== UI FUNCTIONS =====
     
     function createConfigUI() {
         if (checkForAntibot()) return;
@@ -1436,6 +1515,7 @@
         loadTargetsFromStorage();
         loadBuildsFromStorage();
         loadSettingsFromStorage();
+        loadTargetBuildsFromStorage();
         
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
@@ -1470,15 +1550,21 @@
         var autoAttackBtnA = document.createElement('button');
         autoAttackBtnA.textContent = '⚡ Auto-Attack (A)';
         autoAttackBtnA.className = 'tw-attack-auto-btn tw-attack-auto-btn-a';
-        autoAttackBtnA.onclick = function() { autoAttackNext('A'); };
+        autoAttackBtnA.onclick = function() { autoAttackNext(); };
         
         var autoAttackBtnB = document.createElement('button');
         autoAttackBtnB.textContent = '⚡ Auto-Attack (B)';
         autoAttackBtnB.className = 'tw-attack-auto-btn tw-attack-auto-btn-b';
-        autoAttackBtnB.onclick = function() { autoAttackNext('B'); };
+        autoAttackBtnB.onclick = function() { autoAttackNext(); };
+        
+        var autoAttackBtnC = document.createElement('button');
+        autoAttackBtnC.textContent = '⚡ Auto-Attack (C)';
+        autoAttackBtnC.className = 'tw-attack-auto-btn tw-attack-auto-btn-c';
+        autoAttackBtnC.onclick = function() { autoAttackNext(); };
         
         autoAttackContainer.appendChild(autoAttackBtnA);
         autoAttackContainer.appendChild(autoAttackBtnB);
+        autoAttackContainer.appendChild(autoAttackBtnC);
         
         var worlds = getWorldsWithTargets();
         var worldSelector;
@@ -1522,11 +1608,13 @@
                 saveTargetsToStorage();
                 saveBuildsToStorage();
                 saveSettingsToStorage();
+                saveTargetBuildsToStorage();
                 currentWorld = this.value;
                 title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
                 loadTargetsFromStorage();
                 loadBuildsFromStorage();
                 loadSettingsFromStorage();
+                loadTargetBuildsFromStorage();
                 updateBuildsUI();
                 updateSettingsUI();
                 updateTargetsListUI();
@@ -1585,13 +1673,12 @@
         urlHelp.style.color = '#666';
         urlHelp.style.marginTop = '8px';
         
-        villageUrl.appendChild(urlLink);
-        villageUrl.appendChild(urlHelp);
-        
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
         infoSection.appendChild(cooldownInfo);
         infoSection.appendChild(villageUrl);
+        infoSection.appendChild(urlLink);
+        infoSection.appendChild(urlHelp);
         
         var settingsSection = document.createElement('div');
         settingsSection.id = 'settings-section';
@@ -1680,62 +1767,10 @@
             includeBonusSetting.appendChild(includeBonusLabel);
             includeBonusSetting.appendChild(includeBonusCheckbox);
             
-            // External auto-attack position settings
-            var positionSetting = document.createElement('div');
-            positionSetting.style.cssText = `
-                display: flex;
-                flex-direction: column;
-                margin-bottom: 12px;
-                padding: 10px;
-                background: #fff;
-                border-radius: 4px;
-                border: 1px solid #e0e0e0;
-            `;
-            
-            var positionLabel = document.createElement('label');
-            positionLabel.textContent = 'External auto-attack position:';
-            positionLabel.style.marginBottom = '8px';
-            positionLabel.style.fontWeight = 'bold';
-            
-            var positionControls = document.createElement('div');
-            positionControls.style.cssText = `display: flex; gap: 10px; align-items: center;`;
-            
-            var xLabel = document.createElement('span');
-            xLabel.textContent = 'X:';
-            xLabel.style.marginRight = '5px';
-            
-            var xInput = document.createElement('input');
-            xInput.type = 'number';
-            xInput.min = '0';
-            xInput.value = settings.autoAttackPosition.x;
-            xInput.className = 'tw-attack-input';
-            xInput.style.width = '70px';
-            xInput.style.marginRight = '15px';
-            
-            var yLabel = document.createElement('span');
-            yLabel.textContent = 'Y:';
-            yLabel.style.marginRight = '5px';
-            
-            var yInput = document.createElement('input');
-            yInput.type = 'number';
-            yInput.min = '0';
-            yInput.value = settings.autoAttackPosition.y;
-            yInput.className = 'tw-attack-input';
-            yInput.style.width = '70px';
-            
-            positionControls.appendChild(xLabel);
-            positionControls.appendChild(xInput);
-            positionControls.appendChild(yLabel);
-            positionControls.appendChild(yInput);
-            
-            positionSetting.appendChild(positionLabel);
-            positionSetting.appendChild(positionControls);
-            
             settingsContainer.appendChild(cooldownSetting);
             settingsContainer.appendChild(includePlayersSetting);
             settingsContainer.appendChild(maxPointsSetting);
             settingsContainer.appendChild(includeBonusSetting);
-            settingsContainer.appendChild(positionSetting);
             
             var saveAllBtn = document.createElement('button');
             saveAllBtn.textContent = '💾 Save All Settings';
@@ -1753,12 +1788,9 @@
                 settings.includePlayers = includePlayersCheckbox.checked;
                 settings.maxPlayerPoints = parseInt(maxPointsInput.value) || 1000;
                 settings.includeBonusVillages = includeBonusCheckbox.checked;
-                settings.autoAttackPosition.x = parseInt(xInput.value) || 10;
-                settings.autoAttackPosition.y = parseInt(yInput.value) || 100;
                 
                 saveAllSettings();
                 cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
-                createExternalAutoAttackCheckbox();
             };
             
             settingsContainer.appendChild(saveAllBtn);
@@ -1784,7 +1816,7 @@
             buildsContainer = document.createElement('div');
             buildsContainer.id = 'builds-container';
             
-            ['A', 'B'].forEach(function(buildKey) {
+            ['A', 'B', 'C'].forEach(function(buildKey) {
                 var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
                 
                 var buildContainer = document.createElement('div');
@@ -1792,15 +1824,20 @@
                 
                 var buildHeader = document.createElement('div');
                 buildHeader.className = 'tw-attack-build-header';
-                buildHeader.style.borderBottomColor = buildKey === 'A' ? '#4CAF50' : '#2196F3';
+                var borderColor = buildKey === 'A' ? '#4CAF50' : buildKey === 'B' ? '#2196F3' : '#9C27B0';
+                buildHeader.style.borderBottomColor = borderColor;
                 
                 var buildTitle = document.createElement('div');
-                buildTitle.className = buildKey === 'A' ? 'tw-attack-build-title' : 'tw-attack-build-title tw-attack-build-title-b';
+                buildTitle.className = 'tw-attack-build-title';
+                if (buildKey === 'B') buildTitle.classList.add('tw-attack-build-title-b');
+                if (buildKey === 'C') buildTitle.classList.add('tw-attack-build-title-c');
                 buildTitle.textContent = 'Build ' + buildKey;
                 
                 var saveBtn = document.createElement('button');
                 saveBtn.textContent = '💾 Save';
-                saveBtn.className = buildKey === 'A' ? 'tw-attack-build-save-btn' : 'tw-attack-build-save-btn tw-attack-build-save-btn-b';
+                saveBtn.className = 'tw-attack-build-save-btn';
+                if (buildKey === 'B') saveBtn.classList.add('tw-attack-build-save-btn-b');
+                if (buildKey === 'C') saveBtn.classList.add('tw-attack-build-save-btn-c');
                 
                 saveBtn.onclick = (function(key) {
                     return function() {
@@ -2046,6 +2083,7 @@
             
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
             var cooldownInfo = getCooldownInfo(target);
+            var targetBuildSettings = getTargetBuilds(target);
             
             var targetCoords = document.createElement('div');
             targetCoords.className = 'tw-attack-target-coords';
@@ -2075,35 +2113,49 @@
             targetInfo.appendChild(targetCoords);
             targetInfo.appendChild(targetDetails);
             
-            var attackButtons = document.createElement('div');
-            attackButtons.className = 'tw-attack-action-buttons';
+            var actionButtons = document.createElement('div');
+            actionButtons.className = 'tw-attack-action-buttons';
             
-            var attackBtnA = document.createElement('button');
-            attackBtnA.textContent = 'A';
-            attackBtnA.disabled = cooldownInfo.onCooldown;
-            attackBtnA.title = 'Attack with Build A';
-            attackBtnA.className = cooldownInfo.onCooldown ? 'tw-attack-action-btn tw-attack-action-btn-disabled' : 'tw-attack-action-btn tw-attack-action-btn-a';
+            // Build selection checkboxes
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                var isEnabled = targetBuildSettings[buildKey];
+                var btn = document.createElement('button');
+                btn.textContent = buildKey;
+                btn.className = 'tw-attack-action-btn tw-attack-action-btn-checkbox';
+                if (isEnabled) btn.classList.add('checked');
+                if (buildKey === 'B') btn.classList.add('b');
+                if (buildKey === 'C') btn.classList.add('c');
+                btn.title = 'Toggle Build ' + buildKey + ' for this target';
+                
+                btn.onclick = (function(buildKey, targetCoords) {
+                    return function(e) {
+                        e.stopPropagation();
+                        var newState = !targetBuildSettings[buildKey];
+                        setTargetBuild(targetCoords, buildKey, newState);
+                        if (newState) {
+                            this.classList.add('checked');
+                        } else {
+                            this.classList.remove('checked');
+                        }
+                    };
+                })(buildKey, target);
+                
+                actionButtons.appendChild(btn);
+            });
             
-            if (!cooldownInfo.onCooldown) {
-                attackBtnA.onclick = (function(targetToAttack) {
-                    return function() { attackTarget(targetToAttack, 'A'); };
+            var attackBtn = document.createElement('button');
+            attackBtn.textContent = '⚔️';
+            attackBtn.title = 'Attack with first available build';
+            attackBtn.className = 'tw-attack-attack-btn';
+            attackBtn.disabled = cooldownInfo.onCooldown;
+            if (cooldownInfo.onCooldown) {
+                attackBtn.style.opacity = '0.5';
+                attackBtn.style.cursor = 'not-allowed';
+            } else {
+                attackBtn.onclick = (function(targetToAttack) {
+                    return function() { attackTargetWithAvailableBuild(targetToAttack); };
                 })(target);
             }
-            
-            var attackBtnB = document.createElement('button');
-            attackBtnB.textContent = 'B';
-            attackBtnB.disabled = cooldownInfo.onCooldown;
-            attackBtnB.title = 'Attack with Build B';
-            attackBtnB.className = cooldownInfo.onCooldown ? 'tw-attack-action-btn tw-attack-action-btn-disabled' : 'tw-attack-action-btn tw-attack-action-btn-b';
-            
-            if (!cooldownInfo.onCooldown) {
-                attackBtnB.onclick = (function(targetToAttack) {
-                    return function() { attackTarget(targetToAttack, 'B'); };
-                })(target);
-            }
-            
-            attackButtons.appendChild(attackBtnA);
-            attackButtons.appendChild(attackBtnB);
 
             var ignoreBtn = document.createElement('button');
             ignoreBtn.textContent = '👁️';
@@ -2133,7 +2185,8 @@
             })(target);
         
             targetItem.appendChild(targetInfo);
-            targetItem.appendChild(attackButtons);
+            targetItem.appendChild(actionButtons);
+            targetItem.appendChild(attackBtn);
             targetItem.appendChild(ignoreBtn);
             targetItem.appendChild(removeBtn);
             targetsList.appendChild(targetItem);
@@ -2371,13 +2424,19 @@
                 var villageName = document.createElement('span');
                 villageName.textContent = village.name + ' - ' + village.coords;
                 
-                // Add star for bonus villages
+                // Add star for bonus villages or red circle for player villages
                 if (village.isBonus) {
                     var bonusStar = document.createElement('span');
                     bonusStar.className = 'tw-attack-bonus-star';
                     bonusStar.textContent = ' ★';
                     bonusStar.title = 'Bonus Village';
                     villageName.appendChild(bonusStar);
+                } else if (village.playerNumber > 0) {
+                    var playerCircle = document.createElement('span');
+                    playerCircle.className = 'tw-attack-player-circle';
+                    playerCircle.textContent = ' ●';
+                    playerCircle.title = 'Player Village';
+                    villageName.appendChild(playerCircle);
                 }
                 
                 var villageDetails = document.createElement('span');
@@ -2495,86 +2554,6 @@
         
         updateVillagesList();
         searchInput.focus();
-    }
-
-    function getAvailableTroops() {
-        var doc = window.frames.length > 0 ? window.main.document : document;
-        var availableTroops = {};
-        
-        var troopTypes = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
-        
-        troopTypes.forEach(function(troopType) {
-            var element = doc.querySelector('#units_entry_all_' + troopType);
-            if (element) {
-                var match = element.textContent.match(/\((\d+)\)/);
-                if (match) {
-                    availableTroops[troopType] = parseInt(match[1]);
-                } else {
-                    availableTroops[troopType] = 0;
-                }
-            } else {
-                availableTroops[troopType] = 0;
-            }
-        });
-        
-        console.log("Available troops:", availableTroops);
-        return availableTroops;
-    }
-
-    function loadIgnoreFromStorage() {
-        try {
-            var storedData = localStorage.getItem(ignoreStorageKey);
-            if (storedData) {
-                var allIgnores = JSON.parse(storedData);
-                if (allIgnores[currentWorld]) {
-                    return allIgnores[currentWorld];
-                }
-            }
-        } catch (e) {
-            console.error("Error loading ignore list:", e);
-        }
-        return [];
-    }
-    
-    function saveIgnoreToStorage(ignoreList) {
-        try {
-            var storedData = localStorage.getItem(ignoreStorageKey);
-            var allIgnores = storedData ? JSON.parse(storedData) : {};
-            allIgnores[currentWorld] = ignoreList;
-            localStorage.setItem(ignoreStorageKey, JSON.stringify(allIgnores));
-        } catch (e) {
-            console.error("Error saving ignore list:", e);
-        }
-    }
-    
-    function addToIgnoreList(coords) {
-        var ignoreList = loadIgnoreFromStorage();
-        if (ignoreList.indexOf(coords) === -1) {
-            ignoreList.push(coords);
-            saveIgnoreToStorage(ignoreList);
-            return true;
-        }
-        return false;
-    }
-    
-    function removeFromIgnoreList(coords) {
-        var ignoreList = loadIgnoreFromStorage();
-        var index = ignoreList.indexOf(coords);
-        if (index !== -1) {
-            ignoreList.splice(index, 1);
-            saveIgnoreToStorage(ignoreList);
-            return true;
-        }
-        return false;
-    }
-    
-    function isInIgnoreList(coords) {
-        var ignoreList = loadIgnoreFromStorage();
-        return ignoreList.indexOf(coords) !== -1;
-    }
-    
-    function clearAllIgnores() {
-        saveIgnoreToStorage([]);
     }
 
     function showIgnoreListManagement() {
@@ -2758,61 +2737,231 @@
         document.body.appendChild(overlay);
     }
 
-    function startExternalAutoAttack() {
-        console.log("=== startExternalAutoAttack called ===");
+    function createExternalAutoAttackCheckbox() {
+        var existingCheckbox = document.getElementById('external-auto-attack');
+        if (existingCheckbox) existingCheckbox.remove();
         
-        if (!settings.autoAttackEnabled) {
-            console.log("External auto-attack is disabled");
-            return;
+        var checkboxContainer = document.createElement('div');
+        checkboxContainer.id = 'external-auto-attack';
+        checkboxContainer.className = 'tw-attack-external-auto';
+        checkboxContainer.style.top = settings.autoAttackPosition.y + 'px';
+        checkboxContainer.style.left = settings.autoAttackPosition.x + 'px';
+        
+        var isDragging = false;
+        var offsetX, offsetY;
+        
+        checkboxContainer.onmousedown = function(e) {
+            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') return;
+            isDragging = true;
+            offsetX = e.clientX - checkboxContainer.offsetLeft;
+            offsetY = e.clientY - checkboxContainer.offsetTop;
+            e.preventDefault();
+        };
+        
+        document.onmousemove = function(e) {
+            if (!isDragging) return;
+            var x = e.clientX - offsetX;
+            var y = e.clientY - offsetY;
+            x = Math.max(0, Math.min(x, window.innerWidth - checkboxContainer.offsetWidth));
+            y = Math.max(0, Math.min(y, window.innerHeight - checkboxContainer.offsetHeight));
+            checkboxContainer.style.left = x + 'px';
+            checkboxContainer.style.top = y + 'px';
+            settings.autoAttackPosition.x = x;
+            settings.autoAttackPosition.y = y;
+        };
+        
+        document.onmouseup = function() {
+            if (isDragging) {
+                isDragging = false;
+                saveSettingsToStorage();
+            }
+        };
+        
+        // Header
+        var header = document.createElement('div');
+        header.style.cssText = `display: flex; align-items: center; gap: 8px;`;
+        
+        var label = document.createElement('span');
+        label.textContent = 'Auto-Attack:';
+        label.style.fontWeight = 'bold';
+        label.style.fontSize = '14px';
+        
+        var sliderContainer = document.createElement('label');
+        sliderContainer.style.cssText = `
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        `;
+        
+        var checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = settings.autoAttackEnabled;
+        checkbox.style.cssText = `opacity: 0; width: 0; height: 0;`;
+        
+        var slider = document.createElement('span');
+        slider.style.cssText = `
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        `;
+        
+        var sliderKnob = document.createElement('span');
+        sliderKnob.style.cssText = `
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        `;
+        
+        function updateSlider() {
+            if (checkbox.checked) {
+                slider.style.backgroundColor = '#4CAF50';
+                sliderKnob.style.transform = 'translateX(24px)';
+            } else {
+                slider.style.backgroundColor = '#ccc';
+                sliderKnob.style.transform = 'translateX(0)';
+            }
         }
         
-        // Check which builds are selected
-        var useBuildA = settings.autoAttackBuilds && settings.autoAttackBuilds.A !== false; // Default to true
-        var useBuildB = settings.autoAttackBuilds && settings.autoAttackBuilds.B;
+        updateSlider();
         
-        console.log("Build A selected:", useBuildA);
-        console.log("Build B selected:", useBuildB);
+        checkbox.onchange = function() {
+            settings.autoAttackEnabled = this.checked;
+            saveSettingsToStorage();
+            updateSlider();
+            
+            if (settings.autoAttackEnabled) {
+                showStatus('External auto-attack enabled', 'success');
+                setTimeout(function() {
+                    autoAttackNext();
+                }, 2000);
+            } else {
+                showStatus('External auto-attack disabled', 'info');
+            }
+        };
         
-        if (!useBuildA && !useBuildB) {
-            console.log("No builds selected for auto-attack");
-            showStatus('Please select at least one build for auto-attack', 'error');
-            return;
+        slider.appendChild(sliderKnob);
+        sliderContainer.appendChild(checkbox);
+        sliderContainer.appendChild(slider);
+        
+        header.appendChild(label);
+        header.appendChild(sliderContainer);
+        
+        // Build selection checkboxes
+        var buildSelection = document.createElement('div');
+        buildSelection.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 5px;
+        `;
+        
+        // Initialize if not exists
+        if (!settings.autoAttackBuilds) {
+            settings.autoAttackBuilds = { A: true, B: false, C: false };
         }
         
-        if (useBuildA) {
-            console.log("Starting with Build A...");
-            autoAttackNext('A');
-        } else if (useBuildB) {
-            console.log("Starting with Build B...");
-            autoAttackNext('B');
-        }
+        ['A', 'B', 'C'].forEach(function(buildKey) {
+            var buildContainer = document.createElement('div');
+            buildContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
+            
+            var buildCheckbox = document.createElement('input');
+            buildCheckbox.type = 'checkbox';
+            buildCheckbox.id = 'external-build-' + buildKey.toLowerCase();
+            buildCheckbox.checked = settings.autoAttackBuilds[buildKey];
+            buildCheckbox.style.cssText = `transform: scale(1.1);`;
+            
+            var buildLabel = document.createElement('label');
+            buildLabel.htmlFor = 'external-build-' + buildKey.toLowerCase();
+            buildLabel.textContent = 'Build ' + buildKey;
+            var color = buildKey === 'A' ? '#4CAF50' : buildKey === 'B' ? '#2196F3' : '#9C27B0';
+            buildLabel.style.cssText = `font-size: 13px; color: ${color}; font-weight: bold; cursor: pointer;`;
+            
+            buildContainer.appendChild(buildCheckbox);
+            buildContainer.appendChild(buildLabel);
+            buildSelection.appendChild(buildContainer);
+            
+            buildCheckbox.onchange = function() {
+                settings.autoAttackBuilds[buildKey] = this.checked;
+                saveSettingsToStorage();
+            };
+        });
+        
+        var helpText = document.createElement('div');
+        helpText.textContent = 'Drag to move';
+        helpText.style.cssText = `font-size: 10px; color: #666; margin-top: 4px; text-align: center;`;
+        
+        checkboxContainer.appendChild(header);
+        checkboxContainer.appendChild(buildSelection);
+        checkboxContainer.appendChild(helpText);
+        document.body.appendChild(checkboxContainer);
+    }
+
+    function startAutoUpdate() {
+        if (updateInterval) clearInterval(updateInterval);
+        updateInterval = setInterval(function() {
+            updateTargetsListUI();
+        }, 30000);
     }
     
+    function stopAutoUpdate() {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+            updateInterval = null;
+        }
+    }
+
     // ===== MAIN EXECUTION =====
     
     currentWorld = getWorldName();
     console.log("Current world:", currentWorld);
     
+    // Load all data
     loadSettingsFromStorage();
     loadTargetsFromStorage();
     loadBuildsFromStorage();
+    loadTargetBuildsFromStorage();
     
     homeCoords = getCurrentVillageCoords();
     console.log("Home coords:", homeCoords);
-    console.log("Auto-attack enabled:", settings.autoAttackEnabled);
-    console.log("Target list length:", targetList.split(" ").filter(Boolean).length);
     
+    // Create main UI
     if (!checkForAntibot()) {
         createConfigUI();
         
+        // Start auto-attack if enabled
         if (settings.autoAttackEnabled) {
             console.log("Auto-attack enabled on startup, starting in 2 seconds...");
-            console.log("Available targets:", getCurrentTargets());
-            
             setTimeout(function() {
-                console.log("Now starting auto-attack...");
-                startExternalAutoAttack();
+                autoAttackNext();
             }, 2000);
         }
     }
+    
+    // Run submit script check
+    runSubmitScript();
+    
+    // Set up periodic check for submit script
+    const submitCheckInterval = setInterval(runSubmitScript, 500);
+    
+    // Auto-stop submit check after 5 minutes
+    setTimeout(() => {
+        if (!submitScriptExecuted) {
+            clearInterval(submitCheckInterval);
+            console.log('⏰ Stopped submit script checking after timeout');
+        }
+    }, 5 * 60 * 1000);
+
 })();
