@@ -1048,7 +1048,25 @@
     
     function getVillageData(target) {
         var villageData = loadVillageDataFromStorage();
-        return villageData[target] || { name: "Unknown", points: 0, playerNumber: 0, isBonus: false };
+        var data = villageData[target];
+        
+        if (!data) {
+            // Return better default data
+            return { 
+                name: "Village at " + target, 
+                points: 0, 
+                playerNumber: 0, 
+                isBonus: false 
+            };
+        }
+        
+        // Ensure all required fields exist
+        return {
+            name: data.name || "Village at " + target,
+            points: data.points || 0,
+            playerNumber: data.playerNumber || 0,
+            isBonus: data.isBonus || false
+        };
     }
     
     function saveVillageData(target, data) {
@@ -1068,16 +1086,23 @@
             if (villageData) {
                 saveVillageData(targetToAdd, villageData);
             } else {
-                // Try to get data from parsed villages if available
+                // Try to get existing data first
                 var existingData = getVillageData(targetToAdd);
                 if (existingData.name === "Unknown") {
-                    // Default data for manually added targets
-                    saveVillageData(targetToAdd, {
-                        name: "Unknown Village",
-                        points: 0,
-                        playerNumber: 0,
-                        isBonus: false
-                    });
+                    // Parse coordinates to create basic data
+                    var parts = targetToAdd.split('|');
+                    if (parts.length === 2) {
+                        var x = parseInt(parts[0]);
+                        var y = parseInt(parts[1]);
+                        
+                        // Create default data
+                        saveVillageData(targetToAdd, {
+                            name: "Village at " + targetToAdd,
+                            points: 0,
+                            playerNumber: 0,
+                            isBonus: false
+                        });
+                    }
                 }
             }
             
@@ -2308,6 +2333,14 @@
             targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd;">No targets in list for ' + currentWorld + '</div>';
             return;
         }
+
+        var refreshBtn = document.createElement('button');
+        refreshBtn.textContent = '🔄 Refresh Village Data';
+        refreshBtn.className = 'tw-attack-manage-btn';
+        refreshBtn.onclick = function() {
+            updateVillageDataForExistingTargets();
+            showStatus('Village data refreshed for all targets', 'success');
+        };
         
         var clearAllBtn = document.createElement('button');
         clearAllBtn.textContent = '🗑️ Clear All Targets for ' + currentWorld;
@@ -3258,6 +3291,30 @@
         showStatus('Village info updated for ' + target, 'success');
     }
 
+    function updateVillageDataForExistingTargets() {
+        var targets = getCurrentTargets();
+        var updatedCount = 0;
+        
+        targets.forEach(function(target) {
+            var villageData = getVillageData(target);
+            if (villageData.name === "Unknown" || villageData.name === "Unknown Village") {
+                // Create better default data
+                saveVillageData(target, {
+                    name: "Village at " + target,
+                    points: 0,
+                    playerNumber: 0,
+                    isBonus: false
+                });
+                updatedCount++;
+            }
+        });
+        
+        if (updatedCount > 0) {
+            console.log("Updated village data for " + updatedCount + " targets");
+            updateTargetsListUI();
+        }
+    }
+
     // ===== MAIN EXECUTION =====
     
     currentWorld = getWorldName();
@@ -3268,6 +3325,9 @@
     loadTargetsFromStorage();
     loadBuildsFromStorage();
     loadTargetBuildsFromStorage();
+    
+    // Update village data for existing targets
+    updateVillageDataForExistingTargets();
     
     homeCoords = getCurrentVillageCoords();
     console.log("Home coords:", homeCoords);
