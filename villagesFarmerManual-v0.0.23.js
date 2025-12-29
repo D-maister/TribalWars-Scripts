@@ -628,6 +628,65 @@
             transform: scale(1.2);
             flex-shrink: 0;
         }
+
+        .tw-attack-manage-btn {
+            background: #ff9800;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 15px;
+            width: 100%;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background 0.2s;
+        }
+        
+        .tw-attack-manage-btn:hover {
+            background: #f57c00;
+        }
+
+        /* Village tags in targets list */
+        .tw-attack-village-tag {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
+        }
+        
+        .tw-attack-village-tag-bonus {
+            background-color: #FFF8DC;
+            color: #B8860B;
+            border: 1px solid #FFD700;
+        }
+        
+        .tw-attack-village-tag-player {
+            background-color: #FFE6E6;
+            color: #B22222;
+            border: 1px solid #ff4444;
+        }
+        
+        .tw-attack-village-tag-barbarian {
+            background-color: #f0f0f0;
+            color: #666;
+            border: 1px solid #ccc;
+        }
+        
+        .tw-attack-points-badge {
+            font-size: 11px;
+            background-color: #e3f2fd;
+            color: #1976D2;
+            padding: 1px 6px;
+            border-radius: 10px;
+            border: 1px solid #bbdefb;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
+        }
         
         @keyframes twSubmitSpin {
             0% { transform: rotate(0deg); }
@@ -957,6 +1016,178 @@
         saveSettingsToStorage();
         showStatus('All settings saved for ' + currentWorld, 'success');
     }
+
+    // ===== VILLAGE DATA STORAGE =====
+    var villageDataStorageKey = "twAttackVillageData";
+    
+    function loadVillageDataFromStorage() {
+        try {
+            var storedData = localStorage.getItem(villageDataStorageKey);
+            if (storedData) {
+                var allVillageData = JSON.parse(storedData);
+                if (allVillageData[currentWorld]) {
+                    return allVillageData[currentWorld];
+                }
+            }
+        } catch (e) {
+            console.error("Error loading village data:", e);
+        }
+        return {};
+    }
+    
+    function saveVillageDataToStorage(villageData) {
+        try {
+            var storedData = localStorage.getItem(villageDataStorageKey);
+            var allVillageData = storedData ? JSON.parse(storedData) : {};
+            allVillageData[currentWorld] = villageData;
+            localStorage.setItem(villageDataStorageKey, JSON.stringify(allVillageData));
+        } catch (e) {
+            console.error("Error saving village data:", e);
+        }
+    }
+    
+    function getVillageData(target) {
+        var villageData = loadVillageDataFromStorage();
+        return villageData[target] || { name: "Unknown", points: 0, playerNumber: 0, isBonus: false };
+    }
+    
+    function saveVillageData(target, data) {
+        var villageData = loadVillageDataFromStorage();
+        villageData[target] = data;
+        saveVillageDataToStorage(villageData);
+    }
+    
+    // Update addToTargetList to accept village data
+    function addToTargetList(targetToAdd, villageData) {
+        var targets = targetList.split(' ').filter(Boolean);
+        if (targets.indexOf(targetToAdd) === -1) {
+            targets.push(targetToAdd);
+            updateTargetList(targets.join(' '));
+            
+            // Save village data if provided
+            if (villageData) {
+                saveVillageData(targetToAdd, villageData);
+            } else {
+                // Try to get data from parsed villages if available
+                var existingData = getVillageData(targetToAdd);
+                if (existingData.name === "Unknown") {
+                    // Default data for manually added targets
+                    saveVillageData(targetToAdd, {
+                        name: "Unknown Village",
+                        points: 0,
+                        playerNumber: 0,
+                        isBonus: false
+                    });
+                }
+            }
+            
+            // Initialize target builds
+            if (!targetBuilds[targetToAdd]) {
+                targetBuilds[targetToAdd] = { A: true, B: true, C: true };
+                saveTargetBuildsToStorage();
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    // Update parseVillageText function to save village data when adding
+    function parseVillageText(text, maxDistance) {
+        try {
+            var villages = [];
+            var lines = text.split('\n');
+            var validLines = 0;
+            var currentTargets = getCurrentTargets();
+            
+            lines.forEach(function(line) {
+                if (!line.trim()) return;
+                
+                var parts = line.split(',');
+                if (parts.length >= 7) {
+                    var playerNumber = parseInt(parts[4]);
+                    var villagePoints = parseInt(parts[5]) || 0;
+                    var isBonusVillage = parseInt(parts[6]);
+                    
+                    var shouldInclude = false;
+                    
+                    // Check if it's a bonus village
+                    if (isBonusVillage > 0 && settings.includeBonusVillages) {
+                        shouldInclude = true;
+                    } 
+                    // Check if it's a barbarian village
+                    else if (playerNumber === 0 && isBonusVillage === 0) {
+                        shouldInclude = true;
+                    } 
+                    // Check if it's a player village and we include them
+                    else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
+                        shouldInclude = true;
+                    }
+                    
+                    if (shouldInclude) {
+                        var villageName = decodeURIComponent(parts[1]).replace(/\+/g, ' ');
+                        var x = parts[2];
+                        var y = parts[3];
+                        var coords = x + '|' + y;
+                        var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
+                        
+                        if (!maxDistance || distance <= parseInt(maxDistance)) {
+                            if (currentTargets.indexOf(coords) === -1 && !isInIgnoreList(coords)) {
+                                villages.push({
+                                    name: villageName,
+                                    coords: coords,
+                                    distance: distance,
+                                    playerNumber: playerNumber,
+                                    points: villagePoints,
+                                    isBonus: isBonusVillage > 0
+                                });
+                            }
+                        }
+                        validLines++;
+                    }
+                }
+            });
+            
+            if (validLines === 0) {
+                showStatus('No valid villages found in the pasted text. Make sure you copied the correct content.', 'error');
+                return;
+            }
+            
+            villages.sort(function(a, b) { return a.distance - b.distance; });
+            
+            var alreadyAdded = validLines - villages.length;
+            var statusMessage = 'Found ' + villages.length + ' available villages';
+            if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list)';
+            statusMessage += ' out of ' + validLines + ' total villages';
+            
+            showStatus(statusMessage, 'success');
+            showVillagesSelection(villages);
+            
+        } catch (error) {
+            console.error('Error parsing village text:', error);
+            showStatus('Error parsing village.txt content: ' + error.message, 'error');
+        }
+    }
+    
+    // Update the addSelectedBtn click handler in showVillagesSelection
+    addSelectedBtn.onclick = function() {
+        var addedCount = 0;
+        selectedVillages.forEach(function(coords) {
+            // Find the village data for this coords
+            var villageData = villages.find(function(v) {
+                return v.coords === coords;
+            });
+            
+            if (villageData) {
+                if (addToTargetList(coords, villageData)) addedCount++;
+            } else {
+                if (addToTargetList(coords)) addedCount++;
+            }
+        });
+        
+        updateTargetsListUI();
+        showStatus('Added ' + addedCount + ' village(s) to target list for ' + currentWorld, 'success');
+        document.body.removeChild(overlay);
+    };
     
     function getWorldsWithTargets() {
         try {
@@ -977,22 +1208,7 @@
         targetList = newTargetList;
         saveTargetsToStorage();
     }
-    
-    function addToTargetList(targetToAdd) {
-        var targets = targetList.split(' ').filter(Boolean);
-        if (targets.indexOf(targetToAdd) === -1) {
-            targets.push(targetToAdd);
-            updateTargetList(targets.join(' '));
-            // Initialize target builds
-            if (!targetBuilds[targetToAdd]) {
-                targetBuilds[targetToAdd] = { A: true, B: true, C: true };
-                saveTargetBuildsToStorage();
-            }
-            return true;
-        }
-        return false;
-    }
-    
+        
     function removeFromTargetList(targetToRemove) {
         var targets = targetList.split(' ').filter(Boolean);
         var index = targets.indexOf(targetToRemove);
@@ -2125,7 +2341,7 @@
                 showStatus('All targets cleared for ' + currentWorld, 'success');
             }
         };
-
+    
         var manageIgnoresBtn = document.createElement('button');
         manageIgnoresBtn.textContent = '👁️ Manage Ignore List';
         manageIgnoresBtn.className = 'tw-attack-manage-btn';
@@ -2146,13 +2362,113 @@
             var distance = homeCoords ? calculateDistance(homeCoords, target) : 0;
             var cooldownInfo = getCooldownInfo(target);
             var targetBuildSettings = getTargetBuilds(target);
+            var villageData = getVillageData(target);
+            
+            // Village info container
+            var villageInfoContainer = document.createElement('div');
+            villageInfoContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                min-width: 200px;
+                flex: 1;
+            `;
+            
+            // First line: Coords and village name with tag
+            var firstLine = document.createElement('div');
+            firstLine.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 4px;
+            `;
             
             var targetCoords = document.createElement('div');
             targetCoords.className = 'tw-attack-target-coords';
             targetCoords.textContent = target;
+            targetCoords.style.minWidth = '70px';
             
-            var targetDetails = document.createElement('div');
-            targetDetails.className = 'tw-attack-target-details';
+            var villageName = document.createElement('span');
+            villageName.style.cssText = `
+                font-size: 13px;
+                font-weight: bold;
+                color: #333;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 200px;
+            `;
+            
+            var displayName = villageData.name;
+            if (displayName.length > 20) {
+                displayName = displayName.substring(0, 20) + '...';
+            }
+            villageName.textContent = displayName;
+            
+            // Village type tag
+            var villageTag = document.createElement('span');
+            villageTag.style.cssText = `
+                font-size: 11px;
+                padding: 1px 6px;
+                border-radius: 10px;
+                font-weight: bold;
+                white-space: nowrap;
+            `;
+            
+            var villageType = '';
+            var tagColor = '';
+            
+            if (villageData.isBonus) {
+                villageType = 'Bonus';
+                tagColor = '#FFD700';
+                villageTag.style.backgroundColor = '#FFF8DC';
+                villageTag.style.color = '#B8860B';
+                villageTag.style.border = '1px solid #FFD700';
+            } else if (villageData.playerNumber > 0) {
+                villageType = 'Player';
+                tagColor = '#ff4444';
+                villageTag.style.backgroundColor = '#FFE6E6';
+                villageTag.style.color = '#B22222';
+                villageTag.style.border = '1px solid #ff4444';
+            } else {
+                villageType = 'Barbarian';
+                tagColor = '#666';
+                villageTag.style.backgroundColor = '#f0f0f0';
+                villageTag.style.color = '#666';
+                villageTag.style.border = '1px solid #ccc';
+            }
+            
+            villageTag.textContent = villageType;
+            
+            // Points badge
+            var pointsBadge = document.createElement('span');
+            pointsBadge.style.cssText = `
+                font-size: 11px;
+                background-color: #e3f2fd;
+                color: #1976D2;
+                padding: 1px 6px;
+                border-radius: 10px;
+                border: 1px solid #bbdefb;
+                font-weight: bold;
+                white-space: nowrap;
+            `;
+            pointsBadge.textContent = villageData.points + ' pts';
+            
+            firstLine.appendChild(targetCoords);
+            firstLine.appendChild(villageName);
+            firstLine.appendChild(villageTag);
+            firstLine.appendChild(pointsBadge);
+            
+            // Second line: Details and cooldown
+            var secondLine = document.createElement('div');
+            secondLine.className = 'tw-attack-target-details';
+            secondLine.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                flex-wrap: wrap;
+                font-size: 11px;
+                color: #666;
+            `;
             
             var distanceSpan = document.createElement('span');
             distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
@@ -2168,12 +2484,14 @@
                 cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
             }
             
-            targetDetails.appendChild(distanceSpan);
-            targetDetails.appendChild(lastAttackSpan);
-            targetDetails.appendChild(cooldownSpan);
+            secondLine.appendChild(distanceSpan);
+            secondLine.appendChild(lastAttackSpan);
+            secondLine.appendChild(cooldownSpan);
             
-            targetInfo.appendChild(targetCoords);
-            targetInfo.appendChild(targetDetails);
+            villageInfoContainer.appendChild(firstLine);
+            villageInfoContainer.appendChild(secondLine);
+            
+            targetInfo.appendChild(villageInfoContainer);
             
             var actionButtons = document.createElement('div');
             actionButtons.className = 'tw-attack-action-buttons';
@@ -2218,7 +2536,7 @@
                     return function() { attackTargetWithAvailableBuild(targetToAttack); };
                 })(target);
             }
-
+    
             var ignoreBtn = document.createElement('button');
             ignoreBtn.textContent = '👁️';
             ignoreBtn.title = 'Add to ignore list (hide from future selections)';
@@ -2245,92 +2563,39 @@
                     }
                 };
             })(target);
-        
+       
             targetItem.appendChild(targetInfo);
             targetItem.appendChild(actionButtons);
             targetItem.appendChild(attackBtn);
             targetItem.appendChild(ignoreBtn);
             targetItem.appendChild(removeBtn);
             targetsList.appendChild(targetItem);
+
+            var editBtn = document.createElement('button');
+            editBtn.textContent = '✎';
+            editBtn.title = 'Edit village info';
+            editBtn.style.cssText = `
+                background: #666;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                width: 20px;
+                height: 20px;
+                font-size: 10px;
+                cursor: pointer;
+                margin-left: 5px;
+            `;
+            editBtn.onclick = (function(targetCoords) {
+                return function(e) {
+                    e.stopPropagation();
+                    editVillageInfo(targetCoords);
+                };
+            })(target);
+            
+            firstLine.appendChild(editBtn);
         });
     }
-    
-    function parseVillageText(text, maxDistance) {
-        try {
-            var villages = [];
-            var lines = text.split('\n');
-            var validLines = 0;
-            var currentTargets = getCurrentTargets();
-            
-            lines.forEach(function(line) {
-                if (!line.trim()) return;
-                
-                var parts = line.split(',');
-                if (parts.length >= 7) {
-                    var playerNumber = parseInt(parts[4]);
-                    var villagePoints = parseInt(parts[5]) || 0;
-                    var isBonusVillage = parseInt(parts[6]);
-                    
-                    var shouldInclude = false;
-                    
-                    // Check if it's a bonus village
-                    if (isBonusVillage > 0 && settings.includeBonusVillages) {
-                        shouldInclude = true;
-                    } 
-                    // Check if it's a barbarian village
-                    else if (playerNumber === 0 && isBonusVillage === 0) {
-                        shouldInclude = true;
-                    } 
-                    // Check if it's a player village and we include them
-                    else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
-                        shouldInclude = true;
-                    }
-                    
-                    if (shouldInclude) {
-                        var villageName = decodeURIComponent(parts[1]).replace(/\+/g, ' ');
-                        var x = parts[2];
-                        var y = parts[3];
-                        var coords = x + '|' + y;
-                        var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
-                        
-                        if (!maxDistance || distance <= parseInt(maxDistance)) {
-                            if (currentTargets.indexOf(coords) === -1 && !isInIgnoreList(coords)) {
-                                villages.push({
-                                    name: villageName,
-                                    coords: coords,
-                                    distance: distance,
-                                    playerNumber: playerNumber,
-                                    points: villagePoints,
-                                    isBonus: isBonusVillage > 0
-                                });
-                            }
-                        }
-                        validLines++;
-                    }
-                }
-            });
-            
-            if (validLines === 0) {
-                showStatus('No valid villages found in the pasted text. Make sure you copied the correct content.', 'error');
-                return;
-            }
-            
-            villages.sort(function(a, b) { return a.distance - b.distance; });
-            
-            var alreadyAdded = validLines - villages.length;
-            var statusMessage = 'Found ' + villages.length + ' available villages';
-            if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list)';
-            statusMessage += ' out of ' + validLines + ' total villages';
-            
-            showStatus(statusMessage, 'success');
-            showVillagesSelection(villages);
-            
-        } catch (error) {
-            console.error('Error parsing village text:', error);
-            showStatus('Error parsing village.txt content: ' + error.message, 'error');
-        }
-    }
-    
+     
     function showVillagesSelection(villages) {
         var existingSelection = document.getElementById('villages-selection');
         if (existingSelection) existingSelection.remove();
@@ -2989,6 +3254,31 @@
             clearInterval(updateInterval);
             updateInterval = null;
         }
+    }
+
+    function editVillageInfo(target) {
+        var villageData = getVillageData(target);
+        
+        var newName = prompt('Enter village name:', villageData.name);
+        if (newName === null) return;
+        
+        var newPoints = prompt('Enter village points:', villageData.points);
+        if (newPoints === null) return;
+        
+        var newType = prompt('Enter village type (barbarian/player/bonus):', 
+            villageData.isBonus ? 'bonus' : villageData.playerNumber > 0 ? 'player' : 'barbarian');
+        if (newType === null) return;
+        
+        var updatedData = {
+            name: newName,
+            points: parseInt(newPoints) || 0,
+            playerNumber: newType === 'player' ? 1 : 0,
+            isBonus: newType === 'bonus'
+        };
+        
+        saveVillageData(target, updatedData);
+        updateTargetsListUI();
+        showStatus('Village info updated for ' + target, 'success');
     }
 
     // ===== MAIN EXECUTION =====
