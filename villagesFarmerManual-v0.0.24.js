@@ -1168,27 +1168,6 @@
         }
     }
     
-    // Update the addSelectedBtn click handler in showVillagesSelection
-    addSelectedBtn.onclick = function() {
-        var addedCount = 0;
-        selectedVillages.forEach(function(coords) {
-            // Find the village data for this coords
-            var villageData = villages.find(function(v) {
-                return v.coords === coords;
-            });
-            
-            if (villageData) {
-                if (addToTargetList(coords, villageData)) addedCount++;
-            } else {
-                if (addToTargetList(coords)) addedCount++;
-            }
-        });
-        
-        updateTargetsListUI();
-        showStatus('Added ' + addedCount + ' village(s) to target list for ' + currentWorld, 'success');
-        document.body.removeChild(overlay);
-    };
-    
     function getWorldsWithTargets() {
         try {
             var storedData = localStorage.getItem(targetsStorageKey);
@@ -2692,6 +2671,16 @@
             font-size: 14px;
             box-shadow: 0 3px 6px rgba(0,0,0,0.1);
         `;
+        addSelectedBtn.onclick = function() {
+            var addedCount = 0;
+            selectedVillages.forEach(function(coords) {
+                if (addToTargetList(coords)) addedCount++;
+            });
+            
+            updateTargetsListUI();
+            showStatus('Added ' + addedCount + ' village(s) to target list for ' + currentWorld, 'success');
+            document.body.removeChild(overlay);
+        };
         
         var closeFooterBtn = document.createElement('button');
         closeFooterBtn.textContent = 'Close';
@@ -2870,19 +2859,7 @@
             selectAllCheckbox.dispatchEvent(new Event('change'));
         };
         
-        searchInput.oninput = function() { updateVillagesList(this.value); };
-        
-        addSelectedBtn.onclick = function() {
-            var addedCount = 0;
-            selectedVillages.forEach(function(coords) {
-                if (addToTargetList(coords)) addedCount++;
-            });
-            
-            updateTargetsListUI();
-            showStatus('Added ' + addedCount + ' village(s) to target list for ' + currentWorld, 'success');
-            document.body.removeChild(overlay);
-        };
-        
+        searchInput.oninput = function() { updateVillagesList(this.value); };        
         closeFooterBtn.onclick = function() { document.body.removeChild(overlay); };
         
         updateVillagesList();
