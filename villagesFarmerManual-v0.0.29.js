@@ -767,7 +767,6 @@
     var targetBuilds = {}; // Stores which builds are enabled for each target
     
     var settings = {
-        cooldown: defaultCooldown,
         autoAttack: true,
         includePlayers: false,
         maxPlayerPoints: 1000,
@@ -814,24 +813,61 @@
     }
     
     function getCooldownInfo(target) {
-        var history = getAttackHistory();
+        var buildCooldowns = loadBuildCooldownsFromStorage();
         var currentTime = (new Date()).getTime();
         
-        if (history[target]) {
-            var minutesSinceAttack = (currentTime - history[target]) / 60000;
-            var minutesLeft = settings.cooldown - minutesSinceAttack;
+        // Find the most recent attack from any build
+        var mostRecentAttack = null;
+        var mostRecentBuild = null;
+        
+        if (buildCooldowns[target]) {
+            for (var buildKey in buildCooldowns[target]) {
+                var attackTime = buildCooldowns[target][buildKey];
+                if (!mostRecentAttack || attackTime > mostRecentAttack) {
+                    mostRecentAttack = attackTime;
+                    mostRecentBuild = buildKey;
+                }
+            }
+        }
+        
+        if (mostRecentAttack) {
+            // Get the cooldown for the build that was used
+            var build = troopBuilds[mostRecentBuild] || defaultBuilds[mostRecentBuild];
+            var buildCooldownMinutes = build.cooldown || defaultCooldown;
+            var minutesSinceAttack = (currentTime - mostRecentAttack) / 60000;
+            var minutesLeft = buildCooldownMinutes - minutesSinceAttack;
             
             return {
-                onCooldown: minutesSinceAttack < settings.cooldown,
+                onCooldown: minutesSinceAttack < buildCooldownMinutes,
                 minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
-                lastAttack: new Date(history[target])
+                lastAttack: new Date(mostRecentAttack),
+                buildUsed: mostRecentBuild,
+                cooldown: buildCooldownMinutes
+            };
+        }
+        
+        // Fallback to old attack history for backward compatibility
+        var history = getAttackHistory();
+        if (history[target]) {
+            // Use default cooldown for old attacks
+            var minutesSinceAttack = (currentTime - history[target]) / 60000;
+            var minutesLeft = defaultCooldown - minutesSinceAttack;
+            
+            return {
+                onCooldown: minutesSinceAttack < defaultCooldown,
+                minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
+                lastAttack: new Date(history[target]),
+                buildUsed: 'unknown',
+                cooldown: defaultCooldown
             };
         }
         
         return {
             onCooldown: false,
             minutesLeft: 0,
-            lastAttack: null
+            lastAttack: null,
+            buildUsed: null,
+            cooldown: defaultCooldown
         };
     }
     
@@ -878,7 +914,7 @@
         if (buildCooldowns[target] && buildCooldowns[target][buildKey]) {
             var lastAttackTime = buildCooldowns[target][buildKey];
             var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
-            var buildCooldownMinutes = build.cooldown || settings.cooldown || defaultCooldown;
+            var buildCooldownMinutes = build.cooldown || defaultCooldown;
             var minutesSinceAttack = (currentTime - lastAttackTime) / 60000;
             var minutesLeft = buildCooldownMinutes - minutesSinceAttack;
             
@@ -894,7 +930,7 @@
             onCooldown: false,
             minutesLeft: 0,
             lastAttack: null,
-            cooldown: (troopBuilds[buildKey] ? troopBuilds[buildKey].cooldown : null) || settings.cooldown || defaultCooldown
+            cooldown: (troopBuilds[buildKey] ? troopBuilds[buildKey].cooldown : null) || defaultCooldown
         };
     }
     
@@ -2195,12 +2231,8 @@
         
         var villageInfo = document.createElement('div');
         villageInfo.innerHTML = '<strong>🏠 Current Village:</strong> ' + (homeCoords || 'Not found');
-        villageInfo.style.marginBottom = '8px';
-        
-        var cooldownInfo = document.createElement('div');
-        cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
-        cooldownInfo.style.marginBottom = '12px';
-        cooldownInfo.style.color = '#666';
+        villageInfo.style.marginBottom = '12px';
+        villageInfo.style.color = '#666';
         
         var villageUrl = document.createElement('div');
         villageUrl.style.cssText = `margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ddd;`;
@@ -2235,7 +2267,6 @@
         
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
-        infoSection.appendChild(cooldownInfo);
         infoSection.appendChild(villageUrl);
         infoSection.appendChild(urlLink);
         infoSection.appendChild(urlHelp);
@@ -2256,26 +2287,6 @@
             
             settingsContainer = document.createElement('div');
             settingsContainer.id = 'settings-container';
-            
-            // Cooldown setting
-            var cooldownSetting = document.createElement('div');
-            cooldownSetting.className = 'tw-attack-setting-row';
-            
-            var cooldownLabel = document.createElement('label');
-            cooldownLabel.textContent = 'Cooldown (minutes): ';
-            cooldownLabel.className = 'tw-attack-setting-label';
-            
-            var cooldownInput = document.createElement('input');
-            cooldownInput.type = 'number';
-            cooldownInput.min = '1';
-            cooldownInput.max = '1440';
-            cooldownInput.value = settings.cooldown;
-            cooldownInput.className = 'tw-attack-input';
-            cooldownInput.style.width = '80px';
-            cooldownInput.style.marginRight = '10px';
-            
-            cooldownSetting.appendChild(cooldownLabel);
-            cooldownSetting.appendChild(cooldownInput);
             
             // Include players villages setting
             var includePlayersSetting = document.createElement('div');
@@ -2327,7 +2338,6 @@
             includeBonusSetting.appendChild(includeBonusLabel);
             includeBonusSetting.appendChild(includeBonusCheckbox);
             
-            settingsContainer.appendChild(cooldownSetting);
             settingsContainer.appendChild(includePlayersSetting);
             settingsContainer.appendChild(maxPointsSetting);
             settingsContainer.appendChild(includeBonusSetting);
@@ -2337,20 +2347,11 @@
             saveAllBtn.className = 'tw-attack-save-btn';
             
             saveAllBtn.onclick = function() {
-                var newCooldown = parseInt(cooldownInput.value);
-                if (newCooldown >= 1 && newCooldown <= 1440) {
-                    settings.cooldown = newCooldown;
-                } else {
-                    showStatus('Please enter a valid cooldown (1-1440 minutes)', 'error');
-                    return;
-                }
-                
                 settings.includePlayers = includePlayersCheckbox.checked;
                 settings.maxPlayerPoints = parseInt(maxPointsInput.value) || 1000;
                 settings.includeBonusVillages = includeBonusCheckbox.checked;
                 
                 saveAllSettings();
-                cooldownInfo.innerHTML = '<strong>⏰ Cooldown:</strong> ' + settings.cooldown + ' minutes';
             };
             
             settingsContainer.appendChild(saveAllBtn);
@@ -2535,7 +2536,7 @@
         var savedTextKey = 'villageTxtContent_' + currentWorld;
         var savedText = localStorage.getItem(savedTextKey);
         if (savedText) pasteTextarea.value = savedText;
-        
+            
         var distanceContainer = document.createElement('div');
         distanceContainer.style.cssText = `margin-bottom: 15px; display: flex; align-items: center;`;
         
@@ -2815,15 +2816,33 @@
             var lastAttackSpan = document.createElement('span');
             // Get the most recent attack from any build
             var mostRecentAttack = null;
-            ['A', 'B', 'C'].forEach(function(buildKey) {
-                if (targetBuildSettings[buildKey]) {
-                    var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
-                    if (buildCooldownInfo.lastAttack && (!mostRecentAttack || buildCooldownInfo.lastAttack > mostRecentAttack)) {
-                        mostRecentAttack = buildCooldownInfo.lastAttack;
+            var mostRecentBuild = null;
+            var buildCooldowns = loadBuildCooldownsFromStorage();
+            
+            if (buildCooldowns[target]) {
+                for (var buildKey in buildCooldowns[target]) {
+                    var attackTime = buildCooldowns[target][buildKey];
+                    if (!mostRecentAttack || attackTime > mostRecentAttack) {
+                        mostRecentAttack = attackTime;
+                        mostRecentBuild = buildKey;
                     }
                 }
-            });
-            lastAttackSpan.innerHTML = `<strong>Last:</strong> ${formatTimeSince(mostRecentAttack)}`;
+            }
+            
+            // Fallback to old attack history
+            if (!mostRecentAttack) {
+                var history = getAttackHistory();
+                if (history[target]) {
+                    mostRecentAttack = history[target];
+                    mostRecentBuild = 'unknown';
+                }
+            }
+            
+            var lastAttackText = formatTimeSince(mostRecentAttack ? new Date(mostRecentAttack) : null);
+            if (mostRecentBuild && mostRecentBuild !== 'unknown') {
+                lastAttackText += ' (Build ' + mostRecentBuild + ')';
+            }
+            lastAttackSpan.innerHTML = `<strong>Last:</strong> ${lastAttackText}`;
             
             // Build cooldown indicators
             var cooldownSpan = document.createElement('span');
@@ -2834,7 +2853,7 @@
                 if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
                     var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
                     if (buildCooldownInfo.onCooldown) {
-                        cooldownDetails.push(`${buildKey}:${buildCooldownInfo.minutesLeft}m`);
+                        cooldownDetails.push(`Build ${buildKey}: ${buildCooldownInfo.minutesLeft}m`);
                     }
                 }
             });
@@ -2891,11 +2910,6 @@
                         e.stopPropagation();
                         var newState = !targetBuildSettings[buildKey];
                         setTargetBuild(targetCoords, buildKey, newState);
-                        if (newState) {
-                            this.classList.add('checked');
-                        } else {
-                            this.classList.remove('checked');
-                        }
                         updateTargetsListUI();
                     };
                 })(buildKey, target);
@@ -2923,6 +2937,7 @@
                 attackBtn.disabled = true;
                 attackBtn.style.opacity = '0.5';
                 attackBtn.style.cursor = 'not-allowed';
+                attackBtn.title = 'All builds for this target are on cooldown';
             } else {
                 attackBtn.onclick = (function(targetToAttack) {
                     return function() { attackTargetWithAvailableBuild(targetToAttack); };
