@@ -1051,18 +1051,18 @@
         var data = villageData[target];
         
         if (!data) {
-            // Return better default data
+            // Return cleaner default data
             return { 
-                name: "Village at " + target, 
+                name: "Barbarian Village", 
                 points: 0, 
                 playerNumber: 0, 
                 isBonus: false 
             };
         }
         
-        // Ensure all required fields exist
+        // Ensure all required fields exist with proper defaults
         return {
-            name: data.name || "Village at " + target,
+            name: data.name || "Barbarian Village",
             points: data.points || 0,
             playerNumber: data.playerNumber || 0,
             isBonus: data.isBonus || false
@@ -1073,6 +1073,43 @@
         var villageData = loadVillageDataFromStorage();
         villageData[target] = data;
         saveVillageDataToStorage(villageData);
+    }
+    
+    function updateVillageDataForExistingTargets() {
+        var targets = getCurrentTargets();
+        var updatedCount = 0;
+        
+        targets.forEach(function(target) {
+            var villageData = getVillageData(target);
+            if (villageData.name === "Unknown" || 
+                villageData.name === "Unknown Village" ||
+                villageData.name.startsWith("Village at ")) {
+                
+                // Create a cleaner default name
+                var newName = "";
+                
+                if (villageData.isBonus) {
+                    newName = "Bonus Village";
+                } else if (villageData.playerNumber > 0) {
+                    newName = "Player Village";
+                } else {
+                    newName = "Barbarian Village";
+                }
+                
+                saveVillageData(target, {
+                    name: newName,
+                    points: villageData.points || 0,
+                    playerNumber: villageData.playerNumber || 0,
+                    isBonus: villageData.isBonus || false
+                });
+                updatedCount++;
+            }
+        });
+        
+        if (updatedCount > 0) {
+            console.log("Updated village data for " + updatedCount + " targets");
+            updateTargetsListUI();
+        }
     }
     
     // Update addToTargetList to accept village data
@@ -1088,21 +1125,17 @@
             } else {
                 // Try to get existing data first
                 var existingData = getVillageData(targetToAdd);
-                if (existingData.name === "Unknown") {
-                    // Parse coordinates to create basic data
-                    var parts = targetToAdd.split('|');
-                    if (parts.length === 2) {
-                        var x = parseInt(parts[0]);
-                        var y = parseInt(parts[1]);
-                        
-                        // Create default data
-                        saveVillageData(targetToAdd, {
-                            name: "Village at " + targetToAdd,
-                            points: 0,
-                            playerNumber: 0,
-                            isBonus: false
-                        });
-                    }
+                if (existingData.name === "Barbarian Village" || 
+                    existingData.name === "Unknown" || 
+                    existingData.name === "Unknown Village") {
+                    
+                    // Create cleaner default data
+                    saveVillageData(targetToAdd, {
+                        name: "Barbarian Village",
+                        points: 0,
+                        playerNumber: 0,
+                        isBonus: false
+                    });
                 }
             }
             
@@ -2333,14 +2366,6 @@
             targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd;">No targets in list for ' + currentWorld + '</div>';
             return;
         }
-
-        var refreshBtn = document.createElement('button');
-        refreshBtn.textContent = '🔄 Refresh Village Data';
-        refreshBtn.className = 'tw-attack-manage-btn';
-        refreshBtn.onclick = function() {
-            updateVillageDataForExistingTargets();
-            showStatus('Village data refreshed for all targets', 'success');
-        };
         
         var clearAllBtn = document.createElement('button');
         clearAllBtn.textContent = '🗑️ Clear All Targets for ' + currentWorld;
@@ -2361,8 +2386,17 @@
             showIgnoreListManagement();
         };
         
+        var refreshVillageDataBtn = document.createElement('button');
+        refreshVillageDataBtn.textContent = '🔄 Refresh Village Data';
+        refreshVillageDataBtn.className = 'tw-attack-manage-btn';
+        refreshVillageDataBtn.onclick = function() {
+            updateVillageDataForExistingTargets();
+            showStatus('Village data refreshed for all targets', 'success');
+        };
+        
         targetsList.appendChild(clearAllBtn);
         targetsList.appendChild(manageIgnoresBtn);
+        targetsList.appendChild(refreshVillageDataBtn);
         
         targets.forEach(function(target, index) {
             var targetItem = document.createElement('div');
@@ -2575,14 +2609,7 @@
                     }
                 };
             })(target);
-       
-            targetItem.appendChild(targetInfo);
-            targetItem.appendChild(actionButtons);
-            targetItem.appendChild(attackBtn);
-            targetItem.appendChild(ignoreBtn);
-            targetItem.appendChild(removeBtn);
-            targetsList.appendChild(targetItem);
-
+            
             var editBtn = document.createElement('button');
             editBtn.textContent = '✎';
             editBtn.title = 'Edit village info';
@@ -2605,6 +2632,12 @@
             })(target);
             
             firstLine.appendChild(editBtn);
+            targetItem.appendChild(targetInfo);
+            targetItem.appendChild(actionButtons);
+            targetItem.appendChild(attackBtn);
+            targetItem.appendChild(ignoreBtn);
+            targetItem.appendChild(removeBtn);
+            targetsList.appendChild(targetItem);
         });
     }
      
@@ -2707,7 +2740,11 @@
         addSelectedBtn.onclick = function() {
             var addedCount = 0;
             selectedVillages.forEach(function(coords) {
-                if (addToTargetList(coords)) addedCount++;
+                // Find the village data for this coordinate
+                var village = villages.find(v => v.coords === coords);
+                if (village) {
+                    if (addToTargetList(coords, village)) addedCount++;
+                }
             });
             
             updateTargetsListUI();
@@ -3252,6 +3289,51 @@
         document.body.appendChild(checkboxContainer);
     }
 
+    function editVillageInfo(target) {
+        var villageData = getVillageData(target);
+        
+        // Provide a better default value in the prompt
+        var defaultName = villageData.name;
+        if (defaultName === "Barbarian Village" || 
+            defaultName === "Player Village" || 
+            defaultName === "Bonus Village") {
+            defaultName = "";
+        }
+        
+        var newName = prompt('Enter village name (leave empty for default):', defaultName);
+        if (newName === null) return;
+        
+        var newPoints = prompt('Enter village points:', villageData.points);
+        if (newPoints === null) return;
+        
+        var newType = prompt('Enter village type (barbarian/player/bonus):', 
+            villageData.isBonus ? 'bonus' : villageData.playerNumber > 0 ? 'player' : 'barbarian');
+        if (newType === null) return;
+        
+        // Use entered name or generate appropriate default
+        var finalName = newName.trim();
+        if (!finalName) {
+            if (newType === 'bonus') {
+                finalName = "Bonus Village";
+            } else if (newType === 'player') {
+                finalName = "Player Village";
+            } else {
+                finalName = "Barbarian Village";
+            }
+        }
+        
+        var updatedData = {
+            name: finalName,
+            points: parseInt(newPoints) || 0,
+            playerNumber: newType === 'player' ? 1 : 0,
+            isBonus: newType === 'bonus'
+        };
+        
+        saveVillageData(target, updatedData);
+        updateTargetsListUI();
+        showStatus('Village info updated for ' + target, 'success');
+    }
+
     function startAutoUpdate() {
         if (updateInterval) clearInterval(updateInterval);
         updateInterval = setInterval(function() {
@@ -3263,55 +3345,6 @@
         if (updateInterval) {
             clearInterval(updateInterval);
             updateInterval = null;
-        }
-    }
-
-    function editVillageInfo(target) {
-        var villageData = getVillageData(target);
-        
-        var newName = prompt('Enter village name:', villageData.name);
-        if (newName === null) return;
-        
-        var newPoints = prompt('Enter village points:', villageData.points);
-        if (newPoints === null) return;
-        
-        var newType = prompt('Enter village type (barbarian/player/bonus):', 
-            villageData.isBonus ? 'bonus' : villageData.playerNumber > 0 ? 'player' : 'barbarian');
-        if (newType === null) return;
-        
-        var updatedData = {
-            name: newName,
-            points: parseInt(newPoints) || 0,
-            playerNumber: newType === 'player' ? 1 : 0,
-            isBonus: newType === 'bonus'
-        };
-        
-        saveVillageData(target, updatedData);
-        updateTargetsListUI();
-        showStatus('Village info updated for ' + target, 'success');
-    }
-
-    function updateVillageDataForExistingTargets() {
-        var targets = getCurrentTargets();
-        var updatedCount = 0;
-        
-        targets.forEach(function(target) {
-            var villageData = getVillageData(target);
-            if (villageData.name === "Unknown" || villageData.name === "Unknown Village") {
-                // Create better default data
-                saveVillageData(target, {
-                    name: "Village at " + target,
-                    points: 0,
-                    playerNumber: 0,
-                    isBonus: false
-                });
-                updatedCount++;
-            }
-        });
-        
-        if (updatedCount > 0) {
-            console.log("Updated village data for " + updatedCount + " targets");
-            updateTargetsListUI();
         }
     }
 
