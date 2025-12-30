@@ -67,11 +67,11 @@
             'dataType': 'xml',
             'success': function(xml) {
                 buildingInfo = xmlToObject(xml);
-                console.log('Информация о зданиях загружена');
+                console.log('Информация о зданиях загружена:', buildingInfo);
                 displayAllData();
             },
-            'error': function() {
-                console.log('Не удалось загрузить информацию о зданиях, отображаем только конфигурацию');
+            'error': function(xhr, status, error) {
+                console.log('Не удалось загрузить информацию о зданиях:', error);
                 buildingInfo = null;
                 displayAllData();
             }
@@ -132,13 +132,7 @@
         
         // Заполняем контент
         displayWorldConfig();
-        if (buildingInfo) {
-            displayBuildingInfo();
-        } else {
-            document.getElementById('tabBuildingsContent').innerHTML = 
-                '<div style="text-align:center;padding:40px;color:#666;">' +
-                'Информация о зданиях не загружена</div>';
-        }
+        displayBuildingInfoTable();
         
         // Обновляем статистику
         updateStats();
@@ -146,7 +140,11 @@
     
     // Функция для отображения конфигурации мира
     function displayWorldConfig() {
-        if (!worldConfig) return;
+        if (!worldConfig) {
+            document.getElementById('tabWorldContent').innerHTML = 
+                '<div style="text-align:center;padding:40px;color:#666;">Конфигурация мира не загружена</div>';
+            return;
+        }
         
         var contentDiv = document.getElementById('tabWorldContent');
         var htmlContent = '';
@@ -160,8 +158,6 @@
                 // Это категория (вложенный объект)
                 htmlContent += createCategoryTable(key, value, 'world');
                 totalSettings += Object.keys(value).length;
-            } else {
-                // Это простая настройка - добавим позже в общую таблицу
             }
         });
         
@@ -187,65 +183,237 @@
         }
     }
     
-    // Функция для отображения информации о зданиях
-    function displayBuildingInfo() {
-        if (!buildingInfo) return;
-        
+    // Функция для отображения информации о зданиях в виде таблицы
+    function displayBuildingInfoTable() {
         var contentDiv = document.getElementById('tabBuildingsContent');
-        var htmlContent = '';
         
-        // Проверяем структуру данных
-        console.log('Building info structure:', buildingInfo);
+        if (!buildingInfo) {
+            contentDiv.innerHTML = 
+                '<div style="text-align:center;padding:40px;color:#666;">Информация о зданиях не загружена</div>';
+            return;
+        }
         
-        // Получаем список зданий
-        var buildings = buildingInfo.buildings || buildingInfo;
+        // Пытаемся найти объект со зданиями
+        var buildingsData = buildingInfo.buildings || buildingInfo;
         
-        if (typeof buildings === 'object' && buildings !== null) {
-            // Отображаем каждое здание
-            Object.keys(buildings).forEach(function(buildingName) {
-                var buildingData = buildings[buildingName];
+        // Получаем список всех зданий
+        var buildings = [];
+        var allParams = new Set(); // Для сбора всех уникальных параметров
+        
+        // Собираем здания и параметры
+        Object.keys(buildingsData).forEach(function(buildingKey) {
+            var building = buildingsData[buildingKey];
+            
+            if (typeof building === 'object' && building !== null) {
+                // Проверяем, что это похоже на здание (есть max_level или wood/stone/iron)
+                if (building.max_level !== undefined || building.wood !== undefined || 
+                    building.stone !== undefined || building.iron !== undefined) {
+                    
+                    buildings.push({
+                        name: buildingKey,
+                        data: building
+                    });
+                    
+                    // Собираем все параметры этого здания
+                    Object.keys(building).forEach(function(param) {
+                        allParams.add(param);
+                    });
+                }
+            }
+        });
+        
+        if (buildings.length === 0) {
+            // Если не нашли структурированных данных, покажем как обычную таблицу
+            contentDiv.innerHTML = createCategoryTable('Информация о зданиях', buildingsData, 'buildings');
+            return;
+        }
+        
+        // Преобразуем Set в массив и сортируем параметры
+        var params = Array.from(allParams).sort();
+        
+        // Создаем HTML для таблицы
+        var html = `
+            <div style="margin-bottom:15px;color:#666;">
+                Всего зданий: <strong>${buildings.length}</strong> | 
+                Всего параметров: <strong>${params.length}</strong> |
+                <button onclick="toggleBuildingDetails()" style="background:#5D8AA8;color:white;
+                    border:none;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:12px;margin-left:10px;">
+                    Показать детали
+                </button>
+            </div>
+            
+            <div style="overflow-x:auto;margin-bottom:20px;">
+                <table style="width:100%;border-collapse:collapse;background:white;border:1px solid #ddd;">
+                    <thead>
+                        <tr style="background:#5D8AA8;color:white;">
+                            <th style="padding:12px;text-align:left;border-right:1px solid #4a7a9d;position:sticky;left:0;background:#5D8AA8;z-index:10;">
+                                Здание
+                            </th>
+        `;
+        
+        // Добавляем заголовки для параметров
+        params.forEach(function(param) {
+            html += `<th style="padding:12px;text-align:center;border-right:1px solid #4a7a9d;min-width:80px;">
+                ${formatBuildingParam(param)}
+            </th>`;
+        });
+        
+        html += `</tr></thead><tbody>`;
+        
+        // Добавляем строки для каждого здания
+        buildings.forEach(function(building, index) {
+            var rowClass = index % 2 === 0 ? 'background:#f9f9f9;' : 'background:white;';
+            var buildingName = formatBuildingName(building.name);
+            
+            html += `<tr style="${rowClass}">`;
+            
+            // Ячейка с названием здания (закреплена)
+            html += `<td style="padding:10px;border-right:1px solid #eee;border-bottom:1px solid #eee;
+                position:sticky;left:0;${rowClass.replace(';', ' !important;')}z-index:5;">
+                <div style="font-weight:bold;">${buildingName}</div>
+                <div style="font-size:11px;color:#888;">${building.name}</div>
+            </td>`;
+            
+            // Ячейки с параметрами
+            params.forEach(function(param) {
+                var value = building.data[param] || '—';
+                var displayValue = formatBuildingParamValue(value, param);
                 
-                if (typeof buildingData === 'object' && buildingData !== null) {
-                    htmlContent += createBuildingTable(buildingName, buildingData);
-                }
+                html += `<td style="padding:10px;text-align:center;border-right:1px solid #eee;border-bottom:1px solid #eee;
+                    ${param.includes('factor') ? 'background:#f0f8ff;' : ''}">
+                    ${displayValue}
+                </td>`;
             });
-        } else {
-            // Пытаемся найти здания в другом месте
-            Object.keys(buildingInfo).forEach(function(key) {
-                var data = buildingInfo[key];
-                if (typeof data === 'object' && data !== null) {
-                    // Проверяем, похоже ли это на данные здания
-                    if (data.max_level || data.wood || data.stone || data.iron) {
-                        htmlContent += createBuildingTable(key, data);
-                    }
-                }
-            });
-        }
+            
+            html += `</tr>`;
+        });
         
-        if (htmlContent === '') {
-            // Если не нашли структурированных данных, покажем все как есть
-            htmlContent = createCategoryTable('Информация о зданиях', buildingInfo, 'buildings');
-        }
+        html += `</tbody></table></div>`;
         
-        contentDiv.innerHTML = htmlContent;
+        // Добавляем легенду/пояснения
+        html += createBuildingInfoLegend(params);
+        
+        contentDiv.innerHTML = html;
     }
     
-    // Функция для создания таблицы категории
+    // Функция для создания легенды/пояснений
+    function createBuildingInfoLegend(params) {
+        var legend = `
+            <div style="background:#f0f7ff;border:1px solid #5D8AA8;border-radius:5px;padding:15px;margin-top:20px;">
+                <div style="font-weight:bold;color:#5D8AA8;margin-bottom:10px;">Пояснения к параметрам:</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:10px;">
+        `;
+        
+        var paramDescriptions = {
+            'max_level': 'Максимальный уровень',
+            'min_level': 'Минимальный уровень',
+            'wood': 'Стоимость дерева (уровень 1)',
+            'stone': 'Стоимость камня (уровень 1)',
+            'iron': 'Стоимость железа (уровень 1)',
+            'pop': 'Требуемое население (уровень 1)',
+            'wood_factor': 'Множитель стоимости дерева',
+            'stone_factor': 'Множитель стоимости камня',
+            'iron_factor': 'Множитель стоимости железа',
+            'pop_factor': 'Множитель требуемого населения',
+            'build_time': 'Время строительства (уровень 1, в секундах)',
+            'build_time_factor': 'Множитель времени строительства'
+        };
+        
+        params.forEach(function(param) {
+            var description = paramDescriptions[param] || param;
+            legend += `<div style="font-size:12px;">
+                <span style="font-weight:bold;color:#5D8AA8;">${formatBuildingParam(param)}:</span> ${description}
+            </div>`;
+        });
+        
+        legend += `</div></div>`;
+        return legend;
+    }
+    
+    // Функция для форматирования названия параметра здания
+    function formatBuildingParam(param) {
+        var paramNames = {
+            'max_level': 'Макс. ур.',
+            'min_level': 'Мин. ур.',
+            'wood': 'Дерево',
+            'stone': 'Камень',
+            'iron': 'Железо',
+            'pop': 'Население',
+            'wood_factor': 'Дерево ×',
+            'stone_factor': 'Камень ×',
+            'iron_factor': 'Железо ×',
+            'pop_factor': 'Население ×',
+            'build_time': 'Время стр.',
+            'build_time_factor': 'Время ×'
+        };
+        
+        return paramNames[param] || param.replace('_', ' ').substring(0, 10);
+    }
+    
+    // Функция для форматирования значения параметра здания
+    function formatBuildingParamValue(value, param) {
+        if (value === '—' || value === null || value === undefined) return '—';
+        
+        // Для множителей показываем с 2 знаками после запятой
+        if (param.includes('_factor') && !isNaN(value)) {
+            return parseFloat(value).toFixed(2);
+        }
+        
+        // Для ресурсов и времени - форматируем числа
+        if (!isNaN(value) && value !== '') {
+            var num = parseFloat(value);
+            
+            // Для времени строительства переводим в минуты если больше 60 секунд
+            if (param === 'build_time' && num >= 60) {
+                var minutes = Math.floor(num / 60);
+                var seconds = num % 60;
+                return seconds > 0 ? `${minutes}м ${seconds}с` : `${minutes}м`;
+            }
+            
+            // Для больших чисел добавляем разделители
+            if (num >= 1000) {
+                return num.toLocaleString();
+            }
+            
+            return num.toString();
+        }
+        
+        return value;
+    }
+    
+    // Функция для форматирования имени здания
+    function formatBuildingName(name) {
+        var buildingNames = {
+            'main': 'Главное здание',
+            'barracks': 'Казармы',
+            'stable': 'Конюшня',
+            'garage': 'Гараж',
+            'smith': 'Кузница',
+            'place': 'Площадь',
+            'market': 'Рынок',
+            'wood': 'Лесопилка',
+            'stone': 'Каменоломня',
+            'iron': 'Железный рудник',
+            'farm': 'Ферма',
+            'storage': 'Склад',
+            'hide': 'Укрытие',
+            'wall': 'Стена',
+            'watchtower': 'Сторожевая башня',
+            'snob': 'Дворец дворянина',
+            'church': 'Церковь',
+            'statue': 'Статуя',
+            'church_f': 'Церковь (чуж.)',
+            'watchtower_f': 'Башня (чуж.)'
+        };
+        
+        return buildingNames[name] || name.charAt(0).toUpperCase() + name.slice(1);
+    }
+    
+    // Функция для создания таблицы категории (для world config)
     function createCategoryTable(categoryName, categoryData, type) {
         var keys = Object.keys(categoryData);
         
         if (keys.length === 0) return '';
-        
-        // Проверяем, есть ли в этой категории вложенные объекты
-        var hasNestedObjects = keys.some(function(key) {
-            var value = categoryData[key];
-            return typeof value === 'object' && value !== null;
-        });
-        
-        if (hasNestedObjects && type === 'world') {
-            // Разделяем на подкатегории
-            return createNestedCategoryTable(categoryName, categoryData);
-        }
         
         var tableHtml = `
             <div style="margin-bottom:25px;background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
@@ -289,173 +457,6 @@
         `;
         
         return tableHtml;
-    }
-    
-    // Функция для создания таблицы здания
-    function createBuildingTable(buildingName, buildingData) {
-        var keys = Object.keys(buildingData);
-        
-        if (keys.length === 0) return '';
-        
-        var tableHtml = `
-            <div style="margin-bottom:25px;background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
-                <div style="background:#5D8AA8;color:white;padding:12px 15px;font-weight:bold;">
-                    ${formatBuildingName(buildingName)}
-                </div>
-                <div style="padding:0;">
-                    <table style="width:100%;border-collapse:collapse;">
-                        <thead>
-                            <tr style="background:#f0f7ff;">
-                                <th style="padding:10px;text-align:left;border-bottom:2px solid #ddd;width:60%;">Параметр</th>
-                                <th style="padding:10px;text-align:left;border-bottom:2px solid #ddd;width:40%;">Значение</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        `;
-        
-        keys.forEach(function(key) {
-            var value = buildingData[key];
-            
-            // Специальная обработка для некоторых параметров зданий
-            var displayValue = formatBuildingValue(value, key);
-            var displayKey = formatBuildingKey(key);
-            
-            tableHtml += `
-                <tr style="border-bottom:1px solid #eee;">
-                    <td style="padding:10px;">
-                        <div style="font-weight:bold;">${displayKey}</div>
-                    </td>
-                    <td style="padding:10px;">
-                        <div style="word-break:break-word;">${displayValue}</div>
-                    </td>
-                </tr>
-            `;
-        });
-        
-        tableHtml += `
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-        
-        return tableHtml;
-    }
-    
-    // Функция для создания таблицы с вложенными категориями
-    function createNestedCategoryTable(categoryName, categoryData) {
-        var html = `
-            <div style="margin-bottom:25px;background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
-                <div style="background:#8B4513;color:white;padding:12px 15px;font-weight:bold;">
-                    ${formatCategoryName(categoryName)}
-                </div>
-                <div style="padding:15px;">
-        `;
-        
-        Object.keys(categoryData).forEach(function(key) {
-            var value = categoryData[key];
-            
-            if (typeof value === 'object' && value !== null) {
-                // Вложенная подкатегория
-                html += `<div style="margin-bottom:15px;">
-                    <div style="font-weight:bold;color:#8B4513;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #eee;">
-                        ${formatKeyName(key)}
-                    </div>
-                    <div style="padding-left:15px;">
-                `;
-                
-                Object.keys(value).forEach(function(subKey) {
-                    var subValue = value[subKey];
-                    html += `<div style="margin-bottom:5px;display:flex;">
-                        <div style="width:60%;font-weight:bold;padding-right:10px;">${formatKeyName(subKey)}</div>
-                        <div style="width:40%;">${formatValue(subValue, subKey, 'world')}</div>
-                    </div>`;
-                });
-                
-                html += `</div></div>`;
-            } else {
-                // Простая настройка
-                html += `<div style="margin-bottom:8px;display:flex;">
-                    <div style="width:60%;font-weight:bold;padding-right:10px;">${formatKeyName(key)}</div>
-                    <div style="width:40%;">${formatValue(value, key, 'world')}</div>
-                </div>`;
-            }
-        });
-        
-        html += `</div></div>`;
-        return html;
-    }
-    
-    // Функция для форматирования имени здания
-    function formatBuildingName(name) {
-        var buildingNames = {
-            'main': 'Главное здание',
-            'barracks': 'Казармы',
-            'stable': 'Конюшня',
-            'garage': 'Гараж',
-            'smith': 'Кузница',
-            'place': 'Площадь',
-            'market': 'Рынок',
-            'wood': 'Лесопилка',
-            'stone': 'Каменоломня',
-            'iron': 'Железный рудник',
-            'farm': 'Ферма',
-            'storage': 'Склад',
-            'hide': 'Укрытие',
-            'wall': 'Стена',
-            'watchtower': 'Сторожевая башня',
-            'snob': 'Дворец дворянина',
-            'church': 'Церковь',
-            'statue': 'Статуя'
-        };
-        
-        return buildingNames[name] || formatCategoryName(name);
-    }
-    
-    // Функция для форматирования ключа здания
-    function formatBuildingKey(key) {
-        var keyNames = {
-            'max_level': 'Макс. уровень',
-            'min_level': 'Мин. уровень',
-            'wood': 'Дерево',
-            'stone': 'Камень',
-            'iron': 'Железо',
-            'pop': 'Население',
-            'build_time': 'Время строительства',
-            'build_time_formula': 'Формула времени',
-            'attributes': 'Атрибуты',
-            'requirements': 'Требования'
-        };
-        
-        return keyNames[key] || formatKeyName(key);
-    }
-    
-    // Функция для форматирования значения здания
-    function formatBuildingValue(value, key) {
-        if (value === null || value === undefined) return '—';
-        
-        // Если это объект
-        if (typeof value === 'object') {
-            if (Array.isArray(value)) {
-                return value.join(', ');
-            }
-            // Пытаемся отобразить как JSON
-            try {
-                return JSON.stringify(value).substring(0, 100) + (JSON.stringify(value).length > 100 ? '...' : '');
-            } catch (e) {
-                return '[Объект]';
-            }
-        }
-        
-        // Для ресурсов и времени
-        if (['wood', 'stone', 'iron', 'build_time'].includes(key)) {
-            if (!isNaN(value)) {
-                var num = parseFloat(value);
-                return num.toLocaleString();
-            }
-        }
-        
-        return value;
     }
     
     // Функция для форматирования имени категории
@@ -523,11 +524,11 @@
         if (!statsDiv) return;
         
         var worldSettings = worldConfig ? countSettings(worldConfig) : 0;
-        var buildingSettings = buildingInfo ? countSettings(buildingInfo) : 0;
+        var buildingCount = buildingInfo ? countBuildings(buildingInfo) : 0;
         
         statsDiv.innerHTML = `
             Конфигурация: ${worldSettings} настроек | 
-            Здания: ${buildingSettings} параметров |
+            Здания: ${buildingCount} шт. |
             Обновлено: ${new Date().toLocaleTimeString()}
         `;
     }
@@ -555,6 +556,26 @@
         return count;
     }
     
+    // Функция для подсчета зданий
+    function countBuildings(buildingInfo) {
+        if (!buildingInfo) return 0;
+        
+        var buildingsData = buildingInfo.buildings || buildingInfo;
+        var count = 0;
+        
+        Object.keys(buildingsData).forEach(function(key) {
+            var building = buildingsData[key];
+            if (typeof building === 'object' && building !== null) {
+                if (building.max_level !== undefined || building.wood !== undefined || 
+                    building.stone !== undefined || building.iron !== undefined) {
+                    count++;
+                }
+            }
+        });
+        
+        return count;
+    }
+    
     // Глобальные функции для управления интерфейсом
     window.showTab = function(tabName) {
         // Обновляем кнопки вкладок
@@ -566,6 +587,21 @@
         // Показываем/скрываем контент
         document.getElementById('tabWorldContent').style.display = (tabName === 'world') ? 'block' : 'none';
         document.getElementById('tabBuildingsContent').style.display = (tabName === 'buildings') ? 'block' : 'none';
+    };
+    
+    window.toggleBuildingDetails = function() {
+        // Функция для переключения детального просмотра
+        var table = document.querySelector('#tabBuildingsContent table');
+        if (table) {
+            var isDetailed = table.classList.contains('detailed');
+            table.classList.toggle('detailed');
+            
+            // Пример: можно добавить переключение между кратким и детальным видом
+            var button = document.querySelector('#tabBuildingsContent button');
+            if (button) {
+                button.textContent = isDetailed ? 'Показать детали' : 'Скрыть детали';
+            }
+        }
     };
     
     window.closeDataPopup = function() {
