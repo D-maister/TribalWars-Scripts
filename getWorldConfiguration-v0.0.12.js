@@ -47,7 +47,7 @@
             dataType: 'xml',
             success: function(xml) {
                 worldConfig = parseXmlSimple(xml);
-                console.log('World config loaded');
+                console.log('World config loaded', xml, worldConfig);
             },
             error: function() {
                 console.log('Failed to load world config');
@@ -61,7 +61,7 @@
             dataType: 'xml',
             success: function(xml) {
                 buildingInfo = parseXmlSimple(xml);
-                console.log('Building info loaded');
+                console.log('Building info loaded', xml, buildingInfo);
             },
             error: function() {
                 console.log('Failed to load building info');
