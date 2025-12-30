@@ -12,29 +12,39 @@
         return o;
     }
     
-    var cfg=null,bld=null;
+    var cfg=null,bld=null,units=null;
     
     $.ajax({async:0,url:'/interface.php?func=get_config',dataType:'xml',
         success:function(x){cfg=parseXml(x).config;}});
     
     $.ajax({async:0,url:'/interface.php?func=get_building_info',dataType:'xml',
-        success:function(x){console.log(x);bld=parseXml(x).config;}});
+        success:function(x){bld=parseXml(x).config;}});
     
-    // Делаем функции глобальными для обработчиков onclick
+    $.ajax({async:0,url:'/interface.php?func=get_unit_info',dataType:'xml',
+        success:function(x){units=parseXml(x).config;}});
+    
+    // Делаем функции глобальными
     window.showTab = function(n){
         var c=document.getElementById('content');
-        var b1=document.getElementById('btnCfg');
-        var b2=document.getElementById('btnBld');
+        var btns=['btnCfg','btnBld','btnUnits'];
         
-        if(n===0){
-            b1.style.background='#333';b1.style.color='#fff';
-            b2.style.background='#eee';b2.style.color='#333';
-            showConfig();
-        }else{
-            b1.style.background='#eee';b1.style.color='#333';
-            b2.style.background='#333';b2.style.color='#fff';
-            showBuildings();
+        for(var i=0;i<btns.length;i++){
+            var btn=document.getElementById(btns[i]);
+            if(i===n){
+                btn.style.background='#333';
+                btn.style.color='#fff';
+                btn.style.border='none';
+            }else{
+                btn.style.background='#eee';
+                btn.style.color='#333';
+                btn.style.border='1px solid #ccc';
+                if(i>0)btn.style.borderLeft='none';
+            }
         }
+        
+        if(n===0)showConfig();
+        else if(n===1)showBuildings();
+        else showUnits();
     };
     
     function showConfig(){
@@ -197,21 +207,126 @@
         c.innerHTML=h;
     }
     
+    function showUnits(){
+        var c=document.getElementById('content');
+        if(!units){c.innerHTML='<div style="padding:20px;text-align:center;">Loading...</div>';return;}
+        
+        var unitList=Object.keys(units);
+        if(unitList.length===0){c.innerHTML='No unit data';return;}
+        
+        // Get all params from first unit
+        var params=Object.keys(units[unitList[0]]).sort();
+        
+        var h=`<div style="margin-bottom:10px;">
+            <span style="background:#333;color:#fff;padding:4px 8px;border-radius:3px;">
+                Units: ${unitList.length} | Params: ${params.length}
+            </span>
+        </div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;border:1px solid #ccc;">
+            <thead><tr style="background:#8B4513;color:#fff;">
+                <th style="padding:8px;text-align:left;border-right:1px solid #a0522d;position:sticky;left:0;background:#8B4513;">Unit</th>`;
+        
+        // Param headers
+        params.forEach(function(p){
+            var n=p;
+            if(p==='attack')n='att';
+            if(p==='defense')n='def';
+            if(p==='defense_cavalry')n='def_c';
+            if(p==='defense_archer')n='def_a';
+            if(p==='speed')n='spd';
+            if(p==='carry')n='cap';
+            if(p==='build_time')n='time';
+            if(p==='wood')n='w';
+            if(p==='stone')n='s';
+            if(p==='iron')n='i';
+            h+=`<th style="padding:8px;text-align:center;border-right:1px solid #a0522d;font-size:11px;" title="${p}">${n}</th>`;
+        });
+        
+        h+='</tr></thead><tbody>';
+        
+        // Unit rows
+        unitList.forEach(function(u,i){
+            var d=units[u];
+            var bg=i%2===0?'#f9f9f9':'#fff';
+            
+            h+=`<tr style="background:${bg}">
+                <td style="padding:8px;border-right:1px solid #ddd;border-bottom:1px solid #ddd;position:sticky;left:0;background:${bg};">
+                    <b>${u}</b>
+                </td>`;
+            
+            params.forEach(function(p){
+                var v=d[p]||'—';
+                var disp=v;
+                
+                // Format values
+                if(p==='speed'&&!isNaN(v)){
+                    // Speed in minutes for distance 1
+                    var speed=parseFloat(v);
+                    var worldSpeed=cfg?(cfg.speed*cfg.unit_speed||3):3;
+                    var minutesPerField=(speed/worldSpeed).toFixed(1);
+                    disp=`${v} (${minutesPerFields}min)`;
+                }else if(p==='build_time'&&!isNaN(v)){
+                    var s=parseInt(v);
+                    if(s>=60){
+                        var m=Math.floor(s/60);
+                        var ss=s%60;
+                        disp=ss>0?`${m}m ${ss}s`:`${m}m`;
+                    }else{
+                        disp=`${s}s`;
+                    }
+                }else if(!isNaN(v)){
+                    var n=parseFloat(v);
+                    if(n>=1000)disp=n.toLocaleString();
+                }
+                
+                var cellStyle='';
+                if(['attack','defense','defense_cavalry','defense_archer'].includes(p))cellStyle='background:#ffe6e6;';
+                else if(['wood','stone','iron'].includes(p))cellStyle='background:#e6ffe6;';
+                else if(p==='speed')cellStyle='background:#e6e6ff;';
+                else if(p==='carry')cellStyle='background:#ffffe6;';
+                else if(p==='build_time')cellStyle='background:#ffe6ff;';
+                
+                h+=`<td style="padding:8px;text-align:center;border-right:1px solid #ddd;border-bottom:1px solid #ddd;${cellStyle}">
+                    ${disp}
+                </td>`;
+            });
+            
+            h+='</tr>';
+        });
+        
+        h+='</tbody></table></div>';
+        
+        // Legend
+        h+=`<div style="margin-top:15px;padding:10px;background:#f5f5f5;border:1px solid #8B4513;border-radius:3px;font-size:11px;">
+            <b>Colors:</b> 
+            <span style="background:#ffe6e6;padding:2px 5px;margin:0 5px;">combat stats</span>
+            <span style="background:#e6ffe6;padding:2px 5px;margin:0 5px;">resources</span>
+            <span style="background:#e6e6ff;padding:2px 5px;margin:0 5px;">speed</span>
+            <span style="background:#ffffe6;padding:2px 5px;margin:0 5px;">capacity</span>
+            <span style="background:#ffe6ff;padding:2px 5px;margin:0 5px;">train time</span>
+        </div>`;
+        
+        c.innerHTML=h;
+    }
+    
     var h=`
         <div id="twInfo" style="position:fixed;top:20px;left:20px;right:20px;bottom:20px;
             background:#fff;border:2px solid #333;border-radius:5px;z-index:10000;box-shadow:0 0 20px #000;
             display:flex;flex-direction:column;font-family:Arial;font-size:12px;">
             <div style="background:#333;color:#fff;padding:10px;display:flex;justify-content:space-between;">
-                <b>${server} - Config Info</b>
+                <b>${server} - TW Info</b>
                 <button onclick="document.getElementById('twInfo').remove();
                                  document.getElementById('twOverlay').remove();"
                         style="background:#666;color:#fff;border:none;padding:2px 10px;cursor:pointer;">X</button>
             </div>
             <div style="display:flex;border-bottom:1px solid #ccc;">
                 <button id="btnCfg" onclick="showTab(0)" 
-                    style="flex:1;background:#333;color:#fff;border:none;padding:8px;cursor:pointer;">World Config</button>
+                    style="flex:1;background:#333;color:#fff;border:none;padding:8px;cursor:pointer;">Config</button>
                 <button id="btnBld" onclick="showTab(1)"
                     style="flex:1;background:#eee;color:#333;border:none;padding:8px;cursor:pointer;border-left:1px solid #ccc;">Buildings</button>
+                <button id="btnUnits" onclick="showTab(2)"
+                    style="flex:1;background:#eee;color:#333;border:none;padding:8px;cursor:pointer;border-left:1px solid #ccc;">Units</button>
             </div>
             <div id="content" style="flex:1;overflow:auto;padding:10px;"></div>
         </div>
