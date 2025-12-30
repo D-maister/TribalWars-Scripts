@@ -18,7 +18,7 @@
         success:function(x){cfg=parseXml(x).config;}});
     
     $.ajax({async:0,url:'/interface.php?func=get_building_info',dataType:'xml',
-        success:function(x){bld=parseXml(x).config;}});
+        success:function(x){console.log(x);bld=parseXml(x).config;}});
     
     // Делаем функции глобальными для обработчиков onclick
     window.showTab = function(n){
