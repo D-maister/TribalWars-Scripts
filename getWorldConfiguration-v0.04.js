@@ -774,6 +774,7 @@
             'dataType': 'xml',
             'success': function (data) {
                 console.log('[ConfigParser] Конфигурация успешно загружена');
+                console.log(data)
                 parseAndDisplayConfig(data);
             },
             'error': function(jqXHR, textStatus, errorThrown) {
