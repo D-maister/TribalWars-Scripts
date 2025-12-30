@@ -218,7 +218,7 @@
         var params=Object.keys(units[unitList[0]]).sort();
         
         var h=`<div style="margin-bottom:10px;">
-            <span style="background:#333;color:#fff;padding:4px 8px;border-radius:3px;">
+            <span style="background:#8B4513;color:#fff;padding:4px 8px;border-radius:3px;">
                 Units: ${unitList.length} | Params: ${params.length}
             </span>
         </div>
@@ -240,6 +240,7 @@
             if(p==='wood')n='w';
             if(p==='stone')n='s';
             if(p==='iron')n='i';
+            if(p==='pop')n='p';
             h+=`<th style="padding:8px;text-align:center;border-right:1px solid #a0522d;font-size:11px;" title="${p}">${n}</th>`;
         });
         
@@ -263,9 +264,9 @@
                 if(p==='speed'&&!isNaN(v)){
                     // Speed in minutes for distance 1
                     var speed=parseFloat(v);
-                    var worldSpeed=cfg?(cfg.speed*cfg.unit_speed||3):3;
+                    var worldSpeed=cfg?(parseFloat(cfg.speed||1)*parseFloat(cfg.unit_speed||1)):1;
                     var minutesPerField=(speed/worldSpeed).toFixed(1);
-                    disp=`${v} (${minutesPerFields}min)`;
+                    disp=`${v} (${minutesPerField}m)`;
                 }else if(p==='build_time'&&!isNaN(v)){
                     var s=parseInt(v);
                     if(s>=60){
@@ -286,6 +287,7 @@
                 else if(p==='speed')cellStyle='background:#e6e6ff;';
                 else if(p==='carry')cellStyle='background:#ffffe6;';
                 else if(p==='build_time')cellStyle='background:#ffe6ff;';
+                else if(p==='pop')cellStyle='background:#f0f9f0;';
                 
                 h+=`<td style="padding:8px;text-align:center;border-right:1px solid #ddd;border-bottom:1px solid #ddd;${cellStyle}">
                     ${disp}
@@ -300,11 +302,12 @@
         // Legend
         h+=`<div style="margin-top:15px;padding:10px;background:#f5f5f5;border:1px solid #8B4513;border-radius:3px;font-size:11px;">
             <b>Colors:</b> 
-            <span style="background:#ffe6e6;padding:2px 5px;margin:0 5px;">combat stats</span>
+            <span style="background:#ffe6e6;padding:2px 5px;margin:0 5px;">combat</span>
             <span style="background:#e6ffe6;padding:2px 5px;margin:0 5px;">resources</span>
             <span style="background:#e6e6ff;padding:2px 5px;margin:0 5px;">speed</span>
             <span style="background:#ffffe6;padding:2px 5px;margin:0 5px;">capacity</span>
-            <span style="background:#ffe6ff;padding:2px 5px;margin:0 5px;">train time</span>
+            <span style="background:#ffe6ff;padding:2px 5px;margin:0 5px;">time</span>
+            <span style="background:#f0f9f0;padding:2px 5px;margin:0 5px;">population</span>
         </div>`;
         
         c.innerHTML=h;
