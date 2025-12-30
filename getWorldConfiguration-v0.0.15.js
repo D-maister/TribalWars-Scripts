@@ -20,31 +20,8 @@
     $.ajax({async:0,url:'/interface.php?func=get_building_info',dataType:'xml',
         success:function(x){bld=parseXml(x).config;}});
     
-    var h=`
-        <div id="twInfo" style="position:fixed;top:20px;left:20px;right:20px;bottom:20px;
-            background:#fff;border:2px solid #333;border-radius:5px;z-index:10000;box-shadow:0 0 20px #000;
-            display:flex;flex-direction:column;font-family:Arial;font-size:12px;">
-            <div style="background:#333;color:#fff;padding:10px;display:flex;justify-content:space-between;">
-                <b>${server} - Config Info</b>
-                <button onclick="document.getElementById('twInfo').remove();
-                                 document.getElementById('twOverlay').remove();"
-                        style="background:#666;color:#fff;border:none;padding:2px 10px;cursor:pointer;">X</button>
-            </div>
-            <div style="display:flex;border-bottom:1px solid #ccc;">
-                <button id="btnCfg" onclick="showTab(0)" 
-                    style="flex:1;background:#333;color:#fff;border:none;padding:8px;cursor:pointer;">World Config</button>
-                <button id="btnBld" onclick="showTab(1)"
-                    style="flex:1;background:#eee;color:#333;border:none;padding:8px;cursor:pointer;border-left:1px solid #ccc;">Buildings</button>
-            </div>
-            <div id="content" style="flex:1;overflow:auto;padding:10px;"></div>
-        </div>
-        <div id="twOverlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;"></div>`;
-    
-    document.getElementById('twInfo')?.remove();
-    document.getElementById('twOverlay')?.remove();
-    document.body.insertAdjacentHTML('beforeend',h);
-    
-    function showTab(n){
+    // Делаем функции глобальными для обработчиков onclick
+    window.showTab = function(n){
         var c=document.getElementById('content');
         var b1=document.getElementById('btnCfg');
         var b2=document.getElementById('btnBld');
@@ -58,7 +35,7 @@
             b2.style.background='#333';b2.style.color='#fff';
             showBuildings();
         }
-    }
+    };
     
     function showConfig(){
         var c=document.getElementById('content');
@@ -103,7 +80,7 @@
         }
         
         // Other categories
-        var cats=['snob','ally','sitter','sleep','night','win'];
+        var cats=['snob','ally','sitter','sleep','night','win','premium','awards','misc','commands','newbie'];
         cats.forEach(function(cat){
             if(cfg[cat]){
                 h+=`<div style="border:1px solid #666;border-radius:3px;overflow:hidden;">
@@ -219,6 +196,30 @@
         
         c.innerHTML=h;
     }
+    
+    var h=`
+        <div id="twInfo" style="position:fixed;top:20px;left:20px;right:20px;bottom:20px;
+            background:#fff;border:2px solid #333;border-radius:5px;z-index:10000;box-shadow:0 0 20px #000;
+            display:flex;flex-direction:column;font-family:Arial;font-size:12px;">
+            <div style="background:#333;color:#fff;padding:10px;display:flex;justify-content:space-between;">
+                <b>${server} - Config Info</b>
+                <button onclick="document.getElementById('twInfo').remove();
+                                 document.getElementById('twOverlay').remove();"
+                        style="background:#666;color:#fff;border:none;padding:2px 10px;cursor:pointer;">X</button>
+            </div>
+            <div style="display:flex;border-bottom:1px solid #ccc;">
+                <button id="btnCfg" onclick="showTab(0)" 
+                    style="flex:1;background:#333;color:#fff;border:none;padding:8px;cursor:pointer;">World Config</button>
+                <button id="btnBld" onclick="showTab(1)"
+                    style="flex:1;background:#eee;color:#333;border:none;padding:8px;cursor:pointer;border-left:1px solid #ccc;">Buildings</button>
+            </div>
+            <div id="content" style="flex:1;overflow:auto;padding:10px;"></div>
+        </div>
+        <div id="twOverlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;"></div>`;
+    
+    document.getElementById('twInfo')?.remove();
+    document.getElementById('twOverlay')?.remove();
+    document.body.insertAdjacentHTML('beforeend',h);
     
     // Show config first
     setTimeout(function(){showTab(0);},100);
