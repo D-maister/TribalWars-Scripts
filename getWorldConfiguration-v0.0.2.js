@@ -15,6 +15,7 @@
             'success': function (data) {
                 configData = data;
                 console.log('[WorldConfig] Конфигурация мира успешно загружена');
+                console.log(configData)
                 
                 // Извлекаем основные параметры
                 var gameSpeed = Number($(data).find("config speed").text());
