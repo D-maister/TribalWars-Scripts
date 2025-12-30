@@ -17,7 +17,7 @@
             var $el = $(this);
             var tagName = $el.prop("tagName");
             
-            if ($el.children().length > 0) {
+            if ($el.children().length > 0 && $el.children()[0].nodeType === 1) {
                 // Вложенная категория
                 obj[tagName] = xmlToObject($el);
             } else {
@@ -65,68 +65,69 @@
         // Добавляем контент
         var contentDiv = document.getElementById('configContent');
         
-        // Создаем вкладки для основных категорий
-        var mainCategories = Object.keys(configObj).filter(key => 
-            typeof configObj[key] === 'object' && configObj[key] !== null);
-        
-        // Добавляем вкладки
-        var tabsHtml = '<div style="margin-bottom:20px;display:flex;flex-wrap:wrap;gap:5px;">';
-        tabsHtml += '<button onclick="showAllCategories()" style="background:#8B4513;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;">Все</button>';
-        
-        mainCategories.forEach(function(category) {
-            tabsHtml += `<button onclick="showCategory('${category}')" style="background:#e8e4d8;color:#8B4513;border:1px solid #8B4513;padding:8px 15px;border-radius:4px;cursor:pointer;">${category}</button>`;
-        });
-        
-        tabsHtml += '</div>';
-        contentDiv.innerHTML = tabsHtml;
-        
-        // Создаем таблицы для каждой категории
-        var tablesHtml = '';
+        // Создаем таблицы для каждого раздела
+        var htmlContent = '';
         var totalSettings = 0;
         
-        // Основные настройки (не вложенные)
-        var mainSettings = Object.keys(configObj).filter(key => 
-            typeof configObj[key] !== 'object' || configObj[key] === null);
-        
-        if (mainSettings.length > 0) {
-            tablesHtml += createCategoryTable('Основные настройки', configObj, mainSettings);
-            totalSettings += mainSettings.length;
-        }
-        
-        // Категории
-        mainCategories.forEach(function(category) {
-            var settings = configObj[category];
-            var flatSettings = flattenObject(settings, category);
-            tablesHtml += createCategoryTable(category, settings);
-            totalSettings += Object.keys(flatSettings).length;
+        // Обрабатываем каждый ключ в конфигурации
+        Object.keys(configObj).forEach(function(key) {
+            var value = configObj[key];
+            
+            if (typeof value === 'object' && value !== null) {
+                // Это категория (вложенный объект)
+                htmlContent += createCategoryTable(key, value);
+                totalSettings += Object.keys(value).length;
+            } else {
+                // Это простая настройка - добавим позже в общую таблицу
+            }
         });
         
-        contentDiv.insertAdjacentHTML('beforeend', tablesHtml);
+        // Добавляем общую таблицу для простых настроек
+        var simpleSettings = {};
+        Object.keys(configObj).forEach(function(key) {
+            var value = configObj[key];
+            if (typeof value !== 'object' || value === null) {
+                simpleSettings[key] = value;
+            }
+        });
+        
+        if (Object.keys(simpleSettings).length > 0) {
+            htmlContent = createCategoryTable('Основные настройки', simpleSettings) + htmlContent;
+            totalSettings += Object.keys(simpleSettings).length;
+        }
+        
+        contentDiv.innerHTML = htmlContent;
         
         // Добавляем статистику
         contentDiv.insertAdjacentHTML('beforeend', 
             `<div style="margin-top:20px;padding-top:15px;border-top:1px solid #ddd;color:#666;">
-                Всего категорий: ${mainCategories.length + (mainSettings.length > 0 ? 1 : 0)}<br>
                 Всего настроек: ${totalSettings}<br>
                 Обновлено: ${new Date().toLocaleTimeString()}
             </div>`);
-        
-        // Показываем все таблицы
-        showAllCategories();
     }
     
     // Функция для создания таблицы категории
-    function createCategoryTable(categoryName, categoryData, specificKeys = null) {
-        var tableId = 'table-' + categoryName.replace(/\s+/g, '-');
-        var keys = specificKeys || Object.keys(categoryData);
+    function createCategoryTable(categoryName, categoryData) {
+        var keys = Object.keys(categoryData);
         
         if (keys.length === 0) return '';
         
+        // Проверяем, есть ли в этой категории вложенные объекты
+        var hasNestedObjects = keys.some(function(key) {
+            var value = categoryData[key];
+            return typeof value === 'object' && value !== null;
+        });
+        
+        if (hasNestedObjects) {
+            // Разделяем на подкатегории
+            return createNestedCategoryTable(categoryName, categoryData);
+        }
+        
         var tableHtml = `
-            <div id="${tableId}" class="category-table" style="display:none;margin-bottom:25px;
-                background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
+            <div style="margin-bottom:25px;background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
                 <div style="background:#8B4513;color:white;padding:12px 15px;font-weight:bold;">
-                    ${categoryName} <span style="font-size:12px;opacity:0.8;">(${keys.length})</span>
+                    ${formatCategoryName(categoryName)} 
+                    <span style="font-size:12px;opacity:0.8;">(${keys.length})</span>
                 </div>
                 <div style="padding:0;">
                     <table style="width:100%;border-collapse:collapse;">
@@ -166,24 +167,55 @@
         return tableHtml;
     }
     
-    // Функция для "разворачивания" вложенных объектов
-    function flattenObject(obj, prefix = '') {
-        var result = {};
+    // Функция для создания таблицы с вложенными категориями
+    function createNestedCategoryTable(categoryName, categoryData) {
+        var html = `
+            <div style="margin-bottom:25px;background:white;border:1px solid #ddd;border-radius:5px;overflow:hidden;">
+                <div style="background:#8B4513;color:white;padding:12px 15px;font-weight:bold;">
+                    ${formatCategoryName(categoryName)}
+                </div>
+                <div style="padding:15px;">
+        `;
         
-        Object.keys(obj).forEach(function(key) {
-            var value = obj[key];
-            var newKey = prefix ? prefix + '.' + key : key;
+        Object.keys(categoryData).forEach(function(key) {
+            var value = categoryData[key];
             
             if (typeof value === 'object' && value !== null) {
-                // Рекурсивно разворачиваем вложенные объекты
-                var nested = flattenObject(value, newKey);
-                Object.assign(result, nested);
+                // Вложенная подкатегория
+                html += `<div style="margin-bottom:15px;">
+                    <div style="font-weight:bold;color:#8B4513;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid #eee;">
+                        ${formatKeyName(key)}
+                    </div>
+                    <div style="padding-left:15px;">
+                `;
+                
+                Object.keys(value).forEach(function(subKey) {
+                    var subValue = value[subKey];
+                    html += `<div style="margin-bottom:5px;display:flex;">
+                        <div style="width:60%;font-weight:bold;padding-right:10px;">${formatKeyName(subKey)}</div>
+                        <div style="width:40%;">${formatValue(subValue, subKey)}</div>
+                    </div>`;
+                });
+                
+                html += `</div></div>`;
             } else {
-                result[newKey] = value;
+                // Простая настройка
+                html += `<div style="margin-bottom:8px;display:flex;">
+                    <div style="width:60%;font-weight:bold;padding-right:10px;">${formatKeyName(key)}</div>
+                    <div style="width:40%;">${formatValue(value, key)}</div>
+                </div>`;
             }
         });
         
-        return result;
+        html += `</div></div>`;
+        return html;
+    }
+    
+    // Функция для форматирования имени категории
+    function formatCategoryName(name) {
+        return name
+            .replace(/_/g, ' ')
+            .replace(/^./, function(str) { return str.toUpperCase(); });
     }
     
     // Функция для форматирования имени ключа
@@ -199,47 +231,47 @@
     function formatValue(value, key) {
         if (value === null || value === undefined) return '—';
         
+        // Если это объект (не должно быть, но на всякий случай)
+        if (typeof value === 'object') {
+            return '[Категория с настройками]';
+        }
+        
         // Проверяем булевы значения
         if (value === '0' || value === '1') {
-            // Проверяем известные булевы ключи
+            // Список известных булевых ключей
             var booleanKeys = ['knight', 'archer', 'church', 'watchtower', 'stronghold', 
                               'scavenging', 'hauls', 'event', 'relics', 'tutorial', 'destroy',
-                              'available', 'moral', 'allow', 'active', 'give_prizes'];
+                              'available', 'moral', 'allow', 'active', 'give_prizes', 'free_Premium',
+                              'AccountManager', 'ItemNameColor', 'free_AccountManager', 'BuildTimeReduction',
+                              'BuildInstant', 'BuildInstant_free', 'BuildCostReduction', 'FarmAssistent',
+                              'MerchantBonus', 'ProductionBonus', 'NoblemanSlot', 'MerchantExchange',
+                              'PremiumExchange', 'KnightBookImprove', 'KnightBookDowngrade', 'KnightBookReroll',
+                              'KnightRespec', 'KnightRecruitTime', 'KnightRecruitInstant', 'KnightReviveTime',
+                              'KnightReviveInstant', 'KnightTrainingCost', 'KnightTrainingTime', 'KnightTrainingInstant',
+                              'DailyBonusUnlock', 'ScavengingSquadLoot', 'PremiumEventFeatures', 'PremiumRelicFeatures',
+                              'VillageSkin', 'milestones_available', 'removeNewbieVillages', 'fake_limit',
+                              'cheap_rebuild', 'no_barb_conquer', 'no_harm', 'fixed_allies', 'fixed_allies_randomized',
+                              'auto_lock_tribes', 'levels', 'select_start', 'noble_restart', 'disable_morale',
+                              'attack_block', 'block_noble', 'limit_inventory_transfer'];
             
-            if (booleanKeys.some(k => key.toLowerCase().includes(k))) {
+            if (booleanKeys.some(k => key.toLowerCase().includes(k.toLowerCase()))) {
                 return value === '1' ? '✓ Да' : '✗ Нет';
             }
         }
         
-        // Проверяем числовые значения
+        // Форматируем числовые значения
         if (!isNaN(value) && value !== '') {
             var num = parseFloat(value);
-            if (num > 1000000) {
-                return num.toLocaleString(); // Форматируем большие числа
+            // Для больших чисел добавляем разделители
+            if (num >= 1000) {
+                return num.toLocaleString();
             }
         }
         
         return value;
     }
     
-    // Глобальные функции для управления отображением
-    window.showAllCategories = function() {
-        document.querySelectorAll('.category-table').forEach(function(table) {
-            table.style.display = 'block';
-        });
-    };
-    
-    window.showCategory = function(categoryName) {
-        document.querySelectorAll('.category-table').forEach(function(table) {
-            table.style.display = 'none';
-        });
-        var table = document.getElementById('table-' + categoryName.replace(/\s+/g, '-'));
-        if (table) {
-            table.style.display = 'block';
-            table.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    };
-    
+    // Глобальная функция для закрытия попапа
     window.closeConfigPopup = function() {
         document.getElementById('configPopup')?.remove();
         document.getElementById('configOverlay')?.remove();
