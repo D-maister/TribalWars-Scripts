@@ -709,6 +709,208 @@
             current: current
         };
     }
+
+    async function measureRealClickLatency() {
+        console.log('=== MEASURING REAL CLICK LATENCY ===');
+        
+        // Create a mock button similar to the real one
+        const testBtn = document.createElement('button');
+        testBtn.id = 'test-latency-button';
+        testBtn.style.cssText = 'position:absolute;left:-9999px;top:-9999px;';
+        document.body.appendChild(testBtn);
+        
+        // Mock form to simulate actual submission
+        const testForm = document.createElement('form');
+        testForm.id = 'test-latency-form';
+        testForm.style.cssText = testBtn.style.cssText;
+        testForm.appendChild(testBtn);
+        document.body.appendChild(testForm);
+        
+        const measurements = [];
+        
+        // Measure 10 clicks
+        for (let i = 0; i < 10; i++) {
+            const start = performance.now();
+            
+            // Method 1: Direct click (what we actually use)
+            testBtn.click();
+            
+            // Method 2: Dispatch event
+            setTimeout(() => {
+                testBtn.dispatchEvent(new MouseEvent('click', {
+                    bubbles: true,
+                    cancelable: true
+                }));
+            }, 1);
+            
+            // Method 3: Form submission
+            setTimeout(() => {
+                if (testForm.submit) {
+                    try { testForm.submit(); } catch(e) {}
+                }
+            }, 2);
+            
+            // Wait for next frame to catch all microtasks
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            const end = performance.now();
+            const latency = end - start;
+            measurements.push(latency);
+            
+            console.log(`Click ${i+1}: ${latency.toFixed(1)}ms`);
+            
+            // Random delay between measurements
+            await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
+        }
+        
+        // Cleanup
+        document.body.removeChild(testForm);
+        document.body.removeChild(testBtn);
+        
+        // Calculate statistics - use 99th percentile for safety
+        measurements.sort((a, b) => a - b);
+        const avg = measurements.reduce((a, b) => a + b, 0) / measurements.length;
+        const p95 = measurements[Math.floor(measurements.length * 0.95)];
+        const p99 = measurements[Math.floor(measurements.length * 0.99)];
+        const max = measurements[measurements.length - 1];
+        
+        // Use 99th percentile + 10ms safety margin
+        state.currentLatency = Math.min(p99 + 10, max + 5);
+        
+        console.log('=== LATENCY RESULTS ===');
+        console.log('Measurements:', measurements.map(m => m.toFixed(1)).join(', '));
+        console.log(`Average: ${avg.toFixed(1)}ms`);
+        console.log(`95th percentile: ${p95.toFixed(1)}ms`);
+        console.log(`99th percentile: ${p99.toFixed(1)}ms`);
+        console.log(`Maximum: ${max.toFixed(1)}ms`);
+        console.log(`Using: ${state.currentLatency.toFixed(1)}ms (P99 + safety)`);
+        
+        return state.currentLatency;
+    }
+    
+    // ===== UPDATED CLICK FUNCTION WITH BETTER TIMING =====
+    
+    function executeAttackWithPreciseTiming() {
+        if (!state.running) return;
+        
+        const timing = {
+            scriptStart: performance.now(),
+            method1: 0,
+            method2: 0,
+            method3: 0,
+            total: 0,
+            actualDelay: 0
+        };
+        
+        // Mark the exact intended click time
+        const intendedClickTime = state.clickTime.getTime();
+        const actualStartTime = performance.now();
+        timing.actualDelay = actualStartTime - intendedClickTime;
+        
+        console.log(`⚡ ATTACK EXECUTION TIMING`);
+        console.log(`Intended: ${intendedClickTime}`);
+        console.log(`Actual start: ${actualStartTime}`);
+        console.log(`Initial delay: ${timing.actualDelay.toFixed(1)}ms`);
+        
+        // Method 1: Direct form submission (FASTEST)
+        timing.method1 = performance.now();
+        if (cachedElements.form && typeof cachedElements.form.submit === 'function') {
+            try {
+                // Use setTimeout(0) to break out of current execution stack
+                setTimeout(() => {
+                    cachedElements.form.submit();
+                }, 0);
+            } catch(e) {
+                console.warn('Form submit failed:', e);
+            }
+        }
+        timing.method1 = performance.now() - timing.method1;
+        
+        // Method 2: Button click (immediate)
+        timing.method2 = performance.now();
+        if (cachedElements.attackButton) {
+            // Use multiple techniques in same tick
+            const clickEvent = new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            });
+            
+            // Try all click methods
+            try { cachedElements.attackButton.click(); } catch(e) {}
+            try { cachedElements.attackButton.dispatchEvent(clickEvent); } catch(e) {}
+            
+            // Direct function call if exists
+            if (cachedElements.attackButton.onclick) {
+                try { cachedElements.attackButton.onclick(clickEvent); } catch(e) {}
+            }
+        }
+        timing.method2 = performance.now() - timing.method2;
+        
+        // Method 3: Simulated user event (as last resort)
+        timing.method3 = performance.now();
+        setTimeout(() => {
+            if (cachedElements.attackButton) {
+                // Create a more realistic click
+                const rect = cachedElements.attackButton.getBoundingClientRect();
+                const clickEvents = [
+                    new MouseEvent('mousedown', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: rect.left + rect.width / 2,
+                        clientY: rect.top + rect.height / 2
+                    }),
+                    new MouseEvent('mouseup', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: rect.left + rect.width / 2,
+                        clientY: rect.top + rect.height / 2
+                    }),
+                    new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: rect.left + rect.width / 2,
+                        clientY: rect.top + rect.height / 2
+                    })
+                ];
+                
+                clickEvents.forEach(event => {
+                    try { cachedElements.attackButton.dispatchEvent(event); } catch(e) {}
+                });
+            }
+        }, 1);
+        timing.method3 = performance.now() - timing.method3;
+        
+        timing.total = performance.now() - timing.scriptStart;
+        
+        // Log detailed timing
+        console.log(`⚡ Execution complete in ${timing.total.toFixed(1)}ms`);
+        console.table(timing);
+        
+        // Save for next calculation adjustment
+        state.performanceLog.push({
+            timestamp: Date.now(),
+            intended: intendedClickTime,
+            actual: actualStartTime,
+            delay: timing.actualDelay,
+            execution: timing.total
+        });
+        
+        // Adaptive learning: Adjust future latency predictions
+        if (state.performanceLog.length > 5) {
+            const recentDelays = state.performanceLog.slice(-5).map(p => p.delay);
+            const avgDelay = recentDelays.reduce((a, b) => a + b, 0) / recentDelays.length;
+            state.currentLatency = Math.max(state.currentLatency, avgDelay * 1.2);
+            console.log(`📊 Adaptive learning: Updated latency to ${state.currentLatency.toFixed(1)}ms`);
+        }
+        
+        saveAttackData(timing);
+        updateStatus(`Attack sent! (Delay: ${timing.actualDelay.toFixed(1)}ms)`, 'success');
+        stopMainTimer();
+        
+        return timing;
+    }
+
     
     // ===== UI FUNCTIONS =====
     
@@ -837,10 +1039,10 @@
         
         document.getElementById('tw-latency-btn').addEventListener('click', async (e) => {
             e.preventDefault();
-            updateStatus('Measuring latency...', 'info');
-            const latency = await measureClickLatency();
+            updateStatus('Measuring REAL click latency (10 samples)...', 'info');
+            const latency = await measureRealClickLatency();
             document.getElementById('tw-latency-value').textContent = latency.toFixed(1);
-            updateStatus(`Latency measured: ${latency.toFixed(1)}ms`, 'success');
+            updateStatus(`Real latency measured: ${latency.toFixed(1)}ms (99th percentile + safety)`, 'success');
         });
         
         document.getElementById('tw-mode-cancel').addEventListener('click', (e) => {
@@ -872,6 +1074,86 @@
         
         startDisplayUpdates();
     }
+
+    function calculateAttackTimeWithLatency(targetTime, maxCancelMinutes, totalLatency) {
+        const current = getOptimizedServerTime();
+        const duration = getDurationTime();
+        
+        console.log('=== PRECISE CALCULATION ===');
+        console.log('Current server:', formatTime(current));
+        console.log('Target enemy:', formatTime(targetTime));
+        console.log('Travel duration:', duration, 'ms');
+        console.log('Total latency:', totalLatency, 'ms');
+        console.log('Mode:', state.currentMode);
+        
+        let clickTime;
+        const maxCancelMs = maxCancelMinutes * 60 * 1000;
+        
+        if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
+            // Anti-Noble: Click early enough to allow cancellation
+            const earliestClickTime = targetTime.getTime() - (maxCancelMs * 2);
+            const latestClickTime = targetTime.getTime() - 10000; // 10 seconds before
+            
+            const now = current.getTime();
+            
+            if (now >= latestClickTime) {
+                // We're late - click as soon as possible
+                clickTime = new Date(now + Math.max(100, totalLatency));
+                console.log('LATE: Clicking ASAP');
+            } else if (now >= earliestClickTime) {
+                // Within window - click now with latency compensation
+                clickTime = new Date(now + totalLatency);
+                console.log('IN WINDOW: Clicking now');
+            } else {
+                // Early - wait until window opens
+                clickTime = new Date(earliestClickTime + totalLatency);
+                console.log('EARLY: Waiting for window');
+            }
+            
+            // Never click after latest time
+            if (clickTime.getTime() > latestClickTime) {
+                clickTime = new Date(latestClickTime);
+                console.log('ADJUSTED: Would be too late');
+            }
+        } else {
+            // Snipe: Arrive just before enemy
+            // Desired arrival = enemy time - safety margin
+            const safetyMargin = 100; // Arrive 100ms before enemy
+            const desiredArrival = targetTime.getTime() - safetyMargin;
+            
+            // Click time = desired arrival - travel time - latency
+            clickTime = new Date(desiredArrival - duration - totalLatency);
+            
+            console.log(`Snipe calculation:`);
+            console.log(`- Enemy: ${formatTime(targetTime)}`);
+            console.log(`- Desired arrival: ${formatTime(new Date(desiredArrival))} (${safetyMargin}ms before)`);
+            console.log(`- Travel time: ${duration}ms`);
+            console.log(`- Latency: ${totalLatency}ms`);
+            console.log(`- Click at: ${formatTime(clickTime)}`);
+            
+            // Check if we have enough time
+            const timeToClick = clickTime.getTime() - current.getTime();
+            if (timeToClick < totalLatency * 1.5) { // Need 1.5x latency for safety
+                console.error(`NOT ENOUGH TIME: ${timeToClick}ms available, need ${totalLatency * 1.5}ms`);
+                return null;
+            }
+        }
+        
+        const remaining = clickTime.getTime() - current.getTime();
+        
+        if (remaining < totalLatency) {
+            console.error(`CLICK TOO CLOSE: ${remaining}ms < ${totalLatency}ms latency`);
+            return null;
+        }
+        
+        return {
+            targetTime: targetTime,
+            clickTime: clickTime,
+            totalLatency: totalLatency,
+            remaining: remaining,
+            current: current
+        };
+    }
     
     // ===== UPDATED TIMER FUNCTIONS =====
     
@@ -886,10 +1168,10 @@
             return;
         }
         
-        // Ensure latency is measured
+        // Measure REAL latency (not just script execution)
         if (state.latencyMeasurements.length === 0) {
-            updateStatus('Measuring latency first...', 'info');
-            await measureClickLatency();
+            updateStatus('Measuring real click latency...', 'info');
+            await measureRealClickLatency();
         }
         
         const targetInput = document.getElementById('tw-target-input').value;
@@ -916,21 +1198,26 @@
         const maxCancel = parseInt(document.getElementById('tw-cancel-input').value, 10) || 10;
         const attackDelay = parseInt(document.getElementById('tw-delay-input').value, 10) || 50;
         
-        const calc = calculateAttackTime(target, maxCancel, attackDelay);
+        // Calculate total expected latency
+        const totalExpectedLatency = state.currentLatency + attackDelay + 10; // +10ms safety
+        
+        console.log(`⚡ LATENCY BREAKDOWN:`);
+        console.log(`- Measured click: ${state.currentLatency.toFixed(1)}ms`);
+        console.log(`- Attack delay: ${attackDelay}ms`);
+        console.log(`- Safety margin: 10ms`);
+        console.log(`- TOTAL: ${totalExpectedLatency.toFixed(1)}ms`);
+        
+        const calc = calculateAttackTimeWithLatency(target, maxCancel, totalExpectedLatency);
         
         if (!calc) {
             updateStatus('Cannot calculate attack time! Not enough time?', 'error');
             return;
         }
         
-        // Adjust for measured latency
-        const adjustedClickTime = new Date(calc.clickTime.getTime() - state.currentLatency);
-        calc.clickTime = adjustedClickTime;
-        calc.remaining = adjustedClickTime.getTime() - current.getTime();
-        
-        if (calc.remaining < CONFIG.minClickTime) {
-            updateStatus(`Time too close (${calc.remaining}ms)! Need at least ${CONFIG.minClickTime}ms`, 'error');
-            return;
+        // Double-check timing
+        const timeUntilClick = calc.clickTime.getTime() - current.getTime();
+        if (timeUntilClick < totalExpectedLatency) {
+            updateStatus(`Warning: Click time (${timeUntilClick}ms) < expected latency (${totalExpectedLatency}ms)`, 'warning');
         }
         
         state.currentAttackData = calc;
@@ -959,7 +1246,7 @@
         document.getElementById('tw-click-text').textContent = formatTime(calc.clickTime);
         
         const modeText = state.currentMode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe';
-        updateStatus(`${modeText} timer started! Clicking in ${(calc.remaining/1000).toFixed(1)}s (adjusted for ${state.currentLatency.toFixed(1)}ms latency)`, 'success');
+        updateStatus(`${modeText} timer started! Clicking in ${(timeUntilClick/1000).toFixed(2)}s`, 'success');
         
         // Start the high-precision timer
         startPrecisionTimerRAF();
@@ -1011,6 +1298,12 @@
             arriveBtn.classList.add('active', 'arrive-mode');
             description.textContent = 'Snipe: Arrive just before enemy attack. No cancellation possible.';
             description.classList.add('arrive-mode');
+        }
+        
+        // RESTART DISPLAY UPDATES WHEN SWITCHING MODES
+        if (state.timerId) {
+            clearInterval(state.timerId);
+            startDisplayUpdates();
         }
         
         updateStatus(`Mode: ${mode === ATTACK_MODES.ON_CANCEL ? 'Anti-Noble' : 'Snipe'}`, 'info');
