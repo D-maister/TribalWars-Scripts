@@ -1,8 +1,9 @@
 class ExchangeTracker {
     constructor() {
-        this.storageKey = 'tw_exchange_data_v8';
-        this.settingsKey = 'tw_exchange_settings_v8';
-        this.updateInterval = 10000;
+        this.storageKey = 'tw_exchange_data_v9';
+        this.settingsKey = 'tw_exchange_settings_v9';
+        this.autoTradeKey = 'tw_auto_trade_settings_v1';
+        this.updateInterval = 10000; // Fallback interval
         this.collectionInterval = null;
         this.isStatVisible = false;
         this.hideDuplicates = false;
@@ -22,6 +23,13 @@ class ExchangeTracker {
         this.minMaxCache = {};
         this.recentMinMaxCache = {};
         
+        // Auto trade settings
+        this.autoTrade = {
+            buyCondition: 'never',
+            sellCondition: 'never',
+            resourceAmount: 1000
+        };
+        
         this.init();
     }
 
@@ -29,9 +37,10 @@ class ExchangeTracker {
         console.log('[TW Exchange Tracker] Initializing...');
         this.addStyles();
         this.loadSettings();
+        this.loadAutoTradeSettings();
         this.tryAddButton();
         this.loadData();
-        this.startCollection();
+        this.startResourceMonitoring();
         this.setupMutationObserver();
         console.log('[TW Exchange Tracker] Initialized');
     }
@@ -39,21 +48,35 @@ class ExchangeTracker {
     loadSettings() {
         try {
             const settings = JSON.parse(localStorage.getItem(this.settingsKey) || '{}');
-            this.updateInterval = settings.updateInterval || 10000;
             this.showCharts = settings.showCharts !== undefined ? settings.showCharts : true;
         } catch (e) {
-            this.updateInterval = 10000;
             this.showCharts = true;
         }
     }
 
     saveSettings() {
         const settings = {
-            updateInterval: this.updateInterval,
             showCharts: this.showCharts,
             lastUpdated: new Date().toISOString()
         };
         localStorage.setItem(this.settingsKey, JSON.stringify(settings));
+    }
+
+    loadAutoTradeSettings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(this.autoTradeKey) || '{}');
+            this.autoTrade = {
+                buyCondition: saved.buyCondition || 'never',
+                sellCondition: saved.sellCondition || 'never',
+                resourceAmount: saved.resourceAmount || 1000
+            };
+        } catch (e) {
+            // Keep default values
+        }
+    }
+
+    saveAutoTradeSettings() {
+        localStorage.setItem(this.autoTradeKey, JSON.stringify(this.autoTrade));
     }
 
     addStyles() {
@@ -84,6 +107,9 @@ class ExchangeTracker {
             .tw-exchange-stats-container {
                 padding: 15px;
                 margin: 20px 0;
+                background: rgba(244, 228, 188, 0.9);
+                border: 1px solid #7d510f;
+                border-radius: 4px;
             }
             
             .tw-exchange-stats-header {
@@ -92,7 +118,7 @@ class ExchangeTracker {
                 align-items: center;
                 margin-bottom: 15px;
                 padding-bottom: 10px;
-                border-bottom: 1px solid #ddd;
+                border-bottom: 1px solid #7d510f;
             }
             
             .tw-exchange-stats-title {
@@ -126,33 +152,35 @@ class ExchangeTracker {
                 width: 100%;
                 margin-bottom: 20px;
                 font-size: 11px;
+                border-collapse: collapse;
             }
             
             .tw-summary-table th,
             .tw-summary-table td {
                 padding: 4px 6px;
                 text-align: center;
+                border: 1px solid #7d510f;
+                background: transparent;
             }
             
             .tw-summary-table th {
-                background-color: #2196F3;
+                background-color: #c1a264 !important;
+                background-image: url(https://dsru.innogamescdn.com/asset/fc339a06/graphic/screen/tableheader_bg3.webp);
+                background-repeat: repeat-x;
                 color: #000;
                 font-weight: bold;
             }
             
-            .tw-summary-table td {
-            }
-            
             .tw-summary-table .min-col {
-                background-color: #E8F5E9;
+                background-color: rgba(232, 245, 233, 0.7);
             }
             
             .tw-summary-table .max-col {
-                background-color = '#FFEBEE';
+                background-color: rgba(255, 235, 238, 0.7);
             }
             
             .tw-summary-table .resource-name {
-                background-color: #f5f5f5;
+                background-color: rgba(245, 245, 245, 0.7);
                 font-weight: bold;
                 text-align: left;
                 padding-left: 10px;
@@ -161,12 +189,15 @@ class ExchangeTracker {
             .tw-exchange-stat-table {
                 width: 100%;
                 font-size: 11px;
+                border-collapse: collapse;
             }
             
             .tw-exchange-stat-table th,
             .tw-exchange-stat-table td {
                 padding: 3px 5px;
                 text-align: center;
+                border: 1px solid #7d510f;
+                background: transparent;
             }
             
             .tw-exchange-stat-table th {
@@ -180,19 +211,19 @@ class ExchangeTracker {
             }
             
             .tw-exchange-stat-table tr:nth-child(even) {
-                background-color: #f9f9f9;
+                background-color: rgba(249, 249, 249, 0.5);
             }
             
             .tw-exchange-stat-table tr:hover {
-                background-color: #f5f5f5;
+                background-color: rgba(245, 245, 245, 0.7);
             }
             
             .tw-exchange-stat-header {
-                background-color: #2E7D32 !important;
+                background-color: rgba(46, 125, 50, 0.7) !important;
             }
             
             .tw-exchange-stat-resource-header {
-                background-color: #388E3C !important;
+                background-color: rgba(56, 142, 60, 0.7) !important;
             }
             
             .tw-exchange-stat-controls {
@@ -203,6 +234,8 @@ class ExchangeTracker {
                 padding: 10px;
                 border-radius: 4px;
                 flex-wrap: wrap;
+                background: rgba(255, 255, 255, 0.3);
+                border: 1px solid #7d510f;
             }
             
             .tw-exchange-stat-controls label {
@@ -211,11 +244,21 @@ class ExchangeTracker {
                 white-space: nowrap;
             }
             
+            .tw-exchange-stat-controls select {
+                padding: 4px 8px;
+                border: 1px solid #7d510f;
+                border-radius: 4px;
+                background: rgba(255, 255, 255, 0.8);
+                color: #000;
+            }
+            
             .tw-exchange-stat-controls input {
                 width: 70px;
                 padding: 4px 8px;
-                border: 1px solid #ddd;
+                border: 1px solid #7d510f;
                 border-radius: 4px;
+                background: rgba(255, 255, 255, 0.8);
+                color: #000;
             }
             
             .tw-exchange-stat-controls button {
@@ -340,15 +383,16 @@ class ExchangeTracker {
             .tw-table-container {
                 max-height: 400px;
                 overflow-y: auto;
-                border: 1px solid #ddd;
+                border: 1px solid #7d510f;
                 border-radius: 4px;
                 margin-top: 10px;
                 margin-bottom: 20px;
                 height: 350px;
+                background: rgba(255, 255, 255, 0.3);
             }
             
             .tw-hidden-rows-summary {
-                background-color: #f0f0f0;
+                background-color: rgba(240, 240, 240, 0.7);
                 font-style: italic;
                 text-align: center;
                 color: #666;
@@ -358,7 +402,7 @@ class ExchangeTracker {
             
             .tw-charts-container {
                 margin-top: 20px;
-                border-top: 1px solid #ddd;
+                border-top: 1px solid #7d510f;
                 padding-top: 20px;
             }
             
@@ -400,9 +444,9 @@ class ExchangeTracker {
             }
             
             .tw-chart-container {
-                background: #F4E4BC;
+                background: rgba(244, 228, 188, 0.9);
                 border: 1px solid #7d510f;
-                border-radius: 0px;
+                border-radius: 4px;
                 box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                 height: 280px;
                 display: flex;
@@ -437,6 +481,7 @@ class ExchangeTracker {
                 font-size: 11px;
                 color: #666;
                 margin-top: 5px;
+                padding: 0 5px;
             }
             
             .tw-chart-min {
@@ -531,6 +576,45 @@ class ExchangeTracker {
                 text-anchor: middle;
                 font-weight: bold;
             }
+            
+            .tw-auto-trade-controls {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 10px;
+                padding: 8px;
+                background: rgba(255, 255, 255, 0.3);
+                border: 1px solid #7d510f;
+                border-radius: 4px;
+                flex-wrap: wrap;
+            }
+            
+            .tw-auto-trade-section {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                white-space: nowrap;
+            }
+            
+            .tw-auto-trade-label {
+                font-weight: bold;
+                color: #000;
+                font-size: 11px;
+            }
+            
+            .tw-auto-trade-status {
+                margin-top: 5px;
+                padding: 5px;
+                background: rgba(255, 255, 255, 0.3);
+                border-radius: 4px;
+                font-size: 11px;
+                color: #666;
+            }
+            
+            .tw-auto-trade-active {
+                color: #4CAF50;
+                font-weight: bold;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -588,6 +672,54 @@ class ExchangeTracker {
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
+    startResourceMonitoring() {
+        // Clear any existing interval
+        if (this.collectionInterval) {
+            clearInterval(this.collectionInterval);
+        }
+        
+        // Monitor rate elements for changes
+        this.monitorRateElements();
+        
+        // Fallback: check every 10 seconds if monitoring fails
+        this.collectionInterval = setInterval(() => {
+            this.saveData();
+        }, this.updateInterval);
+    }
+
+    monitorRateElements() {
+        const rateElements = [
+            '#premium_exchange_rate_wood',
+            '#premium_exchange_rate_stone',
+            '#premium_exchange_rate_iron'
+        ];
+        
+        rateElements.forEach(selector => {
+            const element = document.querySelector(selector);
+            if (element) {
+                // Create a MutationObserver to watch for text changes
+                const observer = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                            this.saveData();
+                            this.checkAutoTrade();
+                        }
+                    });
+                });
+                
+                observer.observe(element, {
+                    characterData: true,
+                    childList: true,
+                    subtree: true
+                });
+                
+                // Store observer for cleanup
+                if (!this.rateObservers) this.rateObservers = [];
+                this.rateObservers.push({ element: element, observer: observer });
+            }
+        });
+    }
+
     getExchangeData() {
         const now = new Date();
         const data = {
@@ -634,6 +766,90 @@ class ExchangeTracker {
         });
         
         return data;
+    }
+
+    checkAutoTrade() {
+        if (!this.data.length) return;
+        
+        const currentData = this.data[0];
+        const statusDiv = document.querySelector('#tw-auto-trade-status');
+        
+        this.resourceTypes.forEach(resource => {
+            const currentCost = currentData.resources[resource].cost;
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+            
+            // Check sell condition
+            if (this.autoTrade.sellCondition !== 'never') {
+                let shouldSell = false;
+                
+                switch (this.autoTrade.sellCondition) {
+                    case 'min':
+                        shouldSell = currentCost === cache.min;
+                        break;
+                    case 'min-10':
+                        shouldSell = currentCost <= cache.min + 10;
+                        break;
+                    case 'min-50':
+                        shouldSell = currentCost <= cache.min + 50;
+                        break;
+                    case 'min-100':
+                        shouldSell = currentCost <= cache.min + 100;
+                        break;
+                }
+                
+                if (shouldSell && statusDiv) {
+                    statusDiv.innerHTML = `<span class="tw-auto-trade-active">SELL ${this.resourceNames[resource]} at ${currentCost} (min: ${cache.min})</span>`;
+                    this.performTrade('sell', resource);
+                }
+            }
+            
+            // Check buy condition
+            if (this.autoTrade.buyCondition !== 'never') {
+                let shouldBuy = false;
+                
+                switch (this.autoTrade.buyCondition) {
+                    case 'max':
+                        shouldBuy = currentCost === cache.max;
+                        break;
+                    case 'max-10':
+                        shouldBuy = currentCost >= cache.max - 10;
+                        break;
+                    case 'max-50':
+                        shouldBuy = currentCost >= cache.max - 50;
+                        break;
+                    case 'max-100':
+                        shouldBuy = currentCost >= cache.max - 100;
+                        break;
+                }
+                
+                if (shouldBuy && statusDiv) {
+                    statusDiv.innerHTML = `<span class="tw-auto-trade-active">BUY ${this.resourceNames[resource]} at ${currentCost} (max: ${cache.max})</span>`;
+                    this.performTrade('buy', resource);
+                }
+            }
+        });
+    }
+
+    performTrade(action, resource) {
+        // This is a placeholder for actual trade execution
+        // In a real implementation, you would need to:
+        // 1. Find the trade button for the resource
+        // 2. Set the amount input
+        // 3. Click the button
+        
+        console.log(`[TW Exchange Tracker] ${action.toUpperCase()} ${this.resourceNames[resource]} x${this.autoTrade.resourceAmount} triggered`);
+        
+        // Example implementation (you'll need to adapt this to your game's UI):
+        /*
+        const resourceIndex = this.resourceTypes.indexOf(resource);
+        const amountInput = document.querySelector(`input[name="amount[${resourceIndex}]"]`);
+        if (amountInput) {
+            amountInput.value = this.autoTrade.resourceAmount;
+            // Find and click the appropriate trade button
+            const tradeButton = document.querySelector(`.trade-${action}-button`);
+            if (tradeButton) tradeButton.click();
+        }
+        */
     }
 
     formatDateTime(date) {
@@ -792,28 +1008,6 @@ class ExchangeTracker {
         }
     }
 
-    startCollection() {
-        this.loadData();
-        
-        if (this.collectionInterval) {
-            clearInterval(this.collectionInterval);
-        }
-        
-        setTimeout(() => {
-            this.saveData();
-        }, 2000);
-        
-        this.collectionInterval = setInterval(() => {
-            this.saveData();
-        }, this.updateInterval);
-    }
-
-    updateCollectionInterval(newInterval) {
-        this.updateInterval = newInterval * 1000;
-        this.saveSettings();
-        this.startCollection();
-    }
-
     createSummaryTable() {
         const table = document.createElement('table');
         table.className = 'tw-summary-table';
@@ -900,7 +1094,6 @@ class ExchangeTracker {
                     const diff = currentCost - value;
                     if (diff <= 10 && diff >= 0) {
                         cell.style.fontWeight = 'bold';
-                        cell.style.backgroundColor = '#C8E6C9';
                     }
                     
                     cell.title = `${this.resourceNames[resource]} min in ${period.replace('last', 'last ').replace('allTime', 'all time')}: ${value}`;
@@ -923,7 +1116,6 @@ class ExchangeTracker {
                     const diff = value - currentCost;
                     if (diff <= 10 && diff >= 0) {
                         cell.style.fontWeight = 'bold';
-                        cell.style.backgroundColor = '#FFCDD2';
                     }
                     
                     cell.title = `${this.resourceNames[resource]} max in ${period.replace('last', 'last ').replace('allTime', 'all time')}: ${value}`;
@@ -1362,6 +1554,130 @@ class ExchangeTracker {
         return container;
     }
 
+    createAutoTradeControls() {
+        const container = document.createElement('div');
+        container.className = 'tw-auto-trade-controls';
+        
+        // Buy condition
+        const buySection = document.createElement('div');
+        buySection.className = 'tw-auto-trade-section';
+        
+        const buyLabel = document.createElement('label');
+        buyLabel.className = 'tw-auto-trade-label';
+        buyLabel.textContent = 'Auto buy when:';
+        buyLabel.htmlFor = 'tw-auto-buy';
+        
+        const buySelect = document.createElement('select');
+        buySelect.id = 'tw-auto-buy';
+        buySelect.className = 'tw-auto-trade-select';
+        
+        const buyOptions = [
+            { value: 'never', text: 'never' },
+            { value: 'max-100', text: 'max-100' },
+            { value: 'max-50', text: 'max-50' },
+            { value: 'max-10', text: 'max-10' },
+            { value: 'max', text: 'max' }
+        ];
+        
+        buyOptions.forEach(option => {
+            const optionElem = document.createElement('option');
+            optionElem.value = option.value;
+            optionElem.textContent = option.text;
+            if (option.value === this.autoTrade.buyCondition) {
+                optionElem.selected = true;
+            }
+            buySelect.appendChild(optionElem);
+        });
+        
+        buySelect.onchange = (e) => {
+            this.autoTrade.buyCondition = e.target.value;
+            this.saveAutoTradeSettings();
+        };
+        
+        buySection.appendChild(buyLabel);
+        buySection.appendChild(buySelect);
+        container.appendChild(buySection);
+        
+        // Sell condition
+        const sellSection = document.createElement('div');
+        sellSection.className = 'tw-auto-trade-section';
+        
+        const sellLabel = document.createElement('label');
+        sellLabel.className = 'tw-auto-trade-label';
+        sellLabel.textContent = 'Auto sale when:';
+        sellLabel.htmlFor = 'tw-auto-sell';
+        
+        const sellSelect = document.createElement('select');
+        sellSelect.id = 'tw-auto-sell';
+        sellSelect.className = 'tw-auto-trade-select';
+        
+        const sellOptions = [
+            { value: 'never', text: 'never' },
+            { value: 'min-100', text: 'min-100' },
+            { value: 'min-50', text: 'min-50' },
+            { value: 'min-10', text: 'min-10' },
+            { value: 'min', text: 'min' }
+        ];
+        
+        sellOptions.forEach(option => {
+            const optionElem = document.createElement('option');
+            optionElem.value = option.value;
+            optionElem.textContent = option.text;
+            if (option.value === this.autoTrade.sellCondition) {
+                optionElem.selected = true;
+            }
+            sellSelect.appendChild(optionElem);
+        });
+        
+        sellSelect.onchange = (e) => {
+            this.autoTrade.sellCondition = e.target.value;
+            this.saveAutoTradeSettings();
+        };
+        
+        sellSection.appendChild(sellLabel);
+        sellSection.appendChild(sellSelect);
+        container.appendChild(sellSection);
+        
+        // Resource amount
+        const amountSection = document.createElement('div');
+        amountSection.className = 'tw-auto-trade-section';
+        
+        const amountLabel = document.createElement('label');
+        amountLabel.className = 'tw-auto-trade-label';
+        amountLabel.textContent = 'Resource amount:';
+        amountLabel.htmlFor = 'tw-resource-amount';
+        
+        const amountInput = document.createElement('input');
+        amountInput.id = 'tw-resource-amount';
+        amountInput.type = 'number';
+        amountInput.min = '1';
+        amountInput.max = '1000000';
+        amountInput.value = this.autoTrade.resourceAmount;
+        
+        amountInput.onchange = (e) => {
+            const value = parseInt(e.target.value);
+            if (value >= 1 && value <= 1000000) {
+                this.autoTrade.resourceAmount = value;
+                this.saveAutoTradeSettings();
+            } else {
+                e.target.value = this.autoTrade.resourceAmount;
+            }
+        };
+        
+        amountSection.appendChild(amountLabel);
+        amountSection.appendChild(amountInput);
+        container.appendChild(amountSection);
+        
+        // Status display
+        const statusDiv = document.createElement('div');
+        statusDiv.id = 'tw-auto-trade-status';
+        statusDiv.className = 'tw-auto-trade-status';
+        statusDiv.textContent = 'Auto trade monitoring active';
+        container.appendChild(statusDiv);
+        
+        return container;
+    }
+
     createStatsContainer() {
         const container = document.createElement('div');
         container.className = 'tw-exchange-stats-container';
@@ -1383,32 +1699,10 @@ class ExchangeTracker {
         header.appendChild(title);
         header.appendChild(closeBtn);
         
+        const autoTradeControls = this.createAutoTradeControls();
+        
         const controls = document.createElement('div');
         controls.className = 'tw-exchange-stat-controls';
-        
-        const updateLabel = document.createElement('label');
-        updateLabel.textContent = 'Update every:';
-        updateLabel.htmlFor = 'tw-update-interval';
-        
-        const updateInput = document.createElement('input');
-        updateInput.id = 'tw-update-interval';
-        updateInput.type = 'number';
-        updateInput.min = '1';
-        updateInput.max = '3600';
-        updateInput.value = this.updateInterval / 1000;
-        updateInput.onchange = (e) => {
-            const value = parseInt(e.target.value);
-            if (value >= 1 && value <= 3600) {
-                this.updateCollectionInterval(value);
-                e.target.value = value;
-            } else {
-                e.target.value = this.updateInterval / 1000;
-            }
-        };
-        
-        const secLabel = document.createElement('label');
-        secLabel.textContent = 'seconds';
-        secLabel.style.color = '#000';
         
         const hideDupesBtn = document.createElement('button');
         hideDupesBtn.id = 'tw-hide-dupes-btn';
@@ -1428,16 +1722,13 @@ class ExchangeTracker {
             }
         };
         
-        controls.appendChild(updateLabel);
-        controls.appendChild(updateInput);
-        controls.appendChild(secLabel);
         controls.appendChild(hideDupesBtn);
         controls.appendChild(clearBtn);
         
         const currentSummary = document.createElement('div');
         currentSummary.style.marginBottom = '15px';
         currentSummary.style.padding = '10px';
-        currentSummary.style.backgroundColor = '#E3F2FD';
+        currentSummary.style.backgroundColor = 'rgba(227, 242, 253, 0.7)';
         currentSummary.style.borderRadius = '4px';
         currentSummary.style.fontSize = '12px';
         currentSummary.id = 'tw-current-summary';
@@ -1457,6 +1748,7 @@ class ExchangeTracker {
         status.id = 'tw-exchange-status';
         
         container.appendChild(header);
+        container.appendChild(autoTradeControls);
         container.appendChild(controls);
         container.appendChild(currentSummary);
         container.appendChild(summaryTable);
@@ -1617,7 +1909,7 @@ class ExchangeTracker {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
             emptyCell.colSpan = 16;
-            emptyCell.textContent = 'No data collected yet. Data is saved every ' + (this.updateInterval / 1000) + ' seconds.';
+            emptyCell.textContent = 'No data collected yet. Data is saved when exchange rates change.';
             emptyCell.style.textAlign = 'center';
             emptyCell.style.padding = '20px';
             emptyCell.style.color = '#999';
@@ -1657,7 +1949,7 @@ class ExchangeTracker {
             
             const row = document.createElement('tr');
             if (visibleRows % 2 === 0) {
-                row.style.backgroundColor = '#f9f9f9';
+                row.style.backgroundColor = 'rgba(249, 249, 249, 0.5)';
             }
             
             if (this.hideDuplicates && prevVisibleRecord !== null) {
@@ -1707,9 +1999,9 @@ class ExchangeTracker {
                     const percentage = Math.round((resData.amount / resData.capacity) * 100);
                     capacityCell.title = `${percentage}% full`;
                     
-                    if (percentage >= 90) capacityCell.style.backgroundColor = '#FFEBEE';
-                    else if (percentage >= 75) capacityCell.style.backgroundColor = '#FFF3E0';
-                    else if (percentage >= 50) capacityCell.style.backgroundColor = '#E8F5E9';
+                    if (percentage >= 90) capacityCell.style.backgroundColor = 'rgba(255, 235, 238, 0.7)';
+                    else if (percentage >= 75) capacityCell.style.backgroundColor = 'rgba(255, 243, 224, 0.7)';
+                    else if (percentage >= 50) capacityCell.style.backgroundColor = 'rgba(232, 245, 233, 0.7)';
                 }
                 
                 row.appendChild(capacityCell);
