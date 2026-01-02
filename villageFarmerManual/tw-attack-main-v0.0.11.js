@@ -12,7 +12,7 @@
             styles: 'tw-attack-styles-v0.0.1.js',
             attack: 'tw-attack-attack-v0.0.6.js',
             submit: 'tw-attack-submit-v0.0.1.js',
-            village: 'tw-attack-village-v0.0.6.js',
+            village: 'tw-attack-village-v0.0.7.js',
             utils: 'tw-attack-utils-v0.0.1.js'
         },
         storageKeys: {
@@ -88,9 +88,27 @@
         utils: {
             getWorldName: function() {
                 var url = window.location.href;
-                // Match both voynaplemyon.com and tribalwars.net
-                var match = url.match(/https?:\/\/([^\/]+?)\.(?:voynaplemyon\.com|tribalwars\.net)/);
-                return match ? match[1] : "unknown";
+                
+                // Try to extract world name from URL patterns
+                // Pattern 1: https://en147.tribalwars.net/...
+                // Pattern 2: https://pl101.voynaplemyon.com/...
+                var match = url.match(/https?:\/\/([^\/\.]+)\.(tribalwars\.net|voynaplemyon\.com)/);
+                if (match) {
+                    return match[1]; // Returns en147, pl101, etc.
+                }
+                
+                // Alternative pattern for subdomains
+                var hostname = window.location.hostname;
+                var parts = hostname.split('.');
+                if (parts.length >= 3) {
+                    // Check if first part looks like a world code (en147, pl101, etc.)
+                    var worldCode = parts[0];
+                    if (worldCode.match(/^[a-z]{2}\d+$/)) {
+                        return worldCode;
+                    }
+                }
+                
+                return "unknown";
             },
             
             getCurrentVillageCoords: function() {
