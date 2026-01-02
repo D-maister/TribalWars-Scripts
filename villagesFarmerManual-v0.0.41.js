@@ -2647,16 +2647,11 @@
             } else if (currentUrl.includes('mode=sim')) {
                 // Simulation mode - don't show attack config
                 console.log('Simulation mode - attack config disabled');
+                return; // Add return here to stop execution
             } else if (currentUrl.includes('mode=command') || !currentUrl.includes('mode=')) {
                 // Attack page (command mode or no mode) - create main config UI
                 if (!checkForAntibot()) {
-                    // REMOVED: createConfigUI(); // This was causing recursion
-                    
-                    // Create UI only once
-                    var existingUI = document.getElementById('tw-attack-config');
-                    if (!existingUI) {
-                        createConfigUI(); // Now it only creates if it doesn't exist
-                    }
+                    // DON'T call createConfigUI() here - just continue to create UI
                     
                     if (settings.autoAttackEnabled) {
                         setTimeout(function() {
@@ -2668,15 +2663,10 @@
         } else {
             // Other pages - create config UI if we can find the container
             var container = document.querySelector('#content_value > div.commands-container-outer');
-            if (container) {
-                // REMOVED: createConfigUI(); // This was causing recursion
-                
-                // Create UI only once
-                var existingUI = document.getElementById('tw-attack-config');
-                if (!existingUI) {
-                    createConfigUI(); // Now it only creates if it doesn't exist
-                }
+            if (!container) {
+                return; // No container found, exit function
             }
+            // DON'T call createConfigUI() here - just continue to create UI
         }
         
         // Set up periodic check for submit script on submit pages
@@ -2689,6 +2679,8 @@
                 }
             }, 5 * 60 * 1000);
         }
+        
+        // ... rest of your UI creation code (keep everything from line 81 onward)
         
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
