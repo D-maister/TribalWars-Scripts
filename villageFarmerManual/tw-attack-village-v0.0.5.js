@@ -21,7 +21,7 @@
             
             console.log('TW Attack: Searching for coordinates on info_village page');
             
-           var contentValue = document.querySelector('td#content_value');
+           var contentValue = document.querySelector('tr:not(#menu_row2) td#content_value');
             if (contentValue) {
                 // Look for all text nodes with coordinate patterns
                 var walker = document.createTreeWalker(
