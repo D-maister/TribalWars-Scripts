@@ -612,17 +612,83 @@
                 var targetInfo = document.createElement('div');
                 targetInfo.className = 'tw-attack-target-info';
                 
-                var coordsSpan = document.createElement('span');
-                coordsSpan.className = 'tw-attack-target-coords';
-                coordsSpan.textContent = target;
+                var villageInfoContainer = document.createElement('div');
+                villageInfoContainer.style.cssText = 'display: flex; flex-direction: column; min-width: 150px; flex: 1;';
+                
+                // First line: Coordinates and basic info
+                var firstLine = document.createElement('div');
+                firstLine.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 3px;';
+                
+                var targetCoords = document.createElement('div');
+                targetCoords.className = 'tw-attack-target-coords';
+                targetCoords.textContent = target;
                 
                 var distance = window.TWAttack.utils.calculateDistance(window.TWAttack.state.homeCoords, target);
-                var detailsSpan = document.createElement('span');
-                detailsSpan.className = 'tw-attack-target-details';
-                detailsSpan.textContent = 'Distance: ' + distance.toFixed(2);
+                var distanceSpan = document.createElement('span');
+                distanceSpan.style.cssText = 'font-size: 11px; color: #666;';
+                distanceSpan.textContent = 'Dist: ' + distance.toFixed(2);
                 
-                targetInfo.appendChild(coordsSpan);
-                targetInfo.appendChild(detailsSpan);
+                firstLine.appendChild(targetCoords);
+                firstLine.appendChild(distanceSpan);
+                
+                // Second line: Cooldown and status info
+                var secondLine = document.createElement('div');
+                secondLine.className = 'tw-attack-target-details';
+                secondLine.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 10px; color: #666;';
+                
+                // Get cooldown info for each build
+                var cooldownInfo = '';
+                var hasCooldown = false;
+                var allCooldownMinutes = [];
+                
+                ['A', 'B', 'C'].forEach(function(buildKey) {
+                    if (window.TWAttack.builds.get(target, buildKey) && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
+                        var buildCooldown = window.TWAttack.utils.getBuildCooldownInfo(target, buildKey);
+                        if (buildCooldown.onCooldown) {
+                            hasCooldown = true;
+                            allCooldownMinutes.push(buildKey + ':' + buildCooldown.minutesLeft + 'm');
+                        }
+                    }
+                });
+                
+                if (hasCooldown) {
+                    var cooldownSpan = document.createElement('span');
+                    cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${allCooldownMinutes.join(', ')}</strong>`;
+                    secondLine.appendChild(cooldownSpan);
+                } else {
+                    var readySpan = document.createElement('span');
+                    readySpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
+                    secondLine.appendChild(readySpan);
+                }
+                
+                // Get last attack time
+                var buildCooldowns = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.buildCooldowns);
+                var lastAttack = null;
+                var lastBuild = null;
+                
+                if (buildCooldowns && buildCooldowns[window.TWAttack.state.currentWorld] && 
+                    buildCooldowns[window.TWAttack.state.currentWorld][target]) {
+                    var targetCooldowns = buildCooldowns[window.TWAttack.state.currentWorld][target];
+                    for (var buildKey in targetCooldowns) {
+                        var attackTime = targetCooldowns[buildKey];
+                        if (!lastAttack || attackTime > lastAttack) {
+                            lastAttack = attackTime;
+                            lastBuild = buildKey;
+                        }
+                    }
+                }
+                
+                if (lastAttack) {
+                    var lastAttackSpan = document.createElement('span');
+                    var timeSince = window.TWAttack.utils.formatTimeSince(new Date(lastAttack));
+                    lastAttackSpan.textContent = 'Last: ' + timeSince;
+                    if (lastBuild) lastAttackSpan.textContent += ' (' + lastBuild + ')';
+                    secondLine.appendChild(lastAttackSpan);
+                }
+                
+                villageInfoContainer.appendChild(firstLine);
+                villageInfoContainer.appendChild(secondLine);
+                targetInfo.appendChild(villageInfoContainer);
                 
                 var actionButtons = document.createElement('div');
                 actionButtons.className = 'tw-attack-action-buttons';
@@ -635,6 +701,23 @@
                     if (isEnabled) btn.classList.add('checked');
                     if (buildKey === 'B') btn.classList.add('b');
                     if (buildKey === 'C') btn.classList.add('c');
+                    
+                    // Add cooldown indicator
+                    var buildCooldown = window.TWAttack.utils.getBuildCooldownInfo(target, buildKey);
+                    var cooldownIndicator = document.createElement('span');
+                    cooldownIndicator.className = 'tw-attack-build-cooldown-indicator';
+                    
+                    if (buildCooldown.onCooldown) {
+                        cooldownIndicator.classList.add('tw-attack-build-cooldown-cooldown');
+                        cooldownIndicator.textContent = buildCooldown.minutesLeft + 'm';
+                        btn.title = 'Build ' + buildKey + ' on cooldown: ' + buildCooldown.minutesLeft + ' minutes remaining';
+                    } else {
+                        cooldownIndicator.classList.add('tw-attack-build-cooldown-ready');
+                        cooldownIndicator.textContent = '✓';
+                        btn.title = 'Build ' + buildKey + ' ready';
+                    }
+                    
+                    btn.appendChild(cooldownIndicator);
                     
                     btn.onclick = (function(buildKey, targetCoords) {
                         return function(e) {
@@ -652,9 +735,28 @@
                 attackBtn.textContent = '⚔️';
                 attackBtn.title = 'Attack with first available build';
                 attackBtn.className = 'tw-attack-attack-btn';
-                attackBtn.onclick = (function(targetToAttack) {
-                    return function() { AttackModule.attackTargetWithAvailableBuild(targetToAttack); };
-                })(target);
+                
+                // Check if any build is ready
+                var anyBuildReady = false;
+                ['A', 'B', 'C'].forEach(function(buildKey) {
+                    if (window.TWAttack.builds.get(target, buildKey) && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
+                        var buildCooldown = window.TWAttack.utils.getBuildCooldownInfo(target, buildKey);
+                        if (!buildCooldown.onCooldown) {
+                            anyBuildReady = true;
+                        }
+                    }
+                });
+                
+                if (!anyBuildReady) {
+                    attackBtn.disabled = true;
+                    attackBtn.style.opacity = '0.5';
+                    attackBtn.style.cursor = 'not-allowed';
+                    attackBtn.title = 'All builds for this target are on cooldown';
+                } else {
+                    attackBtn.onclick = (function(targetToAttack) {
+                        return function() { AttackModule.attackTargetWithAvailableBuild(targetToAttack); };
+                    })(target);
+                }
                 
                 var removeBtn = document.createElement('button');
                 removeBtn.textContent = '✕';
