@@ -1050,81 +1050,67 @@
         startDisplayUpdates();
     }
 
-    function calculateAttackTimeWithLatency(targetTime, maxCancelMinutes, totalLatency) {
+    function calculateAttackTime(targetTime, maxCancelMinutes, attackDelay) {
         const current = getOptimizedServerTime();
+        const latency = state.currentLatency;
         const duration = getDurationTime();
         
-        console.log('=== PRECISE CALCULATION ===');
-        console.log('Current server:', formatTime(current));
-        console.log('Target enemy:', formatTime(targetTime));
-        console.log('Travel duration:', duration, 'ms');
-        console.log('Total latency:', totalLatency, 'ms');
-        console.log('Mode:', state.currentMode);
+        const maxCancelMs = maxCancelMinutes * 60 * 1000;
+        const twoTimesCancel = maxCancelMs * 2;
+        const fiveSeconds = 5000;
+        const tenSeconds = 10000;
+        
+        const earliestClickTime = new Date(targetTime.getTime() - twoTimesCancel + fiveSeconds);
+        const latestClickTime = new Date(targetTime.getTime() - tenSeconds);
         
         let clickTime;
-        const maxCancelMs = maxCancelMinutes * 60 * 1000;
         
         if (state.currentMode === ATTACK_MODES.ON_CANCEL) {
-            // Anti-Noble: Click early enough to allow cancellation
-            const earliestClickTime = targetTime.getTime() - (maxCancelMs * 2);
-            const latestClickTime = targetTime.getTime() - 10000; // 10 seconds before
+            const currentTime = current.getTime();
             
-            const now = current.getTime();
-            
-            if (now >= latestClickTime) {
-                // We're late - click as soon as possible
-                clickTime = new Date(now + Math.max(100, totalLatency));
-                console.log('LATE: Clicking ASAP');
-            } else if (now >= earliestClickTime) {
-                // Within window - click now with latency compensation
-                clickTime = new Date(now + totalLatency);
-                console.log('IN WINDOW: Clicking now');
+            if (currentTime >= latestClickTime.getTime()) {
+                // Click NOW, but account for latency and SUBTRACT attack delay
+                clickTime = new Date(currentTime + latency - attackDelay);
+                console.log('Late: Clicking now with attack delay compensation');
+            } else if (currentTime >= earliestClickTime.getTime()) {
+                // Click now with latency compensation and SUBTRACT attack delay
+                clickTime = new Date(currentTime + latency - attackDelay);
+                console.log('In window: Clicking with attack delay');
             } else {
-                // Early - wait until window opens
-                clickTime = new Date(earliestClickTime + totalLatency);
-                console.log('EARLY: Waiting for window');
+                const waitTime = earliestClickTime.getTime() - currentTime;
+                // Click at earliest time with latency and SUBTRACT attack delay
+                clickTime = new Date(earliestClickTime.getTime() + latency - attackDelay);
+                console.log('Early: Waiting ' + (waitTime/1000).toFixed(1) + 's');
             }
             
-            // Never click after latest time
-            if (clickTime.getTime() > latestClickTime) {
-                clickTime = new Date(latestClickTime);
-                console.log('ADJUSTED: Would be too late');
+            if (clickTime.getTime() > latestClickTime.getTime()) {
+                clickTime = new Date(latestClickTime.getTime());
+                console.log('Adjusted: Would be too late');
             }
         } else {
-            // Snipe: Arrive just before enemy
-            // Desired arrival = enemy time - safety margin
+            // Snipe mode
             const safetyMargin = 100; // Arrive 100ms before enemy
-            const desiredArrival = targetTime.getTime() - safetyMargin;
+            const desiredArrivalTime = targetTime.getTime() - safetyMargin;
             
-            // Click time = desired arrival - travel time - latency
-            clickTime = new Date(desiredArrival - duration - totalLatency);
+            // Calculate click time: desired arrival - travel - latency - attackDelay
+            clickTime = new Date(desiredArrivalTime - duration - latency - attackDelay);
             
-            console.log(`Snipe calculation:`);
-            console.log(`- Enemy: ${formatTime(targetTime)}`);
-            console.log(`- Desired arrival: ${formatTime(new Date(desiredArrival))} (${safetyMargin}ms before)`);
-            console.log(`- Travel time: ${duration}ms`);
-            console.log(`- Latency: ${totalLatency}ms`);
-            console.log(`- Click at: ${formatTime(clickTime)}`);
-            
-            // Check if we have enough time
-            const timeToClick = clickTime.getTime() - current.getTime();
-            if (timeToClick < totalLatency * 1.5) { // Need 1.5x latency for safety
-                console.error(`NOT ENOUGH TIME: ${timeToClick}ms available, need ${totalLatency * 1.5}ms`);
-                return null;
-            }
+            console.log(`Snipe calculation with attack delay ${attackDelay}ms:`);
+            console.log(`- Will click ${attackDelay}ms earlier than ideal`);
         }
         
         const remaining = clickTime.getTime() - current.getTime();
         
-        if (remaining < totalLatency) {
-            console.error(`CLICK TOO CLOSE: ${remaining}ms < ${totalLatency}ms latency`);
+        if (remaining < 100) {
+            console.error('Click time too close! Need at least 100ms');
             return null;
         }
         
         return {
             targetTime: targetTime,
             clickTime: clickTime,
-            totalLatency: totalLatency,
+            attackDelay: attackDelay,
+            latency: latency,
             remaining: remaining,
             current: current
         };
