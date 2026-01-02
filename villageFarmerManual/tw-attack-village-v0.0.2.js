@@ -8,75 +8,131 @@
     const VillageModule = {
         // Initialize village module
         initialize: function() {
+            console.log('TW Attack: Village module initializing');
             this.createInfoVillagePanel();
         },
         
-        // Find coordinates on page
+        // Find coordinates on page - IMPROVED VERSION
         findCoordinatesOnPage: function() {
             if (!window.TWAttack.pages.isInfoVillage()) {
+                console.log('TW Attack: Not on info_village page');
                 return null;
             }
             
-            // Look for coordinates in the village info page structure
+            console.log('TW Attack: Searching for coordinates on info_village page');
+            
+            // Method 1: Look in the page title (most reliable)
             var title = document.querySelector('head > title');
             if (title) {
                 var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
                 if (match) {
+                    console.log('TW Attack: Found coordinates in title:', match[1] + '|' + match[2]);
                     return match[1] + "|" + match[2];
                 }
             }
             
-            // Look in the village name header
-            var villageNameElement = document.querySelector('td#content_value h1, td#content_value .village-name, td#content_value .title');
-            if (villageNameElement) {
-                var text = villageNameElement.textContent;
-                var match = text.match(/\((\d+)\|(\d+)\)/);
+            // Method 2: Look for village header with coordinates
+            var villageHeaders = document.querySelectorAll('h1, h2, h3, .village-name, .title-inline');
+            for (var i = 0; i < villageHeaders.length; i++) {
+                var text = villageHeaders[i].textContent;
+                var match = text.match(/\((\d+)\s*\|\s*(\d+)\)/);
                 if (match) {
-                    return match[1] + "|" + match[2];
+                    console.log('TW Attack: Found coordinates in header:', match[1] + '|' + match[2]);
+                    return match[1].trim() + '|' + match[2].trim();
                 }
             }
             
-            // Look for coordinates pattern in the content_value area
+            // Method 3: Look in table cells with coordinate patterns
+            var allCells = document.querySelectorAll('td');
+            for (var i = 0; i < allCells.length; i++) {
+                var cell = allCells[i];
+                var text = cell.textContent.trim();
+                
+                // Look for patterns like "123|456" or "(123|456)"
+                var match = text.match(/(\d+)\s*\|\s*(\d+)/);
+                if (match) {
+                    // Check if this looks like coordinates (reasonable numbers)
+                    var x = parseInt(match[1]);
+                    var y = parseInt(match[2]);
+                    if (x >= 0 && x <= 1000 && y >= 0 && y <= 1000) {
+                        console.log('TW Attack: Found coordinates in table cell:', x + '|' + y);
+                        return x + '|' + y;
+                    }
+                }
+            }
+            
+            // Method 4: Look for specific structures on info_village page
+            // On TribalWars, coordinates are often in a specific table structure
             var contentValue = document.querySelector('td#content_value');
             if (contentValue) {
-                var textNodes = document.evaluate('.//text()[contains(., "|")]', contentValue, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+                // Look for all text nodes with coordinate patterns
+                var walker = document.createTreeWalker(
+                    contentValue,
+                    NodeFilter.SHOW_TEXT,
+                    null,
+                    false
+                );
                 
-                for (var i = 0; i < textNodes.snapshotLength; i++) {
-                    var node = textNodes.snapshotItem(i);
+                var node;
+                while (node = walker.nextNode()) {
                     var text = node.textContent.trim();
-                    
-                    var match = text.match(/(\d+)\s*\|\s*(\d+)/);
+                    var match = text.match(/\((\d+)\s*\|\s*(\d+)\)/);
                     if (match) {
-                        return match[1].trim() + '|' + match[2].trim();
-                    }
-                    
-                    match = text.match(/\((\d+)\s*\|\s*(\d+)\)/);
-                    if (match) {
+                        console.log('TW Attack: Found coordinates in content_value:', match[1] + '|' + match[2]);
                         return match[1].trim() + '|' + match[2].trim();
                     }
                 }
             }
             
+            // Method 5: Check for village data in meta tags or data attributes
+            var metaCoords = document.querySelector('meta[name="coordinates"], meta[property="coordinates"]');
+            if (metaCoords && metaCoords.content) {
+                var match = metaCoords.content.match(/(\d+)\|(\d+)/);
+                if (match) {
+                    console.log('TW Attack: Found coordinates in meta tag:', match[1] + '|' + match[2]);
+                    return match[1] + '|' + match[2];
+                }
+            }
+            
+            // Method 6: Check for data attributes on the village container
+            var villageContainer = document.querySelector('[data-village], [data-x], [data-y], .village[data-id]');
+            if (villageContainer) {
+                var x = villageContainer.getAttribute('data-x') || villageContainer.getAttribute('data-coord-x');
+                var y = villageContainer.getAttribute('data-y') || villageContainer.getAttribute('data-coord-y');
+                
+                if (x && y) {
+                    console.log('TW Attack: Found coordinates in data attributes:', x + '|' + y);
+                    return x + '|' + y;
+                }
+            }
+            
+            console.log('TW Attack: Could not find coordinates on info_village page');
             return null;
         },
         
         // Create info village panel
         createInfoVillagePanel: function() {
+            console.log('TW Attack: Creating info village panel');
+            
             var coords = this.findCoordinatesOnPage();
             if (!coords) {
                 window.TWAttack.utils.showError("Could not find village coordinates on info_village page");
                 return;
             }
             
+            console.log('TW Attack: Coordinates found:', coords);
+            
             // Check if panel already exists
             var existingPanel = document.getElementById('tw-attack-info-panel');
             if (existingPanel) {
                 // Update existing panel
+                console.log('TW Attack: Updating existing info panel');
                 this.updateInfoVillagePanel(existingPanel, coords);
                 return;
             }
             
             // Create new panel
+            console.log('TW Attack: Creating new info panel');
             this.createNewInfoVillagePanel(coords);
         },
         
@@ -89,6 +145,10 @@
             
             var buildSettings = window.TWAttack.state.settings.autoAttackBuilds || { A: true, B: false, C: false };
             
+            console.log('TW Attack: Creating panel for coords:', coords);
+            console.log('TW Attack: Is in target list:', isInTargetList);
+            console.log('TW Attack: Target build settings:', targetBuildSettings);
+            
             var panel = document.createElement('div');
             panel.id = 'tw-attack-info-panel';
             panel.className = 'tw-attack-info-panel';
@@ -100,6 +160,19 @@
             var coordsDisplay = document.createElement('div');
             coordsDisplay.className = 'tw-attack-info-coords';
             coordsDisplay.textContent = coords;
+            coordsDisplay.title = 'Click to copy';
+            coordsDisplay.style.cursor = 'pointer';
+            
+            // Add click to copy functionality
+            coordsDisplay.onclick = function() {
+                navigator.clipboard.writeText(coords).then(function() {
+                    var originalText = coordsDisplay.textContent;
+                    coordsDisplay.textContent = '✓ Copied!';
+                    setTimeout(function() {
+                        coordsDisplay.textContent = originalText;
+                    }, 1000);
+                });
+            };
             
             var buildButtons = document.createElement('div');
             buildButtons.className = 'tw-attack-info-build-buttons';
@@ -198,18 +271,68 @@
             panel.appendChild(actionButtons);
             panel.appendChild(statusMsg);
             
-            // Insert after minimap
-            var minimap = document.querySelector('div#minimap');
-            if (minimap && minimap.parentNode) {
-                minimap.parentNode.insertBefore(panel, minimap.nextSibling);
+            // Try to insert after the minimap or in a logical place
+            var insertionPoint = this.findInsertionPoint();
+            if (insertionPoint) {
+                insertionPoint.parentNode.insertBefore(panel, insertionPoint.nextSibling);
+                console.log('TW Attack: Panel inserted after', insertionPoint.tagName, insertionPoint.className);
             } else {
-                var container = document.querySelector('#content_value > div.commands-container-outer');
-                if (container) {
-                    container.insertBefore(panel, container.firstChild);
+                // Fallback: insert at the beginning of content_value
+                var contentValue = document.querySelector('td#content_value');
+                if (contentValue) {
+                    contentValue.insertBefore(panel, contentValue.firstChild);
+                    console.log('TW Attack: Panel inserted at beginning of content_value');
                 } else {
                     document.body.insertBefore(panel, document.body.firstChild);
+                    console.log('TW Attack: Panel inserted at beginning of body');
                 }
             }
+            
+            // Show status if village is already in target list
+            if (isInTargetList) {
+                var enabledBuilds = [];
+                ['A', 'B', 'C'].forEach(function(buildKey) {
+                    if (targetBuildSettings[buildKey] && buildSettings[buildKey]) {
+                        enabledBuilds.push(buildKey);
+                    }
+                });
+                
+                if (enabledBuilds.length > 0) {
+                    this.showInfoStatus('Village in target list. Enabled builds: ' + enabledBuilds.join(', '), 'success');
+                } else {
+                    this.showInfoStatus('Village in target list but no builds enabled', 'error');
+                }
+            }
+        },
+        
+        // Find the best place to insert the panel
+        findInsertionPoint: function() {
+            // Try to find the minimap
+            var minimap = document.querySelector('div#minimap, .minimap-container, .map-container');
+            if (minimap) {
+                console.log('TW Attack: Found minimap for insertion');
+                return minimap;
+            }
+            
+            // Look for village info tables
+            var villageInfoTable = document.querySelector('table.villages, table.vis, .village-details');
+            if (villageInfoTable) {
+                console.log('TW Attack: Found village info table for insertion');
+                return villageInfoTable;
+            }
+            
+            // Look for the first h2 or h3 after the village name
+            var headers = document.querySelectorAll('h2, h3, h4');
+            for (var i = 0; i < headers.length; i++) {
+                if (headers[i].textContent.toLowerCase().includes('info') || 
+                    headers[i].textContent.toLowerCase().includes('details')) {
+                    console.log('TW Attack: Found info header for insertion:', headers[i].textContent);
+                    return headers[i];
+                }
+            }
+            
+            console.log('TW Attack: No specific insertion point found');
+            return null;
         },
         
         // Update info village panel
@@ -384,11 +507,41 @@
         
         // Handle ignore button click
         handleIgnoreButtonClick: function(coords, isInTargetList) {
-            // This would need ignore list implementation
-            this.showInfoStatus('Ignore list functionality not implemented yet', 'error');
+            // Load ignore list
+            var ignoreList = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.ignore) || {};
+            if (!ignoreList[window.TWAttack.state.currentWorld]) {
+                ignoreList[window.TWAttack.state.currentWorld] = [];
+            }
             
-            if (isInTargetList) {
-                window.TWAttack.targets.remove(coords);
+            // Add to ignore list
+            if (ignoreList[window.TWAttack.state.currentWorld].indexOf(coords) === -1) {
+                ignoreList[window.TWAttack.state.currentWorld].push(coords);
+                window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
+                
+                if (isInTargetList) {
+                    window.TWAttack.targets.remove(coords);
+                }
+                
+                this.showInfoStatus('Village ' + coords + ' added to ignore list', 'success');
+                
+                // Update the panel to show it's ignored
+                var panel = document.getElementById('tw-attack-info-panel');
+                if (panel) {
+                    // Change the panel to show ignored state
+                    panel.style.borderColor = '#ff9800';
+                    panel.querySelector('.tw-attack-info-title').textContent = '⚔️ TW Attack Control (Ignored)';
+                    
+                    // Disable all buttons
+                    var buttons = panel.querySelectorAll('button');
+                    buttons.forEach(function(btn) {
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                        btn.style.cursor = 'not-allowed';
+                    });
+                    
+                    // Update status
+                    this.showInfoStatus('Village ignored. Refresh page to remove this panel.', 'info');
+                }
             }
         },
         
@@ -400,10 +553,16 @@
                 statusMsg.style.display = 'block';
                 statusMsg.className = 'tw-attack-info-status';
                 
-                if (type === 'success') {
-                    statusMsg.classList.add('tw-attack-status-success');
-                } else if (type === 'error') {
-                    statusMsg.classList.add('tw-attack-status-error');
+                switch(type) {
+                    case 'success':
+                        statusMsg.classList.add('tw-attack-status-success');
+                        break;
+                    case 'error':
+                        statusMsg.classList.add('tw-attack-status-error');
+                        break;
+                    case 'info':
+                        statusMsg.classList.add('tw-attack-status-info');
+                        break;
                 }
                 
                 setTimeout(() => {
