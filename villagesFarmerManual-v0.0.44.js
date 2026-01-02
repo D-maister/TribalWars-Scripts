@@ -2722,6 +2722,17 @@
                 }
             }, 5 * 60 * 1000);
         }
+
+        // Create title container with title and auto-attack button
+        var titleContainer = document.createElement('div');
+        titleContainer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4CAF50;
+        `;
         
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
