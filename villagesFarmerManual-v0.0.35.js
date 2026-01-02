@@ -653,24 +653,39 @@
             background: linear-gradient(to right, #9C27B0, #7B1FA2);
         }
         
-        .tw-attack-info-build-btn.checked {
-            box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
+        /* Disabled state - completely grayed out */
+        .tw-attack-info-build-btn.disabled {
+            background: linear-gradient(to right, #cccccc, #999999) !important;
+            color: #666666 !important;
+            cursor: not-allowed !important;
+            opacity: 0.5 !important;
         }
         
-        .tw-attack-info-build-btn:not(.checked) {
+        .tw-attack-info-build-btn.disabled:hover {
+            transform: none !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* Enabled state */
+        .tw-attack-info-build-btn.checked {
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
+            opacity: 1;
+        }
+        
+        /* Disabled (not checked) but available state */
+        .tw-attack-info-build-btn:not(.checked):not(.disabled) {
             opacity: 0.6;
         }
         
-        .tw-attack-info-build-btn:disabled,
+        /* On cooldown state */
         .tw-attack-info-build-btn.on-cooldown {
-            opacity: 0.5;
-            cursor: not-allowed;
+            opacity: 0.7;
+            cursor: pointer; /* Still clickable to disable */
         }
         
-        .tw-attack-info-build-btn:disabled:hover,
         .tw-attack-info-build-btn.on-cooldown:hover {
-            transform: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
         
         .tw-attack-info-cooldown-indicator {
@@ -689,6 +704,11 @@
         
         .tw-attack-info-cooldown-indicator.ready {
             background: #4CAF50;
+        }
+        
+        .tw-attack-info-cooldown-indicator.disabled {
+            background: #cccccc;
+            color: #666666;
         }
         
         .tw-attack-info-actions {
@@ -717,13 +737,15 @@
         }
         
         .tw-attack-info-action-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+            background: linear-gradient(to right, #cccccc, #999999) !important;
+            color: #666666 !important;
+            cursor: not-allowed !important;
+            opacity: 0.5 !important;
+            transform: none !important;
         }
         
         .tw-attack-info-action-btn:disabled:hover {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         }
         
         .tw-attack-info-ignore-btn {
@@ -2076,11 +2098,8 @@
         ['A', 'B', 'C'].forEach(function(buildKey) {
             var isBuildEnabledInSettings = buildSettings[buildKey] !== false;
             var isBuildEnabledForTarget = targetBuildSettings[buildKey];
-            
-            // Only create button if build is enabled in settings
-            if (!isBuildEnabledInSettings) {
-                return;
-            }
+            var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
+            var isOnCooldown = cooldownInfo.onCooldown;
             
             var btnContainer = document.createElement('div');
             btnContainer.className = 'tw-attack-info-build-container';
@@ -2091,17 +2110,50 @@
             btn.textContent = 'Build ' + buildKey;
             btn.dataset.build = buildKey;
             
-            // Check if build is enabled for this target
-            if (isBuildEnabledForTarget) {
-                btn.classList.add('checked');
+            // Check if build is enabled in settings
+            if (!isBuildEnabledInSettings) {
+                btn.classList.add('disabled');
+                btn.disabled = true;
+                btn.title = 'Build ' + buildKey + ' is disabled in settings';
+            } else {
+                // Check if build is enabled for this target
+                if (isBuildEnabledForTarget) {
+                    btn.classList.add('checked');
+                    btn.title = 'Build ' + buildKey + ' enabled for this village';
+                } else {
+                    btn.title = 'Build ' + buildKey + ' disabled for this village';
+                }
+                
+                // Add cooldown information to title
+                if (isOnCooldown) {
+                    btn.title += ' (On cooldown: ' + cooldownInfo.minutesLeft + 'm remaining)';
+                } else {
+                    btn.title += ' (Ready, cooldown: ' + cooldownInfo.cooldown + 'm)';
+                }
             }
             
             // Add cooldown indicator
-            var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
             var cooldownIndicator = document.createElement('span');
             cooldownIndicator.className = 'tw-attack-info-cooldown-indicator';
             
-            if (cooldownInfo.onCooldown) {
+            if (!isBuildEnabledInSettings) {
+                // Build disabled in settings - gray indicator
+                cooldownIndicator.textContent = '✕';
+                cooldownIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    background: #cccccc;
+                    color: #666;
+                    font-size: 9px;
+                    padding: 1px 3px;
+                    border-radius: 8px;
+                    border: 1px solid white;
+                    font-weight: bold;
+                    z-index: 2;
+                `;
+            } else if (isOnCooldown) {
+                // Build on cooldown - red indicator
                 cooldownIndicator.textContent = cooldownInfo.minutesLeft + 'm';
                 cooldownIndicator.style.cssText = `
                     position: absolute;
@@ -2116,9 +2168,11 @@
                     font-weight: bold;
                     z-index: 2;
                 `;
-                btn.style.opacity = '0.7';
-                btn.title = 'Build ' + buildKey + ' on cooldown: ' + cooldownInfo.minutesLeft + ' minutes remaining';
+                if (isBuildEnabledForTarget) {
+                    btn.style.opacity = '0.7';
+                }
             } else {
+                // Build ready - green indicator
                 cooldownIndicator.textContent = '✓';
                 cooldownIndicator.style.cssText = `
                     position: absolute;
@@ -2133,22 +2187,20 @@
                     font-weight: bold;
                     z-index: 2;
                 `;
-                btn.title = 'Build ' + buildKey + ' ready (cooldown: ' + cooldownInfo.cooldown + ' minutes)';
             }
             
             btnContainer.appendChild(btn);
             btnContainer.appendChild(cooldownIndicator);
             
-            btn.onclick = (function(buildKey, coords, isBuildEnabledForTarget) {
+            btn.onclick = (function(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget, isOnCooldown) {
                 return function() {
-                    var isChecked = this.classList.contains('checked');
-                    var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
-                    
-                    // Check if build is on cooldown
-                    if (cooldownInfo.onCooldown) {
-                        showStatus('Build ' + buildKey + ' is on cooldown for ' + coords + ' (' + cooldownInfo.minutesLeft + 'm remaining)', 'error');
+                    // Don't do anything if build is disabled in settings
+                    if (!isBuildEnabledInSettings) {
+                        showStatus('Build ' + buildKey + ' is disabled in settings. Enable it in the attack config first.', 'error');
                         return;
                     }
+                    
+                    var isChecked = this.classList.contains('checked');
                     
                     if (!isInTargetList && !isChecked) {
                         // Add to target list with this build enabled
@@ -2170,15 +2222,20 @@
                         // Toggle build for existing target
                         var newState = !isChecked;
                         setTargetBuild(coords, buildKey, newState);
+                        
                         if (newState) {
                             this.classList.add('checked');
+                            showStatus('Build ' + buildKey + ' enabled for ' + coords, 'success');
                         } else {
                             this.classList.remove('checked');
+                            showStatus('Build ' + buildKey + ' disabled for ' + coords, 'success');
                         }
-                        showStatus('Build ' + buildKey + ' ' + (newState ? 'enabled' : 'disabled') + ' for ' + coords, 'success');
+                        
+                        // Refresh the panel to update visual state
+                        setTimeout(createInfoVillagePanel, 100);
                     }
                 };
-            })(buildKey, coords, isBuildEnabledForTarget);
+            })(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget, isOnCooldown);
             
             buildButtons.appendChild(btnContainer);
         });
