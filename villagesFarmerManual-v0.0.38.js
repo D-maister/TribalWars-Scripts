@@ -1629,7 +1629,8 @@
         // Check if we're on the correct place page
         // Should be: screen=place AND (mode=command OR no mode parameter)
         // Should NOT be: screen=place&mode=sim or other modes
-        var hasScreenPlace = currentUrl.includes('screen=place');
+        var isScreenPlace = currentUrl.endsWith('screen=place');
+        var hasVillageId = currentUrl.includes('screen=place&village=')
         var hasModeCommand = currentUrl.includes('mode=command');
         var hasModeSim = currentUrl.includes('mode=sim');
         var hasModeOther = currentUrl.match(/mode=[^&]+/) && !hasModeCommand;
@@ -1642,7 +1643,7 @@
         
         var isValidAttackPage = false;
         
-        if (hasScreenPlace) {
+        if (isScreenPlace || hasVillageId) {
             if (hasModeCommand) {
                 // screen=place&mode=command is valid
                 isValidAttackPage = true;
@@ -1758,7 +1759,8 @@
         
         // Check if we're on a valid attack page
         var currentUrl = location.href;
-        var hasScreenPlace = currentUrl.includes('screen=place');
+        var isScreenPlace = currentUrl.endsWith('screen=place');
+        var hasVillageId = currentUrl.includes('screen=place&village=')
         var hasModeCommand = currentUrl.includes('mode=command');
         var hasModeSim = currentUrl.includes('mode=sim');
         var hasModeOther = currentUrl.match(/mode=[^&]+/) && !hasModeCommand;
@@ -1766,7 +1768,7 @@
         
         var isValidAttackPage = false;
         
-        if (hasScreenPlace) {
+        if (isScreenPlace || hasVillageId) {
             if (hasModeCommand) {
                 isValidAttackPage = true;
             } else if (!hasModeSim && !hasModeOther && !hasTryConfirm) {
