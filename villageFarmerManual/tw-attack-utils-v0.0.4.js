@@ -139,6 +139,20 @@
             return 'https://' + window.TWAttack.state.currentWorld + '.voynaplemyon.com/map/village.txt';
         },
         
+        // Updated (supports both):
+        getVillageTxtUrl: function() {
+            var url = window.location.href;
+            var domain = 'voynaplemyon.com'; // default
+            
+            if (url.includes('tribalwars.net')) {
+                domain = 'tribalwars.net';
+            } else if (url.includes('voynaplemyon.com')) {
+                domain = 'voynaplemyon.com';
+            }
+            
+            return 'https://' + window.TWAttack.state.currentWorld + '.' + domain + '/map/village.txt';
+        },
+        
         // Parse village text
         parseVillageText: function(text, maxDistance) {
             try {
