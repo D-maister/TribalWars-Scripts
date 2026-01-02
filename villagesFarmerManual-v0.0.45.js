@@ -1013,12 +1013,71 @@
         autoAttackBuilds: { A: true, B: false, C: false }
     };
 
-    // ===== UTILITY FUNCTIONS =====
-    
+    // ===== UTILITY FUNCTIONS =====    
     function getWorldName() {
         var url = window.location.href;
+        // Check for voynaplemyon.com
         var match = url.match(/https?:\/\/([^\/]+?)\.voynaplemyon\./);
-        return match ? match[1] : "unknown";
+        if (match) return match[1];
+        
+        // Check for tribalwars.net
+        match = url.match(/https?:\/\/([^\/]+?)\.tribalwars\.net/);
+        if (match) return match[1];
+        
+        // Check for other common tribal wars domains
+        match = url.match(/https?:\/\/([^\/]+?)\.tribalwars\./);
+        if (match) return match[1];
+        
+        return "unknown";
+    }
+
+    function getCurrentDomain() {
+        var url = window.location.href;
+        var match = url.match(/https?:\/\/([^\/]+?)\//);
+        return match ? match[1] : window.location.hostname;
+    }
+    
+    function getCurrentVillageId() {
+        // Try to extract village ID from URL
+        var url = window.location.href;
+        var match = url.match(/[?&]village=(\d+)/);
+        if (match) return match[1];
+        
+        // Try other common parameter names
+        match = url.match(/[?&]id=(\d+)/);
+        if (match) return match[1];
+        
+        // Try to get it from the page
+        var villageIdElement = document.querySelector('input[name="village"]');
+        if (villageIdElement) return villageIdElement.value;
+        
+        var villageIdSelect = document.querySelector('select[name="village"]');
+        if (villageIdSelect) return villageIdSelect.value;
+        
+        return '';
+    }
+    
+    function getVillageInfoUrl(villageId) {
+        var domain = getCurrentDomain();
+        if (villageId) {
+            return 'https://' + domain + '/game.php?screen=info_village&id=' + villageId;
+        }
+        return 'https://' + domain + '/game.php?screen=info_village';
+    }
+    
+    function getVillageTxtUrl() {
+        var worldName = getWorldName();
+        var domain = getCurrentDomain();
+        
+        // Check if we're on a known domain
+        if (domain.includes('voynaplemyon.com')) {
+            return 'https://' + worldName + '.voynaplemyon.com/map/village.txt';
+        } else if (domain.includes('tribalwars.net')) {
+            return 'https://' + worldName + '.tribalwars.net/map/village.txt';
+        } else {
+            // Generic fallback
+            return 'https://' + domain + '/map/village.txt';
+        }
     }
     
     function getCookie(name) {
@@ -2930,13 +2989,29 @@
         villageInfo.style.color = '#666';
         
         var villageUrl = document.createElement('div');
-        villageUrl.style.cssText = `margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;`;
+        villageUrl.style.cssText = `
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        `;
         
-        var urlLink = document.createElement('a');
-        urlLink.href = getVillageTxtUrl();
-        urlLink.textContent = '📥 Download village.txt';
-        urlLink.target = '_blank';
-        urlLink.style.cssText = `
+        // Create a container for the links
+        var linksContainer = document.createElement('div');
+        linksContainer.style.cssText = `
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        `;
+        
+        // Village.txt link
+        var txtLink = document.createElement('a');
+        txtLink.href = getVillageTxtUrl();
+        txtLink.textContent = '📥 village.txt';
+        txtLink.target = '_blank';
+        txtLink.style.cssText = `
             color: #2196F3;
             text-decoration: none;
             font-weight: bold;
@@ -2945,21 +3020,93 @@
             background: #e3f2fd;
             border-radius: 4px;
             border: 1px solid #bbdefb;
-            transition: background 0.2s;
+            transition: all 0.2s;
             font-size: 11px;
+            flex: 1;
+            text-align: center;
+            min-width: 120px;
         `;
-        urlLink.onmouseover = function() { this.style.background = '#bbdefb'; };
-        urlLink.onmouseout = function() { this.style.background = '#e3f2fd'; };
-        urlLink.onclick = function(e) {
+        txtLink.onmouseover = function() { 
+            this.style.background = '#bbdefb'; 
+            this.style.transform = 'translateY(-1px)';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        };
+        txtLink.onmouseout = function() { 
+            this.style.background = '#e3f2fd'; 
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        };
+        txtLink.onclick = function(e) {
             e.preventDefault();
             window.open(this.href, '_blank');
         };
+        txtLink.title = 'Download village.txt map data';
+        
+        // Villages info link
+        var infoLink = document.createElement('a');
+        infoLink.href = 'https://' + getCurrentDomain() + '/game.php?screen=info_village&id=' + getCurrentVillageId();
+        infoLink.textContent = '📊 Village Info';
+        infoLink.target = '_blank';
+        infoLink.style.cssText = `
+            color: #9C27B0;
+            text-decoration: none;
+            font-weight: bold;
+            display: inline-block;
+            padding: 4px 8px;
+            background: #f3e5f5;
+            border-radius: 4px;
+            border: 1px solid #e1bee7;
+            transition: all 0.2s;
+            font-size: 11px;
+            flex: 1;
+            text-align: center;
+            min-width: 120px;
+        `;
+        infoLink.onmouseover = function() { 
+            this.style.background = '#e1bee7'; 
+            this.style.transform = 'translateY(-1px)';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        };
+        infoLink.onmouseout = function() { 
+            this.style.background = '#f3e5f5'; 
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        };
+        infoLink.onclick = function(e) {
+            e.preventDefault();
+            window.open(this.href, '_blank');
+        };
+        infoLink.title = 'Open current village info page';
+        
+        // Add links to container
+        linksContainer.appendChild(txtLink);
+        linksContainer.appendChild(infoLink);
         
         var urlHelp = document.createElement('div');
-        urlHelp.textContent = 'Open, copy all text, paste below:';
+        urlHelp.innerHTML = '<strong>Instructions:</strong> Open village.txt, copy all text, paste below';
         urlHelp.style.fontSize = '10px';
         urlHelp.style.color = '#666';
         urlHelp.style.marginTop = '4px';
+        
+        // Add helper functions to get current domain and village ID
+        function getCurrentDomain() {
+            var url = window.location.href;
+            var match = url.match(/https?:\/\/([^\/]+?)\//);
+            return match ? match[1] : window.location.hostname;
+        }
+        
+        function getCurrentVillageId() {
+            // Try to extract village ID from URL
+            var url = window.location.href;
+            var match = url.match(/[?&]village=(\d+)/);
+            if (match) return match[1];
+            
+            // Try to get it from the page
+            var villageIdElement = document.querySelector('input[name="village"]');
+            if (villageIdElement) return villageIdElement.value;
+            
+            return '';
+        }
         
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
