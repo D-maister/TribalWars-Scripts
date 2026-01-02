@@ -598,7 +598,14 @@
             if (!targetsList) return;
             
             targetsList.innerHTML = '';
-            var targets = window.TWAttack.targets.getCurrent();
+            
+            // Get targets
+            var targets = [];
+            if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.getCurrent === 'function') {
+                targets = window.TWAttack.targets.getCurrent();
+            } else if (window.TWAttack.state && window.TWAttack.state.targetList) {
+                targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+            }
             
             if (targets.length === 0) {
                 targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 15px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd; font-size: 12px;">No targets in list for ' + window.TWAttack.state.currentWorld + '</div>';
@@ -624,10 +631,11 @@
                 targetCoords.textContent = target;
                 targetCoords.style.minWidth = '60px';
                 
-                // Try to get village data from storage
+                // Get village data from storage
                 var villageData = { name: "Unknown Village", points: 0, playerNumber: 0, isBonus: false };
                 var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData);
-                if (allVillageData && allVillageData[window.TWAttack.state.currentWorld] && allVillageData[window.TWAttack.state.currentWorld][target]) {
+                if (allVillageData && allVillageData[window.TWAttack.state.currentWorld] && 
+                    allVillageData[window.TWAttack.state.currentWorld][target]) {
                     villageData = allVillageData[window.TWAttack.state.currentWorld][target];
                 }
                 
@@ -640,7 +648,7 @@
                     displayName = displayName.substring(0, 15) + '...';
                 }
                 villageName.textContent = displayName;
-                villageName.title = villageData.name; // Show full name on hover
+                villageName.title = villageData.name;
                 
                 // Create village type tag
                 var villageTag = document.createElement('span');
@@ -690,7 +698,14 @@
                 var allCooldownMinutes = [];
                 
                 ['A', 'B', 'C'].forEach(function(buildKey) {
-                    if (window.TWAttack.builds.get(target, buildKey) && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
+                    var isEnabled = false;
+                    if (window.TWAttack && window.TWAttack.builds && typeof window.TWAttack.builds.get === 'function') {
+                        isEnabled = window.TWAttack.builds.get(target, buildKey);
+                    } else if (window.TWAttack.state.targetBuilds[target]) {
+                        isEnabled = window.TWAttack.state.targetBuilds[target][buildKey] || false;
+                    }
+                    
+                    if (isEnabled && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
                         var buildCooldown = window.TWAttack.utils.getBuildCooldownInfo(target, buildKey);
                         if (buildCooldown.onCooldown) {
                             hasCooldown = true;
@@ -745,7 +760,13 @@
                 actionButtons.className = 'tw-attack-action-buttons';
                 
                 ['A', 'B', 'C'].forEach(function(buildKey) {
-                    var isEnabled = window.TWAttack.builds.get(target, buildKey);
+                    var isEnabled = false;
+                    if (window.TWAttack && window.TWAttack.builds && typeof window.TWAttack.builds.get === 'function') {
+                        isEnabled = window.TWAttack.builds.get(target, buildKey);
+                    } else if (window.TWAttack.state.targetBuilds[target]) {
+                        isEnabled = window.TWAttack.state.targetBuilds[target][buildKey] || false;
+                    }
+                    
                     var btn = document.createElement('button');
                     btn.textContent = buildKey;
                     btn.className = 'tw-attack-action-btn tw-attack-action-btn-checkbox';
@@ -773,8 +794,16 @@
                     btn.onclick = (function(buildKey, targetCoords) {
                         return function(e) {
                             e.stopPropagation();
-                            var newState = !window.TWAttack.builds.get(targetCoords, buildKey);
-                            window.TWAttack.builds.set(targetCoords, buildKey, newState);
+                            var newState = !isEnabled;
+                            if (window.TWAttack && window.TWAttack.builds && typeof window.TWAttack.builds.set === 'function') {
+                                window.TWAttack.builds.set(targetCoords, buildKey, newState);
+                            } else {
+                                if (!window.TWAttack.state.targetBuilds[targetCoords]) {
+                                    window.TWAttack.state.targetBuilds[targetCoords] = { A: true, B: true, C: true };
+                                }
+                                window.TWAttack.state.targetBuilds[targetCoords][buildKey] = newState;
+                                window.TWAttack.saveState();
+                            }
                             AttackModule.updateTargetsListUI();
                         };
                     })(buildKey, target);
@@ -790,7 +819,14 @@
                 // Check if any build is ready
                 var anyBuildReady = false;
                 ['A', 'B', 'C'].forEach(function(buildKey) {
-                    if (window.TWAttack.builds.get(target, buildKey) && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
+                    var isEnabled = false;
+                    if (window.TWAttack && window.TWAttack.builds && typeof window.TWAttack.builds.get === 'function') {
+                        isEnabled = window.TWAttack.builds.get(target, buildKey);
+                    } else if (window.TWAttack.state.targetBuilds[target]) {
+                        isEnabled = window.TWAttack.state.targetBuilds[target][buildKey] || false;
+                    }
+                    
+                    if (isEnabled && window.TWAttack.state.settings.autoAttackBuilds[buildKey]) {
                         var buildCooldown = window.TWAttack.utils.getBuildCooldownInfo(target, buildKey);
                         if (!buildCooldown.onCooldown) {
                             anyBuildReady = true;
@@ -828,7 +864,17 @@
                             window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
                             
                             // Remove from target list
-                            window.TWAttack.targets.remove(targetCoords);
+                            if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.remove === 'function') {
+                                window.TWAttack.targets.remove(targetCoords);
+                            } else {
+                                var targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+                                var index = targets.indexOf(targetCoords);
+                                if (index !== -1) {
+                                    targets.splice(index, 1);
+                                    window.TWAttack.state.targetList = targets.join(' ');
+                                    window.TWAttack.saveState();
+                                }
+                            }
                             
                             // Show success message
                             var villageType = villageData.isBonus ? 'Bonus village' : 
@@ -847,7 +893,21 @@
                 removeBtn.className = 'tw-attack-remove-btn';
                 removeBtn.onclick = (function(targetToRemove, villageData) {
                     return function() {
-                        if (window.TWAttack.targets.remove(targetToRemove)) {
+                        var removed = false;
+                        if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.remove === 'function') {
+                            removed = window.TWAttack.targets.remove(targetToRemove);
+                        } else {
+                            var targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+                            var index = targets.indexOf(targetToRemove);
+                            if (index !== -1) {
+                                targets.splice(index, 1);
+                                window.TWAttack.state.targetList = targets.join(' ');
+                                window.TWAttack.saveState();
+                                removed = true;
+                            }
+                        }
+                        
+                        if (removed) {
                             var villageType = villageData.isBonus ? 'Bonus village' : 
                                             villageData.playerNumber > 0 ? 'Player village' : 'Barbarian village';
                             window.TWAttack.utils.showStatus(villageType + ' ' + targetToRemove + ' removed from target list', 'success');
@@ -961,6 +1021,7 @@
                 
                 window.TWAttack.utils.recordBuildAttack(target, buildKey);
                 window.TWAttack.utils.showStatus('Target ' + target + ' prepared with Build ' + buildKey + '! Click "Place" button to send.', 'success');
+                this.updateTargetsListUI();
                 
                 // Auto-click submit button
                 setTimeout(function() {
@@ -1011,7 +1072,14 @@
             
             window.TWAttack.utils.cleanupOldHistory();
             
-            var targets = window.TWAttack.targets.getCurrent();
+            // Get targets
+            var targets = [];
+            if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.getCurrent === 'function') {
+                targets = window.TWAttack.targets.getCurrent();
+            } else if (window.TWAttack.state && window.TWAttack.state.targetList) {
+                targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+            }
+            
             if (targets.length === 0) {
                 window.TWAttack.utils.showStatus('No targets in list for auto-attack', 'error');
                 
