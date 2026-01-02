@@ -21,49 +21,7 @@
             
             console.log('TW Attack: Searching for coordinates on info_village page');
             
-            // Method 1: Look in the page title (most reliable)
-            var title = document.querySelector('head > title');
-            if (title) {
-                var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
-                if (match) {
-                    console.log('TW Attack: Found coordinates in title:', match[1] + '|' + match[2]);
-                    return match[1] + "|" + match[2];
-                }
-            }
-            
-            // Method 2: Look for village header with coordinates
-            var villageHeaders = document.querySelectorAll('h1, h2, h3, .village-name, .title-inline');
-            for (var i = 0; i < villageHeaders.length; i++) {
-                var text = villageHeaders[i].textContent;
-                var match = text.match(/\((\d+)\s*\|\s*(\d+)\)/);
-                if (match) {
-                    console.log('TW Attack: Found coordinates in header:', match[1] + '|' + match[2]);
-                    return match[1].trim() + '|' + match[2].trim();
-                }
-            }
-            
-            // Method 3: Look in table cells with coordinate patterns
-            var allCells = document.querySelectorAll('td');
-            for (var i = 0; i < allCells.length; i++) {
-                var cell = allCells[i];
-                var text = cell.textContent.trim();
-                
-                // Look for patterns like "123|456" or "(123|456)"
-                var match = text.match(/(\d+)\s*\|\s*(\d+)/);
-                if (match) {
-                    // Check if this looks like coordinates (reasonable numbers)
-                    var x = parseInt(match[1]);
-                    var y = parseInt(match[2]);
-                    if (x >= 0 && x <= 1000 && y >= 0 && y <= 1000) {
-                        console.log('TW Attack: Found coordinates in table cell:', x + '|' + y);
-                        return x + '|' + y;
-                    }
-                }
-            }
-            
-            // Method 4: Look for specific structures on info_village page
-            // On TribalWars, coordinates are often in a specific table structure
-            var contentValue = document.querySelector('td#content_value');
+           var contentValue = document.querySelector('td#content_value');
             if (contentValue) {
                 // Look for all text nodes with coordinate patterns
                 var walker = document.createTreeWalker(
