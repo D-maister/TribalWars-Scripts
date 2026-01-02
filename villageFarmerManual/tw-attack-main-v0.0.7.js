@@ -369,10 +369,6 @@
         
         // Target list management
         targets: {
-            getCurrent: function() {
-                return window.TWAttack.state.targetList.split(' ').filter(Boolean);
-            },
-            
             add: function(target, villageData) {
                 var targets = this.getCurrent();
                 if (targets.indexOf(target) === -1) {
@@ -384,21 +380,15 @@
                         window.TWAttack.state.targetBuilds[target] = { A: true, B: true, C: true };
                     }
                     
-                    window.TWAttack.saveState();
-                    return true;
-                }
-                return false;
-            },
-            
-            remove: function(target) {
-                var targets = this.getCurrent();
-                var index = targets.indexOf(target);
-                if (index !== -1) {
-                    targets.splice(index, 1);
-                    window.TWAttack.state.targetList = targets.join(' ');
-                    
-                    // Remove target builds
-                    delete window.TWAttack.state.targetBuilds[target];
+                    // Save village data if provided
+                    if (villageData) {
+                        var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData) || {};
+                        if (!allVillageData[window.TWAttack.state.currentWorld]) {
+                            allVillageData[window.TWAttack.state.currentWorld] = {};
+                        }
+                        allVillageData[window.TWAttack.state.currentWorld][target] = villageData;
+                        window.TWAttack.storage.set(window.TWAttack.config.storageKeys.villageData, allVillageData);
+                    }
                     
                     window.TWAttack.saveState();
                     return true;
