@@ -12,7 +12,7 @@
             styles: 'tw-attack-styles-v0.0.1.js',
             attack: 'tw-attack-attack-v0.0.6.js',
             submit: 'tw-attack-submit-v0.0.1.js',
-            village: 'tw-attack-village-v0.0.7.js',
+            village: 'tw-attack-village-v0.0.8.js',
             utils: 'tw-attack-utils-v0.0.1.js'
         },
         storageKeys: {
@@ -27,7 +27,7 @@
         },
         defaultCooldown: 30
     };   
-
+    
     // Global state
     window.TWAttack = {
         config: CONFIG,
@@ -87,27 +87,54 @@
         // Utility functions
         utils: {
             getWorldName: function() {
-                var url = window.location.href;
-                
-                // Try to extract world name from URL patterns
-                // Pattern 1: https://en147.tribalwars.net/...
-                // Pattern 2: https://pl101.voynaplemyon.com/...
-                var match = url.match(/https?:\/\/([^\/\.]+)\.(tribalwars\.net|voynaplemyon\.com)/);
-                if (match) {
-                    return match[1]; // Returns en147, pl101, etc.
-                }
-                
-                // Alternative pattern for subdomains
                 var hostname = window.location.hostname;
+                console.log('TW Attack: Hostname detected:', hostname);
+                
+                // Examples:
+                // - en152.tribalwars.net → en152
+                // - pl101.voynaplemyon.com → pl101
+                // - www.voynaplemyon.com → unknown (but shouldn't happen for game pages)
+                
                 var parts = hostname.split('.');
-                if (parts.length >= 3) {
-                    // Check if first part looks like a world code (en147, pl101, etc.)
+                if (parts.length >= 2) {
+                    // The first part should be the world name
                     var worldCode = parts[0];
-                    if (worldCode.match(/^[a-z]{2}\d+$/)) {
+                    
+                    // Validate it looks like a world code (like en152, pl101, etc.)
+                    // Pattern: 2 letters followed by numbers
+                    if (worldCode.match(/^[a-z]{2}\d+$/i)) {
+                        console.log('TW Attack: World code extracted:', worldCode);
+                        return worldCode;
+                    }
+                    
+                    // Also accept numeric-only codes (for some servers)
+                    if (worldCode.match(/^\d+$/)) {
+                        console.log('TW Attack: Numeric world code extracted:', worldCode);
                         return worldCode;
                     }
                 }
                 
+                // Fallback: try to extract from URL
+                var url = window.location.href;
+                console.log('TW Attack: URL for fallback:', url);
+                
+                // Try different patterns
+                var patterns = [
+                    /https?:\/\/([^\/\.]+)\.tribalwars\.net/i,
+                    /https?:\/\/([^\/\.]+)\.voynaplemyon\.com/i,
+                    /[&?]world=([^&]+)/i,
+                    /[&?]server=([^&]+)/i
+                ];
+                
+                for (var i = 0; i < patterns.length; i++) {
+                    var match = url.match(patterns[i]);
+                    if (match && match[1]) {
+                        console.log('TW Attack: World name from pattern', i, ':', match[1]);
+                        return match[1];
+                    }
+                }
+                
+                console.log('TW Attack: Could not determine world name, using "unknown"');
                 return "unknown";
             },
             
@@ -200,11 +227,15 @@
                     fullSrc = CONFIG.baseUrl + src;
                 }
                 
+                console.log('TW Attack: Loading script:', fullSrc);
                 return new Promise(function(resolve, reject) {
                     var script = document.createElement('script');
                     script.src = fullSrc;
                     script.onload = resolve;
-                    script.onerror = reject;
+                    script.onerror = function(err) {
+                        console.error('TW Attack: Failed to load script:', fullSrc, err);
+                        reject(err);
+                    };
                     document.head.appendChild(script);
                 });
             },
@@ -222,6 +253,7 @@
             },
             
             loadAll: function() {
+                console.log('TW Attack: Starting to load all modules');
                 var modules = ['styles', 'utils', 'attack', 'submit', 'village'];
                 var promises = modules.map(function(module) {
                     return window.TWAttack.loader.loadModule(module);
@@ -238,26 +270,37 @@
         initialize: function() {
             if (window.TWAttack.state.isInitialized) return;
             
+            console.log('TW Attack: Initializing...');
+            
             // Load state
             window.TWAttack.state.currentWorld = window.TWAttack.utils.getWorldName();
             window.TWAttack.state.homeCoords = window.TWAttack.utils.getCurrentVillageCoords();
+            
+            console.log('TW Attack: Current world:', window.TWAttack.state.currentWorld);
+            console.log('TW Attack: Home coords:', window.TWAttack.state.homeCoords);
+            console.log('TW Attack: Current URL:', window.location.href);
             
             // Load from storage
             this.loadState();
             
             // Initialize based on page type
             if (window.TWAttack.pages.isInfoVillage()) {
+                console.log('TW Attack: Info village page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.village) {
                     window.TWAttack.modules.village.initialize();
                 }
             } else if (window.TWAttack.pages.isAttackPage()) {
+                console.log('TW Attack: Attack page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.attack) {
                     window.TWAttack.modules.attack.initialize();
                 }
             } else if (window.TWAttack.pages.isSubmitPage()) {
+                console.log('TW Attack: Submit page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.submit) {
                     window.TWAttack.modules.submit.initialize();
                 }
+            } else {
+                console.log('TW Attack: Other page, no config UI will be shown');
             }
             // No else block - don't show config on other pages
             
@@ -268,10 +311,12 @@
         // Load state from storage
         loadState: function() {
             var world = window.TWAttack.state.currentWorld;
+            console.log('TW Attack: Loading state for world:', world);
             
             // Load targets
             var allTargets = this.storage.get(CONFIG.storageKeys.targets);
             window.TWAttack.state.targetList = (allTargets && allTargets[world]) ? allTargets[world] : "";
+            console.log('TW Attack: Loaded targets:', window.TWAttack.state.targetList);
             
             // Load builds
             var allBuilds = this.storage.get(CONFIG.storageKeys.builds);
@@ -315,6 +360,7 @@
         // Save state to storage
         saveState: function() {
             var world = window.TWAttack.state.currentWorld;
+            console.log('TW Attack: Saving state for world:', world);
             
             // Save targets
             var allTargets = this.storage.get(CONFIG.storageKeys.targets) || {};
@@ -374,6 +420,7 @@
                     }
                     
                     window.TWAttack.saveState();
+                    console.log('TW Attack: Target added:', target);
                     return true;
                 }
                 return false;
@@ -398,6 +445,7 @@
                     }
                     
                     window.TWAttack.saveState();
+                    console.log('TW Attack: Target removed:', target);
                     return true;
                 }
                 return false;
@@ -416,6 +464,7 @@
                 }
                 
                 window.TWAttack.saveState();
+                console.log('TW Attack: All targets cleared for world:', world);
             }
         },
         
@@ -435,6 +484,7 @@
                 }
                 window.TWAttack.state.targetBuilds[target][buildKey] = enabled;
                 window.TWAttack.saveState();
+                console.log('TW Attack: Build', buildKey, 'for target', target, 'set to', enabled);
             }
         },
         
@@ -449,6 +499,7 @@
     };
     
     // Start loading
+    console.log('TW Attack: Starting script loader');
     window.TWAttack.loader.loadAll();
     
 })();
