@@ -582,11 +582,14 @@
             padding: 15px;
             margin: 15px 0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 400px;
+            box-sizing: border-box;
         }
         
         .tw-attack-info-title {
             margin-top: 0;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             color: #333;
             border-bottom: 2px solid #4CAF50;
             padding-bottom: 8px;
@@ -598,7 +601,7 @@
             font-weight: bold;
             font-size: 18px;
             color: #333;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             text-align: center;
             background: #f8f9fa;
             padding: 8px;
@@ -608,22 +611,25 @@
         
         .tw-attack-info-build-buttons {
             display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 12px;
             justify-content: center;
+            flex-wrap: wrap;
         }
         
         .tw-attack-info-build-btn {
             color: white;
             border: none;
-            padding: 8px 15px;
+            padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
             font-size: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-            min-width: 60px;
+            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            min-width: 70px;
+            flex: 1;
+            max-width: 100px;
         }
         
         .tw-attack-info-build-btn:hover {
@@ -645,11 +651,16 @@
         
         .tw-attack-info-build-btn.checked {
             box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
+            opacity: 0.9;
+        }
+        
+        .tw-attack-info-build-btn:not(.checked) {
+            opacity: 0.7;
         }
         
         .tw-attack-info-actions {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             justify-content: center;
         }
         
@@ -663,6 +674,8 @@
             color: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
+            flex: 1;
+            max-width: 120px;
         }
         
         .tw-attack-info-action-btn:hover {
@@ -679,10 +692,24 @@
         }
         
         .tw-attack-info-status {
-            margin-top: 15px;
-            padding: 8px;
+            margin-top: 12px;
+            padding: 6px;
             border-radius: 6px;
             display: none;
+            font-size: 11px;
+            text-align: center;
+        }
+        
+        .tw-attack-info-status.tw-attack-status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .tw-attack-info-status.tw-attack-status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         
         /* Submit loading overlay */
@@ -1973,17 +2000,24 @@
             return;
         }
         
+        // Check if panel already exists
+        var existingPanel = document.getElementById('tw-attack-info-panel');
+        if (existingPanel) {
+            existingPanel.remove();
+        }
+        
         // Check if village is in target list
         var isInTargetList = getCurrentTargets().includes(coords);
         var targetBuildSettings = isInTargetList ? getTargetBuilds(coords) : { A: false, B: false, C: false };
         
         // Create panel
         var panel = document.createElement('div');
+        panel.id = 'tw-attack-info-panel';
         panel.className = 'tw-attack-info-panel';
         
         var title = document.createElement('h3');
         title.className = 'tw-attack-info-title';
-        title.textContent = 'TW Attack Control';
+        title.textContent = '⚔️ TW Attack Control';
         
         var coordsDisplay = document.createElement('div');
         coordsDisplay.className = 'tw-attack-info-coords';
@@ -2080,16 +2114,23 @@
         panel.appendChild(actionButtons);
         panel.appendChild(statusMsg);
         
-        // Find where to insert the panel
-        var container = document.querySelector('#content_value > div.commands-container-outer');
-        if (container) {
-            container.insertBefore(panel, container.firstChild);
+        // Find the minimap div and insert panel right after it
+        var minimap = document.querySelector('div#minimap');
+        if (minimap && minimap.parentNode) {
+            // Insert the panel right after the minimap
+            minimap.parentNode.insertBefore(panel, minimap.nextSibling);
         } else {
-            // Fallback to body
-            document.body.insertBefore(panel, document.body.firstChild);
+            // Fallback: find the commands container
+            var container = document.querySelector('#content_value > div.commands-container-outer');
+            if (container) {
+                container.insertBefore(panel, container.firstChild);
+            } else {
+                // Fallback to body
+                document.body.insertBefore(panel, document.body.firstChild);
+            }
         }
     }
-    
+   
     function findCoordinatesOnPage() {
         // Look for coordinates in various places
         var textNodes = document.evaluate('//text()[contains(., "|")]', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
