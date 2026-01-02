@@ -773,6 +773,29 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .tw-attack-info-toggle-btn.add {
+            background: linear-gradient(to right, #4CAF50, #45a049) !important;
+        }
+        
+        .tw-attack-info-toggle-btn.remove {
+            background: linear-gradient(to right, #ff4444, #ff3333) !important;
+        }
+        
+        .tw-attack-info-cooldown-indicator.disabled {
+            background: #cccccc !important;
+            color: #666666 !important;
+        }
+        
+        .tw-attack-info-cooldown-indicator.on-cooldown {
+            background: #ff6b6b !important;
+            color: white !important;
+        }
+        
+        .tw-attack-info-cooldown-indicator.ready {
+            background: #4CAF50 !important;
+            color: white !important;
+        }
         
         /* Submit loading overlay */
         .tw-submit-loading {
@@ -2122,13 +2145,19 @@
             return;
         }
         
-        // Check if panel already exists - if it does, just update it
+        // Check if panel already exists - if it does, update it instead of recreating
         var existingPanel = document.getElementById('tw-attack-info-panel');
         if (existingPanel) {
-            // Remove existing panel to recreate it
-            existingPanel.remove();
+            // Just update the existing panel without removing it
+            updateInfoVillagePanel(existingPanel, coords);
+            return;
         }
         
+        // Create new panel
+        createNewInfoVillagePanel(coords);
+    }
+    
+    function createNewInfoVillagePanel(coords) {
         // Check if village is in target list
         var isInTargetList = getCurrentTargets().includes(coords);
         var targetBuildSettings = isInTargetList ? getTargetBuilds(coords) : { A: false, B: false, C: false };
@@ -2167,6 +2196,7 @@
             btn.className = 'tw-attack-info-build-btn ' + buildKey.toLowerCase();
             btn.textContent = 'Build ' + buildKey;
             btn.dataset.build = buildKey;
+            btn.dataset.coords = coords;
             
             // Check if build is enabled in settings
             if (!isBuildEnabledInSettings) {
@@ -2194,107 +2224,31 @@
             // Add cooldown indicator
             var cooldownIndicator = document.createElement('span');
             cooldownIndicator.className = 'tw-attack-info-cooldown-indicator';
+            cooldownIndicator.dataset.build = buildKey;
+            cooldownIndicator.dataset.coords = coords;
             
             if (!isBuildEnabledInSettings) {
                 // Build disabled in settings - gray indicator
                 cooldownIndicator.textContent = '✕';
-                cooldownIndicator.style.cssText = `
-                    position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    background: #cccccc;
-                    color: #666;
-                    font-size: 9px;
-                    padding: 1px 3px;
-                    border-radius: 8px;
-                    border: 1px solid white;
-                    font-weight: bold;
-                    z-index: 2;
-                `;
+                cooldownIndicator.classList.add('disabled');
             } else if (isOnCooldown) {
                 // Build on cooldown - red indicator
                 cooldownIndicator.textContent = cooldownInfo.minutesLeft + 'm';
-                cooldownIndicator.style.cssText = `
-                    position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    background: #ff6b6b;
-                    color: white;
-                    font-size: 9px;
-                    padding: 1px 3px;
-                    border-radius: 8px;
-                    border: 1px solid white;
-                    font-weight: bold;
-                    z-index: 2;
-                `;
+                cooldownIndicator.classList.add('on-cooldown');
             } else {
                 // Build ready - green indicator
                 cooldownIndicator.textContent = '✓';
-                cooldownIndicator.style.cssText = `
-                    position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    background: #4CAF50;
-                    color: white;
-                    font-size: 9px;
-                    padding: 1px 3px;
-                    border-radius: 8px;
-                    border: 1px solid white;
-                    font-weight: bold;
-                    z-index: 2;
-                `;
+                cooldownIndicator.classList.add('ready');
             }
             
             btnContainer.appendChild(btn);
             btnContainer.appendChild(cooldownIndicator);
             
-            btn.onclick = (function(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget, isOnCooldown) {
+            btn.onclick = (function(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget) {
                 return function() {
-                    // Don't do anything if build is disabled in settings
-                    if (!isBuildEnabledInSettings) {
-                        showStatus('Build ' + buildKey + ' is disabled in settings. Enable it in the attack config first.', 'error');
-                        return;
-                    }
-                    
-                    var isChecked = this.classList.contains('checked');
-                    
-                    if (!isInTargetList && !isChecked) {
-                        // Add to target list with this build enabled
-                        var villageData = {
-                            name: "Village from Info Page",
-                            points: 0,
-                            playerNumber: 0,
-                            isBonus: false
-                        };
-                        addToTargetList(coords, villageData);
-                        setTargetBuild(coords, buildKey, true);
-                        isInTargetList = true;
-                        this.classList.remove('not-checked');
-                        this.classList.add('checked');
-                        showStatus('Village ' + coords + ' added to target list with Build ' + buildKey + ' enabled', 'success');
-                        
-                        // Refresh the panel to update everything
-                        setTimeout(createInfoVillagePanel, 100);
-                    } else if (isInTargetList) {
-                        // Toggle build for existing target
-                        var newState = !isChecked;
-                        setTargetBuild(coords, buildKey, newState);
-                        
-                        if (newState) {
-                            this.classList.remove('not-checked');
-                            this.classList.add('checked');
-                            showStatus('Build ' + buildKey + ' enabled for ' + coords, 'success');
-                        } else {
-                            this.classList.remove('checked');
-                            this.classList.add('not-checked');
-                            showStatus('Build ' + buildKey + ' disabled for ' + coords, 'success');
-                        }
-                        
-                        // Refresh the panel to update visual state
-                        setTimeout(createInfoVillagePanel, 100);
-                    }
+                    handleBuildButtonClick(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget);
                 };
-            })(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget, isOnCooldown);
+            })(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget);
             
             buildButtons.appendChild(btnContainer);
         });
@@ -2305,59 +2259,28 @@
         // Single toggle button for Add/Remove
         var toggleListBtn = document.createElement('button');
         toggleListBtn.className = 'tw-attack-info-action-btn tw-attack-info-toggle-btn';
+        toggleListBtn.dataset.coords = coords;
         
         if (isInTargetList) {
             toggleListBtn.textContent = 'Remove from List';
-            toggleListBtn.style.background = 'linear-gradient(to right, #ff4444, #ff3333)';
+            toggleListBtn.classList.add('remove');
             toggleListBtn.title = 'Remove village from target list';
         } else {
             toggleListBtn.textContent = 'Add to List';
-            toggleListBtn.style.background = 'linear-gradient(to right, #4CAF50, #45a049)';
+            toggleListBtn.classList.add('add');
             toggleListBtn.title = 'Add village to target list';
         }
         
         toggleListBtn.onclick = function() {
-            if (isInTargetList) {
-                // Remove from list
-                if (removeFromTargetList(coords)) {
-                    showStatus('Village ' + coords + ' removed from target list', 'success');
-                    // Refresh the panel instead of removing it
-                    setTimeout(createInfoVillagePanel, 100);
-                }
-            } else {
-                // Add to list (with all enabled builds disabled by default)
-                var villageData = {
-                    name: "Village from Info Page",
-                    points: 0,
-                    playerNumber: 0,
-                    isBonus: false
-                };
-                if (addToTargetList(coords, villageData)) {
-                    // By default, disable all builds when adding new village
-                    ['A', 'B', 'C'].forEach(function(buildKey) {
-                        if (buildSettings[buildKey]) {
-                            setTargetBuild(coords, buildKey, false);
-                        }
-                    });
-                    showStatus('Village ' + coords + ' added to target list', 'success');
-                    // Refresh the panel instead of removing it
-                    setTimeout(createInfoVillagePanel, 100);
-                }
-            }
+            handleToggleListButtonClick(coords, isInTargetList);
         };
         
         var ignoreBtn = document.createElement('button');
         ignoreBtn.className = 'tw-attack-info-action-btn tw-attack-info-ignore-btn';
         ignoreBtn.textContent = 'Ignore';
+        ignoreBtn.dataset.coords = coords;
         ignoreBtn.onclick = function() {
-            if (addToIgnoreList(coords)) {
-                if (isInTargetList) {
-                    removeFromTargetList(coords);
-                }
-                showStatus('Village ' + coords + ' added to ignore list', 'success');
-                // Refresh the panel instead of removing it
-                setTimeout(createInfoVillagePanel, 100);
-            }
+            handleIgnoreButtonClick(coords, isInTargetList);
         };
         
         var statusMsg = document.createElement('div');
@@ -2397,10 +2320,259 @@
             });
             
             if (enabledBuilds.length > 0) {
-                showStatus('Village in target list. Enabled builds: ' + enabledBuilds.join(', '), 'success');
+                showInfoStatus('Village in target list. Enabled builds: ' + enabledBuilds.join(', '), 'success');
             } else {
-                showStatus('Village in target list but no builds enabled', 'error');
+                showInfoStatus('Village in target list but no builds enabled', 'error');
             }
+        }
+    }
+    
+    function updateInfoVillagePanel(panel, coords) {
+        // Check if village is in target list
+        var isInTargetList = getCurrentTargets().includes(coords);
+        var targetBuildSettings = isInTargetList ? getTargetBuilds(coords) : { A: false, B: false, C: false };
+        
+        // Get build data from settings
+        var buildSettings = settings.autoAttackBuilds || { A: true, B: false, C: false };
+        
+        // Update build buttons
+        ['A', 'B', 'C'].forEach(function(buildKey) {
+            var isBuildEnabledInSettings = buildSettings[buildKey] !== false;
+            var isBuildEnabledForTarget = targetBuildSettings[buildKey];
+            var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
+            
+            var btn = panel.querySelector('.tw-attack-info-build-btn.' + buildKey.toLowerCase());
+            var cooldownIndicator = panel.querySelector('.tw-attack-info-cooldown-indicator[data-build="' + buildKey + '"]');
+            
+            if (btn && cooldownIndicator) {
+                // Update button state
+                if (!isBuildEnabledInSettings) {
+                    btn.classList.add('disabled');
+                    btn.classList.remove('checked', 'not-checked');
+                    btn.disabled = true;
+                    btn.title = 'Build ' + buildKey + ' is disabled in settings';
+                    
+                    cooldownIndicator.textContent = '✕';
+                    cooldownIndicator.className = 'tw-attack-info-cooldown-indicator disabled';
+                } else {
+                    btn.classList.remove('disabled');
+                    btn.disabled = false;
+                    
+                    if (isBuildEnabledForTarget) {
+                        btn.classList.add('checked');
+                        btn.classList.remove('not-checked');
+                        btn.title = 'Build ' + buildKey + ' enabled for this village';
+                    } else {
+                        btn.classList.add('not-checked');
+                        btn.classList.remove('checked');
+                        btn.title = 'Build ' + buildKey + ' disabled for this village';
+                    }
+                    
+                    // Update cooldown info
+                    if (cooldownInfo.onCooldown) {
+                        btn.title += ' (On cooldown: ' + cooldownInfo.minutesLeft + 'm remaining)';
+                        cooldownIndicator.textContent = cooldownInfo.minutesLeft + 'm';
+                        cooldownIndicator.className = 'tw-attack-info-cooldown-indicator on-cooldown';
+                    } else {
+                        btn.title += ' (Ready, cooldown: ' + cooldownInfo.cooldown + 'm)';
+                        cooldownIndicator.textContent = '✓';
+                        cooldownIndicator.className = 'tw-attack-info-cooldown-indicator ready';
+                    }
+                }
+            }
+        });
+        
+        // Update toggle button
+        var toggleBtn = panel.querySelector('.tw-attack-info-toggle-btn');
+        if (toggleBtn) {
+            if (isInTargetList) {
+                toggleBtn.textContent = 'Remove from List';
+                toggleBtn.classList.remove('add');
+                toggleBtn.classList.add('remove');
+                toggleBtn.title = 'Remove village from target list';
+            } else {
+                toggleBtn.textContent = 'Add to List';
+                toggleBtn.classList.remove('remove');
+                toggleBtn.classList.add('add');
+                toggleBtn.title = 'Add village to target list';
+            }
+            
+            // Update click handler with new state
+            toggleBtn.onclick = function() {
+                handleToggleListButtonClick(coords, isInTargetList);
+            };
+        }
+        
+        // Update ignore button click handler
+        var ignoreBtn = panel.querySelector('.tw-attack-info-ignore-btn');
+        if (ignoreBtn) {
+            ignoreBtn.onclick = function() {
+                handleIgnoreButtonClick(coords, isInTargetList);
+            };
+        }
+        
+        // Show status if village is already in target list
+        if (isInTargetList) {
+            var enabledBuilds = [];
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                if (targetBuildSettings[buildKey] && buildSettings[buildKey]) {
+                    enabledBuilds.push(buildKey);
+                }
+            });
+            
+            if (enabledBuilds.length > 0) {
+                showInfoStatus('Village in target list. Enabled builds: ' + enabledBuilds.join(', '), 'success');
+            } else {
+                showInfoStatus('Village in target list but no builds enabled', 'error');
+            }
+        }
+    }
+    
+    // Separate handler functions to avoid recursion
+    function handleBuildButtonClick(buildKey, coords, isBuildEnabledInSettings, isBuildEnabledForTarget) {
+        // Don't do anything if build is disabled in settings
+        if (!isBuildEnabledInSettings) {
+            showInfoStatus('Build ' + buildKey + ' is disabled in settings. Enable it in the attack config first.', 'error');
+            return;
+        }
+        
+        var isInTargetList = getCurrentTargets().includes(coords);
+        var isChecked = isBuildEnabledForTarget;
+        
+        if (!isInTargetList && !isChecked) {
+            // Add to target list with this build enabled
+            var villageData = {
+                name: "Village from Info Page",
+                points: 0,
+                playerNumber: 0,
+                isBonus: false
+            };
+            addToTargetList(coords, villageData);
+            setTargetBuild(coords, buildKey, true);
+            showInfoStatus('Village ' + coords + ' added to target list with Build ' + buildKey + ' enabled', 'success');
+            
+            // Update the panel without recursion
+            var panel = document.getElementById('tw-attack-info-panel');
+            if (panel) {
+                setTimeout(function() {
+                    updateInfoVillagePanel(panel, coords);
+                }, 100);
+            }
+        } else if (isInTargetList) {
+            // Toggle build for existing target
+            var newState = !isChecked;
+            setTargetBuild(coords, buildKey, newState);
+            
+            if (newState) {
+                showInfoStatus('Build ' + buildKey + ' enabled for ' + coords, 'success');
+            } else {
+                showInfoStatus('Build ' + buildKey + ' disabled for ' + coords, 'success');
+            }
+            
+            // Update the panel without recursion
+            var panel = document.getElementById('tw-attack-info-panel');
+            if (panel) {
+                setTimeout(function() {
+                    updateInfoVillagePanel(panel, coords);
+                }, 100);
+            }
+        }
+    }
+    
+    function handleToggleListButtonClick(coords, isInTargetList) {
+        if (isInTargetList) {
+            // Remove from list
+            if (removeFromTargetList(coords)) {
+                showInfoStatus('Village ' + coords + ' removed from target list', 'success');
+                
+                // Update the panel without recursion
+                var panel = document.getElementById('tw-attack-info-panel');
+                if (panel) {
+                    setTimeout(function() {
+                        updateInfoVillagePanel(panel, coords);
+                    }, 100);
+                }
+            }
+        } else {
+            // Add to list (with all enabled builds disabled by default)
+            var villageData = {
+                name: "Village from Info Page",
+                points: 0,
+                playerNumber: 0,
+                isBonus: false
+            };
+            
+            if (addToTargetList(coords, villageData)) {
+                // By default, disable all builds when adding new village
+                var buildSettings = settings.autoAttackBuilds || { A: true, B: false, C: false };
+                ['A', 'B', 'C'].forEach(function(buildKey) {
+                    if (buildSettings[buildKey]) {
+                        setTargetBuild(coords, buildKey, false);
+                    }
+                });
+                showInfoStatus('Village ' + coords + ' added to target list', 'success');
+                
+                // Update the panel without recursion
+                var panel = document.getElementById('tw-attack-info-panel');
+                if (panel) {
+                    setTimeout(function() {
+                        updateInfoVillagePanel(panel, coords);
+                    }, 100);
+                }
+            }
+        }
+    }
+    
+    function handleIgnoreButtonClick(coords, isInTargetList) {
+        if (addToIgnoreList(coords)) {
+            if (isInTargetList) {
+                removeFromTargetList(coords);
+            }
+            showInfoStatus('Village ' + coords + ' added to ignore list', 'success');
+            
+            // Update the panel to show it's ignored
+            var panel = document.getElementById('tw-attack-info-panel');
+            if (panel) {
+                // Change the panel to show ignored state
+                panel.style.borderColor = '#ff9800';
+                panel.querySelector('.tw-attack-info-title').textContent = '⚔️ TW Attack Control (Ignored)';
+                
+                // Disable all buttons
+                var buttons = panel.querySelectorAll('button');
+                buttons.forEach(function(btn) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                });
+                
+                // Update status
+                showInfoStatus('Village ignored. Refresh page to remove this panel.', 'info');
+            }
+        }
+    }
+    
+    function showInfoStatus(message, type) {
+        var statusMsg = document.getElementById('info-status');
+        if (statusMsg) {
+            statusMsg.textContent = message;
+            statusMsg.style.display = 'block';
+            statusMsg.className = 'tw-attack-info-status';
+            
+            switch(type) {
+                case 'success':
+                    statusMsg.classList.add('tw-attack-status-success');
+                    break;
+                case 'error':
+                    statusMsg.classList.add('tw-attack-status-error');
+                    break;
+                case 'info':
+                    statusMsg.classList.add('tw-attack-status-info');
+                    break;
+            }
+            
+            setTimeout(function() {
+                statusMsg.style.display = 'none';
+            }, 5000);
         }
     }
    
