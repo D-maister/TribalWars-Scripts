@@ -7,6 +7,7 @@
     // Configuration
     const CONFIG = {
         version: '2.0.0',
+        baseUrl: 'https://cdn.jsdelivr.net/gh/D-maister/TribalWars-Scripts@main/villageFarmerManual/',
         scripts: {
             styles: 'tw-attack-styles-v0.0.1.js',
             attack: 'tw-attack-attack-v0.0.6.js',
@@ -25,8 +26,8 @@
             submitMarker: 'twAttackSubmitMarker'
         },
         defaultCooldown: 30
-    };
-    
+    };   
+
     // Global state
     window.TWAttack = {
         config: CONFIG,
@@ -175,9 +176,15 @@
         // Module loader
         loader: {
             loadScript: function(src) {
+                // Prepend baseUrl to the script source if it's a relative path
+                var fullSrc = src;
+                if (!src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('/')) {
+                    fullSrc = CONFIG.baseUrl + src;
+                }
+                
                 return new Promise(function(resolve, reject) {
                     var script = document.createElement('script');
-                    script.src = src;
+                    script.src = fullSrc;
                     script.onload = resolve;
                     script.onerror = reject;
                     document.head.appendChild(script);
