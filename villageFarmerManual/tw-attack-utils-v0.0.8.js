@@ -3,7 +3,12 @@
 (function() {
     'use strict';
     
-    if (!window.TWAttack) return;
+    if (!window.TWAttack) {
+        console.error('TW Attack: Main module not loaded');
+        return;
+    }
+    
+    console.log('TW Attack: Utilities module loading...');
     
     const Utils = {
         // Show status message
@@ -35,6 +40,8 @@
             setTimeout(function() {
                 statusMsg.style.display = 'none';
             }, 5000);
+            
+            console.log('TW Attack Status:', type + ':', message);
         },
         
         // Show error
@@ -134,31 +141,46 @@
             return false;
         },
         
-        // Get village.txt URL
+        // Get village.txt URL - FIXED VERSION
         getVillageTxtUrl: function() {
-            var url = window.location.href;
             var worldName = window.TWAttack.state.currentWorld;
-            var domain = '';
+            var hostname = window.location.hostname;
             
-            // Check which domain we're on
-            if (url.includes('tribalwars.net')) {
-                domain = 'tribalwars.net';
-            } else if (url.includes('voynaplemyon.com')) {
-                domain = 'voynaplemyon.com';
+            console.log('TW Attack utils: Generating village.txt URL');
+            console.log('  - World name:', worldName);
+            console.log('  - Hostname:', hostname);
+            
+            // If worldName is "unknown", we have a problem
+            if (worldName === "unknown") {
+                console.error('TW Attack: Cannot generate village.txt URL - world name is unknown');
+                this.showError('Cannot determine world name. Please check console for details.');
+                return '#';
+            }
+            
+            // Extract base domain from hostname
+            var baseDomain = '';
+            
+            if (hostname.includes('tribalwars.net')) {
+                baseDomain = 'tribalwars.net';
+            } else if (hostname.includes('voynaplemyon.com')) {
+                baseDomain = 'voynaplemyon.com';
             } else {
-                // Try to extract domain from URL as fallback
-                var match = url.match(/https?:\/\/([^\/]+)/);
-                if (match) {
-                    domain = match[1];
+                // Try to extract domain from hostname
+                var parts = hostname.split('.');
+                if (parts.length >= 2) {
+                    baseDomain = parts.slice(-2).join('.'); // Get last two parts
                 } else {
-                    domain = 'voynaplemyon.com'; // Default fallback
+                    baseDomain = 'tribalwars.net'; // Default
                 }
             }
             
-            // Construct the correct URL
-            // Note: tribalwars.net uses format like https://en147.tribalwars.net/map/village.txt
-            // voynaplemyon.com uses format like https://pl101.voynaplemyon.com/map/village.txt
-            return 'https://' + worldName + '.' + domain + '/map/village.txt';
+            console.log('  - Base domain:', baseDomain);
+            
+            // Construct the URL: https://[worldname].[domain]/map/village.txt
+            var villageUrl = 'https://' + worldName + '.' + baseDomain + '/map/village.txt';
+            
+            console.log('  - Generated URL:', villageUrl);
+            return villageUrl;
         },
         
         // Parse village text
@@ -181,6 +203,8 @@
                 if (window.TWAttack.state && window.TWAttack.state.ignoreList) {
                     ignoreList = window.TWAttack.state.ignoreList;
                 }
+                
+                console.log('TW Attack: Parsing village.txt, found', lines.length, 'lines');
                 
                 lines.forEach(function(line) {
                     if (!line.trim()) return;
@@ -229,6 +253,8 @@
                     }
                 }.bind(this));
                 
+                console.log('TW Attack: Valid villages found:', villages.length);
+                
                 if (validLines === 0) {
                     this.showError('No valid villages found in the pasted text.');
                     return;
@@ -249,6 +275,7 @@
                 }
                 
             } catch (error) {
+                console.error('TW Attack: Error parsing village.txt:', error);
                 this.showError('Error parsing village.txt content: ' + error.message);
             }
         },
@@ -341,23 +368,6 @@
                         if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.add === 'function') {
                             if (window.TWAttack.targets.add(coords, village)) {
                                 addedCount++;
-                            }
-                        } else {
-                            // Fallback
-                            if (window.TWAttack.state && window.TWAttack.state.targetList) {
-                                var targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
-                                if (targets.indexOf(coords) === -1) {
-                                    targets.push(coords);
-                                    window.TWAttack.state.targetList = targets.join(' ');
-                                    // Save village data
-                                    var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData) || {};
-                                    var world = window.TWAttack.state.currentWorld;
-                                    if (!allVillageData[world]) allVillageData[world] = {};
-                                    allVillageData[world][coords] = village;
-                                    window.TWAttack.storage.set(window.TWAttack.config.storageKeys.villageData, allVillageData);
-                                    window.TWAttack.saveState();
-                                    addedCount++;
-                                }
                             }
                         }
                     }
@@ -491,7 +501,7 @@
                     window.TWAttack.storage.set(window.TWAttack.config.storageKeys.buildCooldowns, buildCooldowns);
                 }
             } catch (e) {
-                console.error('Error cleaning up old history:', e);
+                console.error('TW Attack: Error cleaning up old history:', e);
             }
         },
         
@@ -530,7 +540,7 @@
                               window.TWAttack.config.defaultCooldown)
                 };
             } catch (e) {
-                console.error('Error getting build cooldown info:', e);
+                console.error('TW Attack: Error getting build cooldown info:', e);
                 return {
                     onCooldown: false,
                     minutesLeft: 0,
@@ -552,9 +562,9 @@
                 buildCooldowns[world][target][buildKey] = (new Date()).getTime();
                 
                 window.TWAttack.storage.set(window.TWAttack.config.storageKeys.buildCooldowns, buildCooldowns);
-                console.log('Recorded attack:', target, 'with build', buildKey);
+                console.log('TW Attack: Recorded attack on', target, 'with build', buildKey);
             } catch (e) {
-                console.error('Error recording build attack:', e);
+                console.error('TW Attack: Error recording build attack:', e);
             }
         },
         
@@ -568,7 +578,7 @@
                 var dy = parseInt(parts1[1]) - parseInt(parts2[1]);
                 return Math.round(100 * Math.sqrt(dx * dx + dy * dy)) / 100;
             } catch (e) {
-                console.error('Error calculating distance:', e);
+                console.error('TW Attack: Error calculating distance:', e);
                 return 0;
             }
         },
@@ -584,7 +594,7 @@
                 else if (diffMins < 1440) return Math.floor(diffMins / 60) + "h ago";
                 else return Math.floor(diffMins / 1440) + "d ago";
             } catch (e) {
-                console.error('Error formatting time:', e);
+                console.error('TW Attack: Error formatting time:', e);
                 return "Unknown";
             }
         }
@@ -593,6 +603,6 @@
     // Register utils with main module
     window.TWAttack.utils = Object.assign(window.TWAttack.utils || {}, Utils);
     
-    console.log('TW Attack: Utilities loaded');
+    console.log('TW Attack: Utilities module loaded');
     
 })();
