@@ -87,7 +87,19 @@
         utils: {
             getWorldName: function() {
                 var url = window.location.href;
-                var match = url.match(/https?:\/\/([^\/]+?)\.voynaplemyon\./);
+                // Extract subdomain before any known tribal wars domain
+                var domains = ['voynaplemyon.com', 'tribalwars.net', 'tribalwars.com'];
+                
+                for (var i = 0; i < domains.length; i++) {
+                    var pattern = 'https?://([^/.]+)\\.' + domains[i].replace(/\./g, '\\.');
+                    var match = url.match(new RegExp(pattern));
+                    if (match) {
+                        return match[1];
+                    }
+                }
+                
+                // Fallback: try to extract any subdomain
+                var match = url.match(/https?:\/\/([^\/.]+)\./);
                 return match ? match[1] : "unknown";
             },
             
@@ -279,13 +291,7 @@
                 } else {
                     console.warn('Submit module not loaded');
                 }
-            } else {
-                console.log('TW Attack: Other page detected');
-                // Try to load config UI if on any other page
-                if (window.TWAttack.modules && window.TWAttack.modules.attack) {
-                    window.TWAttack.modules.attack.createConfigUI();
-                }
-            }
+            } 
             
             window.TWAttack.state.isInitialized = true;
             console.log('TW Attack initialized for world:', window.TWAttack.state.currentWorld);
