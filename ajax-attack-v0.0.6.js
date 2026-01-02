@@ -487,3 +487,313 @@
     setTimeout(createTestButton, 1000);
     
 })();
+
+
+// Step 2: Submit troops to get confirmation dialog
+function submitTroops(formInfo, troopCounts) {
+    console.log('🚀 Step 2: Submitting troops...');
+    console.log('🎯 Target ID:', formInfo.targetId);
+    console.log('⚔️ Troop counts to send:', troopCounts);
+    
+    // Build the form submission URL
+    var submitUrl = formInfo.formData.action;
+    console.log('📤 Submit URL:', submitUrl);
+    
+    // Create FormData object
+    var formData = new FormData();
+    
+    // Add all hidden inputs from the form
+    Object.keys(formInfo.formData.inputs).forEach(name => {
+        if (formInfo.formData.inputs[name] !== undefined && formInfo.formData.inputs[name] !== null) {
+            formData.append(name, formInfo.formData.inputs[name]);
+        }
+    });
+    
+    // Add troop counts (only if > 0)
+    Object.keys(troopCounts).forEach(troop => {
+        if (troopCounts[troop] > 0) {
+            formData.append(troop, troopCounts[troop]);
+        }
+    });
+    
+    // Add empty x and y coordinates (as in the game)
+    formData.append('x', '');
+    formData.append('y', '');
+    
+    // Add attack type - use Russian text as in your example
+    formData.append('attack', 'Атака');
+    
+    console.log('📦 Form data to send:');
+    for (var pair of formData.entries()) {
+        console.log('  -', pair[0], '=', pair[1]);
+    }
+    
+    // Submit the form
+    return fetch(submitUrl, {
+        headers: {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "ru,en;q=0.9",
+            "cache-control": "max-age=0",
+            "content-type": "application/x-www-form-urlencoded",
+            "priority": "u=0, i",
+            "sec-ch-ua": "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-fetch-dest": "document",
+            "sec-fetch-mode": "navigate",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "tribalwars-ajax": "1",
+            "x-requested-with": "XMLHttpRequest"
+        },
+        referrer: window.location.origin + '/game.php?village=' + formInfo.attackerId + '&screen=place',
+        body: new URLSearchParams(formData),
+        method: "POST",
+        mode: "cors",
+        credentials: "include"
+    })
+    .then(response => {
+        console.log('📥 Response status:', response.status);
+        console.log('📄 Content-Type:', response.headers.get('content-type'));
+        
+        // Get response as text first
+        return response.text().then(text => {
+            console.log('📝 Response preview (first 500 chars):', text.substring(0, 500));
+            
+            // Try to parse as JSON
+            try {
+                var jsonData = JSON.parse(text);
+                console.log('✅ Response is JSON');
+                return { type: 'json', data: jsonData, raw: text };
+            } catch (e) {
+                console.log('⚠️ Response is not JSON, treating as HTML');
+                return { type: 'html', data: text, raw: text };
+            }
+        });
+    })
+    .then(parsedResponse => {
+        console.log('✅ Step 2 complete: Form submitted');
+        
+        if (parsedResponse.type === 'json') {
+            // Handle JSON response
+            var jsonData = parsedResponse.data;
+            
+            if (jsonData.response && jsonData.response.dialog) {
+                console.log('📄 Found confirmation dialog in JSON response');
+                return parseConfirmationDialog(jsonData.response.dialog, formInfo, troopCounts);
+            } else if (jsonData.dialog) {
+                console.log('📄 Found dialog at root level');
+                return parseConfirmationDialog(jsonData.dialog, formInfo, troopCounts);
+            } else {
+                console.error('❓ Unexpected JSON structure:', Object.keys(jsonData));
+                console.log('Full response:', jsonData);
+                throw new Error('No confirmation dialog found');
+            }
+        } else {
+            // Handle HTML response
+            console.log('📄 Response is HTML');
+            return parseConfirmationDialog(parsedResponse.data, formInfo, troopCounts);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error submitting troops:', error);
+        throw error;
+    });
+}
+
+// Parse confirmation dialog
+function parseConfirmationDialog(html, formInfo, troopCounts) {
+    console.log('🔍 Parsing confirmation dialog...');
+    
+    var tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Find the confirmation form
+    var confirmForm = tempDiv.querySelector('#command-data-form');
+    if (!confirmForm) {
+        console.error('❌ Confirmation form not found!');
+        console.log('Available forms:', tempDiv.querySelectorAll('form').length);
+        console.log('HTML preview:', tempDiv.innerHTML.substring(0, 1000));
+        throw new Error('Confirmation form not found');
+    }
+    
+    console.log('✅ Confirmation form found!');
+    
+    // Extract form data
+    var formData = {
+        action: confirmForm.action || confirmForm.getAttribute('action'),
+        method: confirmForm.method || 'post',
+        inputs: {}
+    };
+    
+    // Get all hidden inputs
+    var hiddenInputs = confirmForm.querySelectorAll('input[type="hidden"]');
+    console.log('📝 Found hidden inputs in confirmation:', hiddenInputs.length);
+    
+    hiddenInputs.forEach(input => {
+        if (input.name && input.value !== undefined) {
+            formData.inputs[input.name] = input.value;
+            console.log('  -', input.name, '=', input.value.substring(0, 50));
+        }
+    });
+    
+    // Look for success indicators
+    var success = false;
+    var errorMessage = null;
+    
+    // Check for error messages
+    var errorDiv = tempDiv.querySelector('.error_box, .alert-error, .msg.error');
+    if (errorDiv) {
+        errorMessage = errorDiv.textContent.trim();
+        console.error('❌ Submission error:', errorMessage);
+    } else {
+        // Check for success indicators
+        var successDiv = tempDiv.querySelector('.success_box, .alert-success');
+        if (successDiv) {
+            success = true;
+            console.log('✅ Success message:', successDiv.textContent.trim());
+        } else {
+            // Check if we're on confirmation page (has submit button)
+            var confirmButton = tempDiv.querySelector('#troop_confirm_submit');
+            if (confirmButton) {
+                success = true;
+                console.log('✅ Reached confirmation page - ready for final submit');
+            } else {
+                console.log('⚠️ No clear success/error indicators found');
+            }
+        }
+    }
+    
+    return {
+        success: success,
+        error: errorMessage,
+        html: html,
+        formData: formData,
+        originalFormInfo: formInfo,
+        troopCounts: troopCounts
+    };
+}
+
+// Full test flow
+function runFullAttackTest(targetId, customTroops) {
+    var attackerId = getCurrentVillageId();
+    
+    if (!attackerId) {
+        alert('❌ Could not find village ID in URL');
+        return;
+    }
+    
+    console.log('🎯 Starting full attack test...');
+    console.log('Attacker:', attackerId);
+    console.log('Target:', targetId);
+    
+    // Step 1: Get form
+    getAttackForm(attackerId, targetId)
+        .then(formInfo => {
+            console.log('✅ Step 1 complete: Got form');
+            
+            // Create troop counts (use custom or default test troops)
+            var troopCounts = customTroops || {
+                spear: 1,
+                sword: 0,
+                axe: 0,
+                spy: 0,
+                light: 0,
+                heavy: 0,
+                ram: 0,
+                catapult: 0,
+                knight: 0,
+                snob: 0
+            };
+            
+            // Validate we have enough troops
+            Object.keys(troopCounts).forEach(unit => {
+                if (troopCounts[unit] > formInfo.troops[unit]) {
+                    console.warn(`⚠️ Not enough ${unit}. Requested: ${troopCounts[unit]}, Available: ${formInfo.troops[unit]}`);
+                    troopCounts[unit] = formInfo.troops[unit]; // Adjust to available
+                }
+            });
+            
+            // Ask for confirmation
+            var troopList = Object.entries(troopCounts)
+                .filter(([unit, count]) => count > 0)
+                .map(([unit, count]) => `${count} ${unit}`)
+                .join(', ');
+            
+            var confirmMsg = `Send attack?\n\n` +
+                            `From: ${attackerId}\n` +
+                            `To: ${targetId}\n` +
+                            `Troops: ${troopList || 'none'}\n\n` +
+                            `Proceed?`;
+            
+            if (confirm(confirmMsg)) {
+                console.log('✅ User confirmed, proceeding to Step 2...');
+                // Step 2: Submit troops
+                return submitTroops(formInfo, troopCounts);
+            } else {
+                throw new Error('Attack cancelled by user');
+            }
+        })
+        .then(result => {
+            console.log('✅ Step 2 complete: Got confirmation dialog');
+            console.log('Success:', result.success);
+            
+            if (result.success) {
+                console.log('🎉 Ready for final confirmation!');
+                window.lastConfirmation = result;
+                alert('✅ Ready for final confirmation!\n\nForm action: ' + result.formData.action);
+            } else if (result.error) {
+                console.error('❌ Error:', result.error);
+                alert('❌ Error: ' + result.error);
+            } else {
+                console.log('⚠️ Unknown result');
+                alert('⚠️ Check console for details');
+            }
+            
+            return result;
+        })
+        .catch(error => {
+            console.error('❌ Test failed:', error);
+            alert('❌ Test failed: ' + error.message);
+        });
+}
+
+// Add these functions to the global scope
+window.submitTroops = submitTroops;
+window.runFullAttackTest = runFullAttackTest;
+
+// Update the dialog to include a test button
+function addTestButtonToDialog(formInfo) {
+    // Remove existing test button if any
+    var existingTestBtn = document.querySelector('#test-attack-btn');
+    if (existingTestBtn) existingTestBtn.remove();
+    
+    var testBtn = document.createElement('button');
+    testBtn.id = 'test-attack-btn';
+    testBtn.textContent = '⚔️ Test Attack with 1 Spear';
+    testBtn.style.cssText = `
+        background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 10px;
+        font-weight: bold;
+    `;
+    
+    testBtn.onclick = function() {
+        runFullAttackTest(formInfo.targetId, { spear: 1 });
+    };
+    
+    // Add to the dialog if it exists
+    var dialog = document.getElementById('attack-form-dialog');
+    if (dialog) {
+        var footer = dialog.querySelector('div[style*="margin-top: 20px"]');
+        if (footer) {
+            footer.appendChild(testBtn);
+        }
+    }
+}
