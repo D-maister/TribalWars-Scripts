@@ -596,7 +596,7 @@
         updateTargetsListUI: function() {
             var targetsList = document.getElementById('targets-list');
             if (!targetsList) return;
-            
+        
             targetsList.innerHTML = '';
             
             // Get targets
@@ -607,12 +607,20 @@
                 targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
             }
             
-            if (targets.length === 0) {
+            // Get ignore list to filter targets
+            var ignoreList = window.TWAttack.state.ignoreList || [];
+            
+            // Filter out ignored villages
+            var filteredTargets = targets.filter(function(target) {
+                return ignoreList.indexOf(target) === -1;
+            });
+            
+            if (filteredTargets.length === 0) {
                 targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 15px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd; font-size: 12px;">No targets in list for ' + window.TWAttack.state.currentWorld + '</div>';
                 return;
             }
             
-            targets.forEach(function(target, index) {
+            filteredTargets.forEach(function(target, index) {
                 var targetItem = document.createElement('div');
                 targetItem.className = 'tw-attack-target-item';
                 
@@ -863,6 +871,9 @@
                             ignoreList[window.TWAttack.state.currentWorld].push(targetCoords);
                             window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
                             
+                            // Update the global state ignore list
+                            window.TWAttack.state.ignoreList = ignoreList[window.TWAttack.state.currentWorld];
+                            
                             // Remove from target list
                             if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.remove === 'function') {
                                 window.TWAttack.targets.remove(targetCoords);
@@ -881,7 +892,7 @@
                                             villageData.playerNumber > 0 ? 'Player village' : 'Barbarian village';
                             window.TWAttack.utils.showStatus(villageType + ' ' + targetCoords + ' added to ignore list', 'success');
                             
-                            // Update UI
+                            // Update UI - this will now filter out ignored villages
                             AttackModule.updateTargetsListUI();
                         }
                     };
@@ -1061,6 +1072,35 @@
             
             if (!isValidAttackPage) {
                 window.TWAttack.utils.showStatus('Auto-attack only works on Rally Point > Place tab (not simulation mode)', 'error');
+                
+                if (window.TWAttack.state.settings.autoAttackEnabled) {
+                    setTimeout(function() {
+                        AttackModule.autoAttackNext();
+                    }, 60000);
+                }
+                return;
+            }
+            
+            window.TWAttack.utils.cleanupOldHistory();
+            
+            // Get targets
+            var targets = [];
+            if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.getCurrent === 'function') {
+                targets = window.TWAttack.targets.getCurrent();
+            } else if (window.TWAttack.state && window.TWAttack.state.targetList) {
+                targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+            }
+            
+            // Get ignore list to filter targets
+            var ignoreList = window.TWAttack.state.ignoreList || [];
+            
+            // Filter out ignored villages
+            targets = targets.filter(function(target) {
+                return ignoreList.indexOf(target) === -1;
+            });
+            
+            if (targets.length === 0) {
+                window.TWAttack.utils.showStatus('No targets in list for auto-attack', 'error');
                 
                 if (window.TWAttack.state.settings.autoAttackEnabled) {
                     setTimeout(function() {
