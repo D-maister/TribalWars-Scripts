@@ -41,29 +41,7 @@
                     }
                 }
             }
-            
-            // Method 5: Check for village data in meta tags or data attributes
-            var metaCoords = document.querySelector('meta[name="coordinates"], meta[property="coordinates"]');
-            if (metaCoords && metaCoords.content) {
-                var match = metaCoords.content.match(/(\d+)\|(\d+)/);
-                if (match) {
-                    console.log('TW Attack: Found coordinates in meta tag:', match[1] + '|' + match[2]);
-                    return match[1] + '|' + match[2];
-                }
-            }
-            
-            // Method 6: Check for data attributes on the village container
-            var villageContainer = document.querySelector('[data-village], [data-x], [data-y], .village[data-id]');
-            if (villageContainer) {
-                var x = villageContainer.getAttribute('data-x') || villageContainer.getAttribute('data-coord-x');
-                var y = villageContainer.getAttribute('data-y') || villageContainer.getAttribute('data-coord-y');
-                
-                if (x && y) {
-                    console.log('TW Attack: Found coordinates in data attributes:', x + '|' + y);
-                    return x + '|' + y;
-                }
-            }
-            
+                        
             console.log('TW Attack: Could not find coordinates on info_village page');
             return null;
         },
