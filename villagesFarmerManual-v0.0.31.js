@@ -1,83 +1,66 @@
 (function() {
-    console.log('🚀 TW Attack Script - Combined Version with Individual Build Cooldowns');
-
     // ===== STYLES =====
     const styles = `
         /* Main config styles */
         .tw-attack-config {
-            position: fixed;
-            top: 50px;
-            right: 10px;
             background: white;
             border: 2px solid #333;
             border-radius: 8px;
-            padding: 20px;
-            z-index: 10000;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-            min-width: 600px;
-            max-height: 85vh;
-            overflow-y: auto;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             font-family: Arial, sans-serif;
-        }
-        
-        .tw-attack-close-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: #ff4444;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            font-size: 16px;
         }
         
         .tw-attack-title {
             margin-top: 0;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             color: #333;
             border-bottom: 2px solid #4CAF50;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
+            font-size: 16px;
         }
         
         .tw-attack-toggle-btn {
             background: #666;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
-            margin-bottom: 15px;
-            font-size: 13px;
+            margin-bottom: 10px;
+            font-size: 12px;
             font-weight: bold;
             width: 100%;
             transition: background 0.2s;
         }
         
+        .tw-attack-toggle-btn:hover {
+            background: #555;
+        }
+        
         .tw-attack-auto-container {
             display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+            gap: 8px;
+            margin-bottom: 15px;
         }
         
         .tw-attack-auto-btn {
             color: white;
             border: none;
-            padding: 12px 0;
+            padding: 8px 0;
             border-radius: 6px;
             cursor: pointer;
             flex: 1;
             font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
         }
         
         .tw-attack-auto-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
         
         .tw-attack-auto-btn-a {
@@ -93,18 +76,20 @@
         }
         
         .tw-attack-world-info {
-            margin-bottom: 20px;
-            padding: 15px;
+            margin-bottom: 15px;
+            padding: 12px;
             background-color: #f8f9fa;
             border-radius: 6px;
             border: 1px solid #e9ecef;
+            font-size: 12px;
         }
         
         .tw-attack-section {
-            margin-bottom: 20px;
-            padding: 15px;
+            margin-bottom: 15px;
+            padding: 12px;
             border-radius: 6px;
             border: 1px solid #ffecb3;
+            display: none;
         }
         
         .tw-attack-section-settings {
@@ -119,15 +104,16 @@
         
         .tw-attack-section-title {
             margin-top: 0;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             color: #333;
+            font-size: 14px;
         }
         
         .tw-attack-setting-row {
             display: flex;
             align-items: center;
-            margin-bottom: 12px;
-            padding: 10px;
+            margin-bottom: 10px;
+            padding: 8px;
             background: #fff;
             border-radius: 4px;
             border: 1px solid #e0e0e0;
@@ -136,34 +122,39 @@
         .tw-attack-setting-label {
             margin-right: 10px;
             font-weight: bold;
-            min-width: 200px;
+            min-width: 150px;
+            font-size: 12px;
         }
         
         .tw-attack-input {
-            padding: 6px 10px;
+            padding: 4px 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .tw-attack-save-btn {
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 15px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: bold;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: background 0.2s;
         }
         
+        .tw-attack-save-btn:hover {
+            background: #45a049;
+        }
+        
         .tw-attack-build-container {
-            margin-bottom: 15px;
-            padding: 12px;
+            margin-bottom: 12px;
+            padding: 10px;
             background: #fff;
             border-radius: 4px;
             border: 1px solid #e0e0e0;
@@ -173,14 +164,14 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
-            padding-bottom: 8px;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
             border-bottom: 2px solid #4CAF50;
         }
         
         .tw-attack-build-title {
             font-weight: bold;
-            font-size: 16px;
+            font-size: 14px;
             color: #4CAF50;
         }
         
@@ -196,11 +187,15 @@
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 6px 12px;
+            padding: 4px 8px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
+        }
+        
+        .tw-attack-build-save-btn:hover {
+            opacity: 0.9;
         }
         
         .tw-attack-build-save-btn-b {
@@ -214,7 +209,7 @@
         .tw-attack-troops-grid {
             display: grid;
             grid-template-columns: repeat(9, 1fr);
-            gap: 6px;
+            gap: 4px;
         }
         
         .tw-attack-troop-input {
@@ -224,55 +219,59 @@
         }
         
         .tw-attack-troop-label {
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             color: #666;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             text-align: center;
             width: 100%;
         }
         
         .tw-attack-troop-field {
-            padding: 4px;
+            padding: 3px;
             border: 1px solid #ddd;
             border-radius: 3px;
             text-align: center;
-            font-size: 12px;
-            width: 45px;
+            font-size: 11px;
+            width: 40px;
             box-sizing: border-box;
         }
         
         .tw-attack-textarea {
             width: 100%;
-            height: 120px;
-            padding: 12px;
+            height: 80px;
+            padding: 8px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-family: monospace;
-            font-size: 13px;
+            font-size: 12px;
             resize: vertical;
             box-sizing: border-box;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         
         .tw-attack-parse-btn {
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 15px;
             border-radius: 6px;
             cursor: pointer;
             width: 100%;
             font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: background 0.2s;
         }
         
+        .tw-attack-parse-btn:hover {
+            background: #45a049;
+        }
+        
         .tw-attack-status {
-            font-size: 13px;
-            margin-bottom: 15px;
-            padding: 10px;
+            font-size: 12px;
+            margin-bottom: 12px;
+            padding: 8px;
             border-radius: 6px;
             display: none;
         }
@@ -290,8 +289,8 @@
         }
         
         .tw-attack-targets-container {
-            margin-top: 20px;
-            padding-top: 20px;
+            margin-top: 15px;
+            padding-top: 15px;
             border-top: 2px solid #ddd;
         }
         
@@ -299,28 +298,32 @@
             background: #ff4444;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
-            margin-bottom: 15px;
+            font-size: 12px;
+            margin-bottom: 12px;
             width: 100%;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: background 0.2s;
         }
         
+        .tw-attack-clear-btn:hover {
+            background: #ff3333;
+        }
+        
         .tw-attack-target-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 10px;
-            margin: 3px 0;
+            padding: 5px 8px;
+            margin: 2px 0;
             background: #f8f9fa;
             border-radius: 4px;
             border: 1px solid #e9ecef;
             transition: transform 0.2s, box-shadow 0.2s;
-            font-size: 12px;
+            font-size: 11px;
             line-height: 1.2;
         }
         
@@ -333,42 +336,42 @@
             flex: 1;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
         }
         
         .tw-attack-target-coords {
             font-family: monospace;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 12px;
             color: #333;
-            min-width: 70px;
+            min-width: 60px;
         }
         
         .tw-attack-target-details {
-            font-size: 11px;
+            font-size: 10px;
             color: #666;
             display: flex;
             align-items: center;
-            gap: 10px;
-            flex-wrap: nowrap;
+            gap: 8px;
+            flex-wrap: wrap;
         }
         
         .tw-attack-action-buttons {
             display: flex;
-            gap: 5px;
-            margin: 0 10px;
+            gap: 4px;
+            margin: 0 8px;
         }
         
         .tw-attack-action-btn {
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
-            min-width: 30px;
-            height: 24px;
+            min-width: 24px;
+            height: 20px;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s;
             display: flex;
@@ -425,49 +428,57 @@
             background: #ff9800;
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
-            width: 30px;
-            height: 24px;
+            font-size: 10px;
+            width: 24px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             transition: transform 0.2s, background 0.2s;
+        }
+        
+        .tw-attack-ignore-btn:hover {
+            background: #f57c00;
         }
         
         .tw-attack-remove-btn {
             background: #ff6b6b;
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
-            width: 30px;
-            height: 24px;
+            width: 24px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
             box-shadow: 0 1px 2px rgba(0,0,0,0.1);
             transition: transform 0.2s, background 0.2s;
+        }
+        
+        .tw-attack-remove-btn:hover {
+            background: #ff5555;
         }
         
         .tw-attack-attack-btn {
             background: #ff4444;
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 3px;
             cursor: pointer;
-            font-size: 11px;
-            width: 30px;
-            height: 24px;
+            font-size: 10px;
+            width: 24px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -476,63 +487,205 @@
             transition: transform 0.2s, background 0.2s;
         }
         
+        .tw-attack-attack-btn:hover {
+            background: #ff3333;
+        }
+        
+        .tw-attack-attack-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
         .tw-attack-bonus-star {
             color: #FFD700;
-            font-size: 14px;
-            margin-left: 5px;
-            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+            font-size: 12px;
+            margin-left: 4px;
         }
         
         .tw-attack-player-circle {
             color: #ff4444;
-            font-size: 14px;
-            margin-left: 5px;
-            text-shadow: 0 0 2px rgba(0,0,0,0.5);
+            font-size: 12px;
+            margin-left: 4px;
         }
         
-        .tw-attack-external-auto {
-            position: fixed;
-            z-index: 10002;
-            background: rgba(255, 255, 255, 0.9);
-            border: 2px solid #4CAF50;
-            border-radius: 20px;
-            padding: 12px 15px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            cursor: move;
-            user-select: none;
-            min-width: 180px;
+        .tw-attack-village-tag {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 8px;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
         }
         
-        .tw-attack-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 10001;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        .tw-attack-village-tag-bonus {
+            background-color: #FFF8DC;
+            color: #B8860B;
+            border: 1px solid #FFD700;
         }
         
-        .tw-attack-selection-container {
+        .tw-attack-village-tag-player {
+            background-color: #FFE6E6;
+            color: #B22222;
+            border: 1px solid #ff4444;
+        }
+        
+        .tw-attack-village-tag-barbarian {
+            background-color: #f0f0f0;
+            color: #666;
+            border: 1px solid #ccc;
+        }
+        
+        .tw-attack-points-badge {
+            font-size: 10px;
+            background-color: #e3f2fd;
+            color: #1976D2;
+            padding: 1px 4px;
+            border-radius: 8px;
+            border: 1px solid #bbdefb;
+            font-weight: bold;
+            white-space: nowrap;
+            display: inline-block;
+        }
+        
+        .tw-attack-build-cooldown-indicator {
+            font-size: 9px;
+            padding: 1px 3px;
+            border-radius: 3px;
+            margin-left: 2px;
+            font-weight: bold;
+        }
+        
+        .tw-attack-build-cooldown-ready {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .tw-attack-build-cooldown-waiting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .tw-attack-build-cooldown-cooldown {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        /* Info village panel styles */
+        .tw-attack-info-panel {
             background: white;
-            border-radius: 10px;
-            padding: 25px;
-            width: 700px;
-            max-width: 90vw;
-            max-height: 85vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        /* Submit script styles */
+        .tw-attack-info-title {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .tw-attack-info-coords {
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .tw-attack-info-build-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+        
+        .tw-attack-info-build-btn {
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            min-width: 60px;
+        }
+        
+        .tw-attack-info-build-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        
+        .tw-attack-info-build-btn.a {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+        }
+        
+        .tw-attack-info-build-btn.b {
+            background: linear-gradient(to right, #2196F3, #1976D2);
+        }
+        
+        .tw-attack-info-build-btn.c {
+            background: linear-gradient(to right, #9C27B0, #7B1FA2);
+        }
+        
+        .tw-attack-info-build-btn.checked {
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
+        }
+        
+        .tw-attack-info-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .tw-attack-info-action-btn {
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+            border: none;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .tw-attack-info-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        
+        .tw-attack-info-ignore-btn {
+            background: linear-gradient(to right, #ff9800, #f57c00);
+        }
+        
+        .tw-attack-info-remove-btn {
+            background: linear-gradient(to right, #ff4444, #ff3333);
+        }
+        
+        .tw-attack-info-status {
+            margin-top: 15px;
+            padding: 8px;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        /* Submit loading overlay */
         .tw-submit-loading {
             position: fixed;
             top: 50%;
@@ -567,77 +720,79 @@
             margin: 15px auto;
         }
 
+        @keyframes twSubmitSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Selection overlay styles */
+        .tw-attack-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .tw-attack-selection-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            width: 600px;
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
         .tw-attack-villages-container {
             flex: 1;
             overflow-y: auto;
             border: 2px solid #ddd;
             border-radius: 8px;
-            padding: 15px;
+            padding: 10px;
             background: #f8f9fa;
-            min-height: 300px;
+            min-height: 200px;
+            margin: 10px 0;
         }
         
         .tw-attack-village-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 15px;
-            margin: 8px 0;
+            padding: 8px 10px;
+            margin: 4px 0;
             background: #fff;
-            border-radius: 8px;
+            border-radius: 6px;
             border: 1px solid #e9ecef;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.2s;
-            min-height: 50px;
-            box-sizing: border-box;
+            transition: background-color 0.2s;
         }
         
         .tw-attack-village-item:hover {
             background-color: #e9ecef;
-            transform: translateX(5px);
-        }
-        
-        .tw-attack-village-item-alt {
-            background: #f8f9fa;
         }
         
         .tw-attack-village-item.selected {
             background-color: #e8f5e9;
         }
         
-        .tw-attack-village-info {
-            display: flex;
-            flex-direction: column;
-            font-family: monospace;
-            font-size: 13px;
-            flex: 1;
-            min-width: 0; /* Important for text overflow */
-        }
-        
-        .tw-attack-village-details {
-            font-size: 11px;
-            color: #666;
-            margin-top: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .tw-attack-village-checkbox {
-            margin-left: 15px;
-            transform: scale(1.2);
-            flex-shrink: 0;
-        }
-
         .tw-attack-manage-btn {
             background: #ff9800;
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
-            margin-bottom: 15px;
+            font-size: 12px;
+            margin-bottom: 10px;
             width: 100%;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -646,78 +801,6 @@
         
         .tw-attack-manage-btn:hover {
             background: #f57c00;
-        }
-
-        /* Village tags in targets list */
-        .tw-attack-village-tag {
-            font-size: 11px;
-            padding: 1px 6px;
-            border-radius: 10px;
-            font-weight: bold;
-            white-space: nowrap;
-            display: inline-block;
-        }
-        
-        .tw-attack-village-tag-bonus {
-            background-color: #FFF8DC;
-            color: #B8860B;
-            border: 1px solid #FFD700;
-        }
-        
-        .tw-attack-village-tag-player {
-            background-color: #FFE6E6;
-            color: #B22222;
-            border: 1px solid #ff4444;
-        }
-        
-        .tw-attack-village-tag-barbarian {
-            background-color: #f0f0f0;
-            color: #666;
-            border: 1px solid #ccc;
-        }
-        
-        .tw-attack-points-badge {
-            font-size: 11px;
-            background-color: #e3f2fd;
-            color: #1976D2;
-            padding: 1px 6px;
-            border-radius: 10px;
-            border: 1px solid #bbdefb;
-            font-weight: bold;
-            white-space: nowrap;
-            display: inline-block;
-        }
-        
-        /* Build cooldown indicators */
-        .tw-attack-build-cooldown-indicator {
-            font-size: 10px;
-            padding: 1px 4px;
-            border-radius: 3px;
-            margin-left: 3px;
-            font-weight: bold;
-        }
-        
-        .tw-attack-build-cooldown-ready {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .tw-attack-build-cooldown-waiting {
-            background-color: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-        
-        .tw-attack-build-cooldown-cooldown {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        @keyframes twSubmitSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
         }
     `;
 
@@ -735,7 +818,7 @@
     var ignoreStorageKey = "twAttackIgnoreList";
     var submitMarkerKey = "twAttackSubmitMarker";
     var targetBuildsKey = "twAttackTargetBuilds";
-    var buildCooldownsKey = "twAttackBuildCooldowns"; // NEW: For individual build cooldowns
+    var buildCooldownsKey = "twAttackBuildCooldowns";
     
     var defaultCooldown = 30;
     var homeCoords = "";
@@ -764,14 +847,13 @@
     };
     
     var troopBuilds = {};
-    var targetBuilds = {}; // Stores which builds are enabled for each target
+    var targetBuilds = {};
     
     var settings = {
         autoAttack: true,
         includePlayers: false,
         maxPlayerPoints: 1000,
         autoAttackEnabled: false,
-        autoAttackPosition: { x: 10, y: 100 },
         includeBonusVillages: true,
         autoAttackBuilds: { A: true, B: false, C: false }
     };
@@ -812,75 +894,6 @@
         setCookie(historyCookie, JSON.stringify(history), 7);
     }
     
-    function getCooldownInfo(target) {
-        var buildCooldowns = loadBuildCooldownsFromStorage();
-        var currentTime = (new Date()).getTime();
-        
-        // Find the most recent attack from any build
-        var mostRecentAttack = null;
-        var mostRecentBuild = null;
-        
-        if (buildCooldowns[target]) {
-            for (var buildKey in buildCooldowns[target]) {
-                var attackTime = buildCooldowns[target][buildKey];
-                if (!mostRecentAttack || attackTime > mostRecentAttack) {
-                    mostRecentAttack = attackTime;
-                    mostRecentBuild = buildKey;
-                }
-            }
-        }
-        
-        if (mostRecentAttack) {
-            // Get the cooldown for the build that was used
-            var build = troopBuilds[mostRecentBuild] || defaultBuilds[mostRecentBuild];
-            var buildCooldownMinutes = build.cooldown || defaultCooldown;
-            var minutesSinceAttack = (currentTime - mostRecentAttack) / 60000;
-            var minutesLeft = buildCooldownMinutes - minutesSinceAttack;
-            
-            return {
-                onCooldown: minutesSinceAttack < buildCooldownMinutes,
-                minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
-                lastAttack: new Date(mostRecentAttack),
-                buildUsed: mostRecentBuild,
-                cooldown: buildCooldownMinutes
-            };
-        }
-        
-        // Fallback to old attack history for backward compatibility
-        var history = getAttackHistory();
-        if (history[target]) {
-            // Use default cooldown for old attacks
-            var minutesSinceAttack = (currentTime - history[target]) / 60000;
-            var minutesLeft = defaultCooldown - minutesSinceAttack;
-            
-            return {
-                onCooldown: minutesSinceAttack < defaultCooldown,
-                minutesLeft: Math.max(0, Math.ceil(minutesLeft)),
-                lastAttack: new Date(history[target]),
-                buildUsed: 'unknown',
-                cooldown: defaultCooldown
-            };
-        }
-        
-        return {
-            onCooldown: false,
-            minutesLeft: 0,
-            lastAttack: null,
-            buildUsed: null,
-            cooldown: defaultCooldown
-        };
-    }
-    
-    function recordAttack(target) {
-        var history = getAttackHistory();
-        history[target] = (new Date()).getTime();
-        saveAttackHistory(history);
-        var distance = calculateDistance(homeCoords, target);
-        console.log("Attack " + target + " (distance: " + distance + ")");
-    }
-    
-    // ===== BUILD COOLDOWN FUNCTIONS =====
-    
     function loadBuildCooldownsFromStorage() {
         try {
             var storedData = localStorage.getItem(buildCooldownsKey);
@@ -891,7 +904,7 @@
                 }
             }
         } catch (e) {
-            console.error("Error loading build cooldowns:", e);
+            showError("Error loading build cooldowns");
         }
         return {};
     }
@@ -903,7 +916,7 @@
             allCooldowns[currentWorld] = buildCooldowns;
             localStorage.setItem(buildCooldownsKey, JSON.stringify(allCooldowns));
         } catch (e) {
-            console.error("Error saving build cooldowns:", e);
+            showError("Error saving build cooldowns");
         }
     }
     
@@ -935,8 +948,10 @@
     }
     
     function recordBuildAttack(target, buildKey) {
-        // Record general attack history (for backward compatibility)
-        recordAttack(target);
+        // Record general attack history
+        var history = getAttackHistory();
+        history[target] = (new Date()).getTime();
+        saveAttackHistory(history);
         
         // Record build-specific attack
         var buildCooldowns = loadBuildCooldownsFromStorage();
@@ -945,9 +960,6 @@
         }
         buildCooldowns[target][buildKey] = (new Date()).getTime();
         saveBuildCooldownsToStorage(buildCooldowns);
-        
-        var distance = calculateDistance(homeCoords, target);
-        console.log("Attack " + target + " with Build " + buildKey + " (distance: " + distance + ")");
     }
     
     function cleanupOldHistory() {
@@ -977,7 +989,6 @@
                     buildCooldownsChanged = true;
                 }
             }
-            // Remove empty target entries
             if (Object.keys(buildCooldowns[target]).length === 0) {
                 delete buildCooldowns[target];
                 buildCooldownsChanged = true;
@@ -1018,7 +1029,7 @@
                 targetList = "";
             }
         } catch (e) {
-            console.error("Error loading targets:", e);
+            showError("Error loading targets");
             targetList = "";
         }
     }
@@ -1030,7 +1041,7 @@
             allTargets[currentWorld] = targetList;
             localStorage.setItem(targetsStorageKey, JSON.stringify(allTargets));
         } catch (e) {
-            console.error("Error saving targets:", e);
+            showError("Error saving targets");
         }
     }
     
@@ -1041,17 +1052,15 @@
                 var allBuilds = JSON.parse(storedData);
                 if (allBuilds[currentWorld]) {
                     troopBuilds = allBuilds[currentWorld];
-                    // Ensure all three builds exist with proper structure
                     ['A', 'B', 'C'].forEach(function(buildKey) {
                         if (!troopBuilds[buildKey]) {
                             troopBuilds[buildKey] = JSON.parse(JSON.stringify(defaultBuilds[buildKey]));
                         } else {
-                            // Ensure cooldown and enabled properties exist
                             if (troopBuilds[buildKey].cooldown === undefined) {
                                 troopBuilds[buildKey].cooldown = defaultCooldown;
                             }
                             if (troopBuilds[buildKey].enabled === undefined) {
-                                troopBuilds[buildKey].enabled = buildKey === 'A'; // Default: only A enabled
+                                troopBuilds[buildKey].enabled = buildKey === 'A';
                             }
                         }
                     });
@@ -1062,7 +1071,7 @@
                 troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
             }
         } catch (e) {
-            console.error("Error loading builds:", e);
+            showError("Error loading builds");
             troopBuilds = JSON.parse(JSON.stringify(defaultBuilds));
         }
     }
@@ -1074,7 +1083,7 @@
             allBuilds[currentWorld] = troopBuilds;
             localStorage.setItem(buildsStorageKey, JSON.stringify(allBuilds));
         } catch (e) {
-            console.error("Error saving builds:", e);
+            showError("Error saving builds");
         }
     }
     
@@ -1092,7 +1101,7 @@
                 targetBuilds = {};
             }
         } catch (e) {
-            console.error("Error loading target builds:", e);
+            showError("Error loading target builds");
             targetBuilds = {};
         }
     }
@@ -1104,17 +1113,16 @@
             allTargetBuilds[currentWorld] = targetBuilds;
             localStorage.setItem(targetBuildsKey, JSON.stringify(allTargetBuilds));
         } catch (e) {
-            console.error("Error saving target builds:", e);
+            showError("Error saving target builds");
         }
     }
     
     function getTargetBuilds(target) {
         if (!targetBuilds[target]) {
-            // Default: check which builds are enabled globally
             var enabledBuilds = {};
             ['A', 'B', 'C'].forEach(function(buildKey) {
                 var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
-                enabledBuilds[buildKey] = build.enabled !== false; // Default to build's enabled state
+                enabledBuilds[buildKey] = build.enabled !== false;
             });
             targetBuilds[target] = enabledBuilds;
         }
@@ -1123,7 +1131,6 @@
     
     function setTargetBuild(target, buildKey, enabled) {
         if (!targetBuilds[target]) {
-            // Initialize with default enabled states
             targetBuilds[target] = {};
             ['A', 'B', 'C'].forEach(function(bk) {
                 var build = troopBuilds[bk] || defaultBuilds[bk];
@@ -1143,14 +1150,12 @@
                     settings = allSettings[currentWorld];
                     settings.autoAttack = true;
                     
-                    // Initialize missing properties
                     if (!settings.autoAttackBuilds) {
                         settings.autoAttackBuilds = { A: true, B: false, C: false };
                     }
                     if (settings.includePlayers === undefined) settings.includePlayers = false;
                     if (settings.maxPlayerPoints === undefined) settings.maxPlayerPoints = 1000;
                     if (settings.autoAttackEnabled === undefined) settings.autoAttackEnabled = false;
-                    if (settings.autoAttackPosition === undefined) settings.autoAttackPosition = { x: 10, y: 100 };
                     if (settings.includeBonusVillages === undefined) settings.includeBonusVillages = true;
                 } else {
                     settings = {
@@ -1159,7 +1164,6 @@
                         includePlayers: false,
                         maxPlayerPoints: 1000,
                         autoAttackEnabled: false,
-                        autoAttackPosition: { x: 10, y: 100 },
                         autoAttackBuilds: { A: true, B: false, C: false },
                         includeBonusVillages: true
                     };
@@ -1171,20 +1175,18 @@
                     includePlayers: false,
                     maxPlayerPoints: 1000,
                     autoAttackEnabled: false,
-                    autoAttackPosition: { x: 10, y: 100 },
                     autoAttackBuilds: { A: true, B: false, C: false },
                     includeBonusVillages: true
                 };
             }
         } catch (e) {
-            console.error("Error loading settings:", e);
+            showError("Error loading settings");
             settings = {
                 cooldown: defaultCooldown,
                 autoAttack: true,
                 includePlayers: false,
                 maxPlayerPoints: 1000,
                 autoAttackEnabled: false,
-                autoAttackPosition: { x: 10, y: 100 },
                 autoAttackBuilds: { A: true, B: false, C: false },
                 includeBonusVillages: true
             };
@@ -1198,7 +1200,7 @@
             allSettings[currentWorld] = settings;
             localStorage.setItem(settingsStorageKey, JSON.stringify(allSettings));
         } catch (e) {
-            console.error("Error saving settings:", e);
+            showError("Error saving settings");
         }
     }
     
@@ -1220,7 +1222,7 @@
                 }
             }
         } catch (e) {
-            console.error("Error loading village data:", e);
+            showError("Error loading village data");
         }
         return {};
     }
@@ -1232,7 +1234,7 @@
             allVillageData[currentWorld] = villageData;
             localStorage.setItem(villageDataStorageKey, JSON.stringify(allVillageData));
         } catch (e) {
-            console.error("Error saving village data:", e);
+            showError("Error saving village data");
         }
     }
     
@@ -1241,7 +1243,6 @@
         var data = villageData[target];
         
         if (!data) {
-            // Return cleaner default data
             return { 
                 name: "Barbarian Village", 
                 points: 0, 
@@ -1250,7 +1251,6 @@
             };
         }
         
-        // Ensure all required fields exist with proper defaults
         return {
             name: data.name || "Barbarian Village",
             points: data.points || 0,
@@ -1275,7 +1275,6 @@
                 villageData.name === "Unknown Village" ||
                 villageData.name.startsWith("Village at ")) {
                 
-                // Create a cleaner default name
                 var newName = "";
                 
                 if (villageData.isBonus) {
@@ -1297,29 +1296,24 @@
         });
         
         if (updatedCount > 0) {
-            console.log("Updated village data for " + updatedCount + " targets");
             updateTargetsListUI();
         }
     }
     
-    // Update addToTargetList to accept village data
     function addToTargetList(targetToAdd, villageData) {
         var targets = targetList.split(' ').filter(Boolean);
         if (targets.indexOf(targetToAdd) === -1) {
             targets.push(targetToAdd);
             updateTargetList(targets.join(' '));
             
-            // Save village data if provided
             if (villageData) {
                 saveVillageData(targetToAdd, villageData);
             } else {
-                // Try to get existing data first
                 var existingData = getVillageData(targetToAdd);
                 if (existingData.name === "Barbarian Village" || 
                     existingData.name === "Unknown" || 
                     existingData.name === "Unknown Village") {
                     
-                    // Create cleaner default data
                     saveVillageData(targetToAdd, {
                         name: "Barbarian Village",
                         points: 0,
@@ -1329,7 +1323,6 @@
                 }
             }
             
-            // Initialize target builds
             if (!targetBuilds[targetToAdd]) {
                 targetBuilds[targetToAdd] = { A: true, B: true, C: true };
                 saveTargetBuildsToStorage();
@@ -1337,83 +1330,6 @@
             return true;
         }
         return false;
-    }
-    
-    // Update parseVillageText function to save village data when adding
-    function parseVillageText(text, maxDistance) {
-        try {
-            var villages = [];
-            var lines = text.split('\n');
-            var validLines = 0;
-            var currentTargets = getCurrentTargets();
-            
-            lines.forEach(function(line) {
-                if (!line.trim()) return;
-                
-                var parts = line.split(',');
-                if (parts.length >= 7) {
-                    var playerNumber = parseInt(parts[4]);
-                    var villagePoints = parseInt(parts[5]) || 0;
-                    var isBonusVillage = parseInt(parts[6]);
-                    
-                    var shouldInclude = false;
-                    
-                    // Check if it's a bonus village
-                    if (isBonusVillage > 0 && settings.includeBonusVillages) {
-                        shouldInclude = true;
-                    } 
-                    // Check if it's a barbarian village
-                    else if (playerNumber === 0 && isBonusVillage === 0) {
-                        shouldInclude = true;
-                    } 
-                    // Check if it's a player village and we include them
-                    else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
-                        shouldInclude = true;
-                    }
-                    
-                    if (shouldInclude) {
-                        var villageName = decodeURIComponent(parts[1]).replace(/\+/g, ' ');
-                        var x = parts[2];
-                        var y = parts[3];
-                        var coords = x + '|' + y;
-                        var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
-                        
-                        if (!maxDistance || distance <= parseInt(maxDistance)) {
-                            if (currentTargets.indexOf(coords) === -1 && !isInIgnoreList(coords)) {
-                                villages.push({
-                                    name: villageName,
-                                    coords: coords,
-                                    distance: distance,
-                                    playerNumber: playerNumber,
-                                    points: villagePoints,
-                                    isBonus: isBonusVillage > 0
-                                });
-                            }
-                        }
-                        validLines++;
-                    }
-                }
-            });
-            
-            if (validLines === 0) {
-                showStatus('No valid villages found in the pasted text. Make sure you copied the correct content.', 'error');
-                return;
-            }
-            
-            villages.sort(function(a, b) { return a.distance - b.distance; });
-            
-            var alreadyAdded = validLines - villages.length;
-            var statusMessage = 'Found ' + villages.length + ' available villages';
-            if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list)';
-            statusMessage += ' out of ' + validLines + ' total villages';
-            
-            showStatus(statusMessage, 'success');
-            showVillagesSelection(villages);
-            
-        } catch (error) {
-            console.error('Error parsing village text:', error);
-            showStatus('Error parsing village.txt content: ' + error.message, 'error');
-        }
     }
     
     function getWorldsWithTargets() {
@@ -1426,7 +1342,7 @@
                 });
             }
         } catch (e) {
-            console.error("Error getting worlds:", e);
+            showError("Error getting worlds");
         }
         return [];
     }
@@ -1479,7 +1395,7 @@
                 }
             }
         } catch (e) {
-            console.error("Error loading ignore list:", e);
+            showError("Error loading ignore list");
         }
         return [];
     }
@@ -1491,7 +1407,7 @@
             allIgnores[currentWorld] = ignoreList;
             localStorage.setItem(ignoreStorageKey, JSON.stringify(allIgnores));
         } catch (e) {
-            console.error("Error saving ignore list:", e);
+            showError("Error saving ignore list");
         }
     }
     
@@ -1552,7 +1468,7 @@
             field.value = actualCount;
             
             if (actualCount < count) {
-                console.log("Warning: Only " + actualCount + " " + unitType + " available (requested " + count + ")");
+                showStatus("Only " + actualCount + " " + unitType + " available (requested " + count + ")", 'error');
             }
             
             // Set session storage marker
@@ -1561,7 +1477,6 @@
                 var key = submitMarkerKey + "_" + worldName;
                 var timestamp = new Date().getTime();
                 sessionStorage.setItem(key, timestamp.toString());
-                console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
             }
         }
     }
@@ -1586,7 +1501,6 @@
             }
         });
         
-        console.log("Available troops:", availableTroops);
         return availableTroops;
     }
     
@@ -1596,14 +1510,11 @@
         var doc = window.frames.length > 0 ? window.main.document : document;
         var submitButton = doc.querySelector('input[type="submit"], button[type="submit"], input[name="target_attack"]');
         if (submitButton) {
-            console.log("Auto-attack: Clicking submit button");
-            
             // Set session storage marker
             var worldName = getWorldName();
             var key = submitMarkerKey + "_" + worldName;
             var timestamp = new Date().getTime();
             sessionStorage.setItem(key, timestamp.toString());
-            console.log("Set session storage marker for submit button: " + key + " = " + timestamp);
             
             submitButton.click();
             return true;
@@ -1613,7 +1524,6 @@
             var key = submitMarkerKey + "_" + worldName;
             var timestamp = new Date().getTime();
             sessionStorage.setItem(key, timestamp.toString());
-            console.log("Set session storage marker for form submit: " + key + " = " + timestamp);
             
             doc.forms[0].submit();
             return true;
@@ -1627,6 +1537,7 @@
         var currentUrl = location.href;
         var doc = window.frames.length > 0 ? window.main.document : document;
         
+        // Check if we're on the place page WITHOUT try=confirm
         if (currentUrl.indexOf("screen=place") > -1 && 
             currentUrl.indexOf("try=confirm") < 0 && 
             doc.forms[0]) {
@@ -1637,7 +1548,6 @@
             var hasEnoughTroops = true;
             var missingTroops = [];
             
-            // Define troop types to check (exclude cooldown and enabled properties)
             var troopTypesToCheck = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
             
             for (var i = 0; i < troopTypesToCheck.length; i++) {
@@ -1658,16 +1568,11 @@
             }
             
             if (!hasEnoughTroops) {
-                console.log("Not enough troops for Build " + buildKey + " on village " + target + ":", missingTroops);
                 showStatus('Not enough troops for Build ' + buildKey + ' on ' + target + '. Skipping village.', 'error');
                 
-                // Instead of trying fallback builds, mark this village as on cooldown temporarily
-                // so it gets skipped in the current auto-attack cycle
-                recordBuildAttack(target, buildKey); // Record as attacked to skip it for now
+                recordBuildAttack(target, buildKey);
                 
-                // In auto-attack mode, this will cause it to move to the next village
                 if (settings.autoAttackEnabled) {
-                    // Immediately try the next target
                     setTimeout(function() {
                         autoAttackNext();
                     }, 1000);
@@ -1680,7 +1585,6 @@
             doc.forms[0].x.value = coords[0];
             doc.forms[0].y.value = coords[1];
             
-            // Set troop counts (only for actual troop types)
             setUnitCount(doc.forms[0].spear, build.spear || 0);
             setUnitCount(doc.forms[0].sword, build.sword || 0);
             setUnitCount(doc.forms[0].axe, build.axe || 0);
@@ -1734,8 +1638,6 @@
     }
     
     function autoAttackNext() {
-        console.log("=== autoAttackNext called ===");
-        
         if (checkForAntibot()) return;
         cleanupOldHistory();
         
@@ -1743,7 +1645,6 @@
         if (targets.length === 0) {
             showStatus('No targets in list for auto-attack', 'error');
             
-            // Retry after delay
             if (settings.autoAttackEnabled) {
                 setTimeout(function() {
                     autoAttackNext();
@@ -1761,21 +1662,16 @@
         var selectedBuild = null;
         var attempts = 0;
         
-        // First, get available troops to check what builds we can use
         var availableTroops = {};
         try {
             availableTroops = getAvailableTroops();
-            console.log("Available troops for auto-attack:", availableTroops);
         } catch (e) {
-            console.error("Could not get available troops:", e);
-            // If we can't get troop data, assume we have no troops
-            // This will make all builds fail the troop check
+            showError("Could not get available troops");
         }
         
         do {
             var currentTarget = targets[targetIndex];
             
-            // Check if ANY build is off cooldown for this target
             var anyBuildOffCooldown = false;
             var targetBuildSettings = getTargetBuilds(currentTarget);
             for (var buildKey in targetBuildSettings) {
@@ -1789,23 +1685,18 @@
             }
             
             if (anyBuildOffCooldown) {
-                // Check which builds are enabled for this target
                 var buildOrder = ['A', 'B', 'C'];
                 
                 for (var i = 0; i < buildOrder.length; i++) {
                     var buildKey = buildOrder[i];
                     if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
-                        // Check if this specific build is off cooldown
                         var buildCooldownInfo = getBuildCooldownInfo(currentTarget, buildKey);
                         
                         if (!buildCooldownInfo.onCooldown) {
-                            // Check if we have enough troops for this build
                             var build = troopBuilds[buildKey] || defaultBuilds[buildKey];
                             var hasEnoughTroops = true;
                             
-                            // Only check troop availability if we have troop data
                             if (Object.keys(availableTroops).length > 0) {
-                                // List of actual troop types to check (exclude cooldown and enabled)
                                 var troopTypes = ['spear', 'sword', 'axe', 'spy', 'light', 'heavy', 'ram', 'catapult', 'knight'];
                                 
                                 for (var j = 0; j < troopTypes.length; j++) {
@@ -1816,17 +1707,12 @@
                                         var available = availableTroops[troopType] || 0;
                                         if (available < troopCount) {
                                             hasEnoughTroops = false;
-                                            console.log("Skipping Build " + buildKey + " for " + currentTarget + 
-                                                        " - need " + troopCount + " " + troopType + 
-                                                        ", have " + available);
                                             break;
                                         }
                                     }
                                 }
                             } else {
-                                // If we don't have troop data, assume we don't have enough troops
                                 hasEnoughTroops = false;
-                                console.log("No troop data available, skipping Build " + buildKey + " for " + currentTarget);
                             }
                             
                             if (hasEnoughTroops) {
@@ -1849,7 +1735,6 @@
             setCookie(cookieName, nextIndex.toString(), 365);
             attackTarget(selectedTarget, selectedBuild);
         } else {
-            // Check if we skipped all villages due to troop shortages
             var anyVillageHasEnabledBuilds = false;
             var anyVillageOffCooldown = false;
             
@@ -1857,7 +1742,6 @@
                 var target = targets[i];
                 var targetBuildSettings = getTargetBuilds(target);
                 
-                // Check if any build is off cooldown for this target
                 for (var buildKey in targetBuildSettings) {
                     if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
                         var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
@@ -1873,28 +1757,22 @@
             }
             
             if (anyVillageOffCooldown && anyVillageHasEnabledBuilds) {
-                // We have villages off cooldown with enabled builds, but not enough troops
                 showStatus('All available villages skipped due to troop shortages. Waiting 30 seconds...', 'info');
                 
-                // Retry after 30 seconds to check for troop replenishment
                 setTimeout(function() {
-                    console.log('Re-checking for villages with available troops...');
                     autoAttackNext();
                 }, 30000);
             } else if (anyVillageOffCooldown && !anyVillageHasEnabledBuilds) {
                 showStatus('Villages available but no builds enabled for them. Check build settings.', 'error');
                 
-                // Retry after 60 seconds
                 setTimeout(function() {
                     autoAttackNext();
                 }, 60000);
             } else {
-                // All villages are on cooldown
                 var shortestCooldown = Infinity;
                 var shortestCooldownTarget = null;
                 var shortestCooldownMinutes = 0;
                 
-                // Check all builds for all targets to find the shortest cooldown
                 targets.forEach(function(target) {
                     var targetBuildSettings = getTargetBuilds(target);
                     for (var buildKey in targetBuildSettings) {
@@ -1915,7 +1793,6 @@
                     var checkDelay = Math.max(60000, shortestCooldownMinutes * 60000);
                     
                     setTimeout(function() {
-                        console.log('Re-checking for available targets after cooldown...');
                         autoAttackNext();
                     }, checkDelay);
                 } else {
@@ -1945,13 +1822,10 @@
         const marker = sessionStorage.getItem(markerKey);
         
         if (marker) {
-            console.log(`✅ Session storage marker found: ${markerKey} = ${marker}`);
             sessionStorage.removeItem(markerKey);
-            console.log(`🗑️ Session storage marker removed: ${markerKey}`);
             return true;
         }
         
-        console.log(`❌ No session storage marker found for world: ${worldName}`);
         return false;
     }
     
@@ -2005,44 +1879,29 @@
     }
     
     function runSubmitScript() {
-        // Skip if already executed
         if (submitScriptExecuted) {
             return;
         }
         
-        // Check session storage marker
         if (!checkSessionMarker()) {
-            console.log('⏹️ No session storage marker found - stopping submit script');
             submitScriptExecuted = true;
             return;
         }
 
-        // Check if auto-attack is enabled
         if (!settings.autoAttackEnabled) {
-            console.log('⏹️ Auto-attack is not enabled');
             submitScriptExecuted = true;
             return;
         }
         
-        // Antibot check
         if (checkForAntibot()) {
             submitScriptExecuted = true;
             return;
         }
         
-        // Check URL pattern
         if (!window.location.href.includes(SUBMIT_CONFIG.urlPattern)) {
-            console.log('⏳ Not the submit page, waiting...');
-            
-            if (!loadingOverlay) {
-                createSubmitLoadingOverlay();
-                updateSubmitStatus('⏳ Waiting for submit page...');
-            }
-            
             return;
         }
         
-        console.log('✅ Submit page detected!');
         submitScriptExecuted = true;
         
         createSubmitLoadingOverlay();
@@ -2052,7 +1911,6 @@
             Math.random() * (SUBMIT_CONFIG.initialDelay.max - SUBMIT_CONFIG.initialDelay.min + 1)
         ) + SUBMIT_CONFIG.initialDelay.min;
         
-        console.log(`⏳ Initial delay: ${initialDelay}ms before finding element...`);
         updateSubmitStatus(`⏳ Waiting ${initialDelay}ms...`);
         
         setTimeout(() => {
@@ -2068,17 +1926,14 @@
                 }
                 
                 attempts++;
-                console.log(`🔍 Attempt ${attempts}/${SUBMIT_CONFIG.maxRetries}: Looking for button...`);
                 
                 const button = document.getElementById(SUBMIT_CONFIG.elementId);
                 
                 if (button) {
-                    console.log(`✅ Found on attempt ${attempts}! Clicking #${SUBMIT_CONFIG.elementId}...`);
                     updateSubmitStatus(`✅ Found button! Clicking...`, false, true);
                     
                     setTimeout(() => {
                         button.click();
-                        console.log('🎉 Success! Button clicked.');
                         updateSubmitStatus('🎉 Success! Button clicked.', false, true);
                         
                         setTimeout(() => {
@@ -2091,12 +1946,10 @@
                 }
                 
                 if (attempts < SUBMIT_CONFIG.maxRetries) {
-                    console.log(`⚠️ Not found. Retrying in ${SUBMIT_CONFIG.retryDelay}ms...`);
                     updateSubmitStatus(`⚠️ Button not found. Retrying...`);
                     
                     setTimeout(attemptClick, SUBMIT_CONFIG.retryDelay);
                 } else {
-                    console.error(`❌ Failed after ${SUBMIT_CONFIG.maxRetries} attempts.`);
                     updateSubmitStatus(`❌ Failed after ${SUBMIT_CONFIG.maxRetries} attempts.`, true);
                     
                     setTimeout(() => {
@@ -2108,6 +1961,160 @@
             attemptClick();
             
         }, initialDelay);
+    }
+    
+    // ===== INFO VILLAGE PAGE FUNCTIONS =====
+    
+    function createInfoVillagePanel() {
+        // Find coordinates on the page
+        var coords = findCoordinatesOnPage();
+        if (!coords) {
+            showError("Could not find village coordinates on info_village page");
+            return;
+        }
+        
+        // Check if village is in target list
+        var isInTargetList = getCurrentTargets().includes(coords);
+        var targetBuildSettings = isInTargetList ? getTargetBuilds(coords) : { A: false, B: false, C: false };
+        
+        // Create panel
+        var panel = document.createElement('div');
+        panel.className = 'tw-attack-info-panel';
+        
+        var title = document.createElement('h3');
+        title.className = 'tw-attack-info-title';
+        title.textContent = 'TW Attack Control';
+        
+        var coordsDisplay = document.createElement('div');
+        coordsDisplay.className = 'tw-attack-info-coords';
+        coordsDisplay.textContent = coords;
+        
+        var buildButtons = document.createElement('div');
+        buildButtons.className = 'tw-attack-info-build-buttons';
+        
+        // Create build buttons
+        ['A', 'B', 'C'].forEach(function(buildKey) {
+            var btn = document.createElement('button');
+            btn.className = 'tw-attack-info-build-btn ' + buildKey.toLowerCase();
+            btn.textContent = 'Build ' + buildKey;
+            btn.dataset.build = buildKey;
+            
+            if (targetBuildSettings[buildKey]) {
+                btn.classList.add('checked');
+            }
+            
+            btn.onclick = (function(buildKey, coords) {
+                return function() {
+                    var isChecked = this.classList.contains('checked');
+                    
+                    if (!isInTargetList && !isChecked) {
+                        // Add to target list with this build enabled
+                        var villageData = {
+                            name: "Village from Info Page",
+                            points: 0,
+                            playerNumber: 0,
+                            isBonus: false
+                        };
+                        addToTargetList(coords, villageData);
+                        setTargetBuild(coords, buildKey, true);
+                        isInTargetList = true;
+                        this.classList.add('checked');
+                        showStatus('Village ' + coords + ' added to target list with Build ' + buildKey + ' enabled', 'success');
+                    } else if (isInTargetList) {
+                        // Toggle build for existing target
+                        var newState = !isChecked;
+                        setTargetBuild(coords, buildKey, newState);
+                        if (newState) {
+                            this.classList.add('checked');
+                        } else {
+                            this.classList.remove('checked');
+                        }
+                        showStatus('Build ' + buildKey + ' ' + (newState ? 'enabled' : 'disabled') + ' for ' + coords, 'success');
+                    }
+                };
+            })(buildKey, coords);
+            
+            buildButtons.appendChild(btn);
+        });
+        
+        var actionButtons = document.createElement('div');
+        actionButtons.className = 'tw-attack-info-actions';
+        
+        var ignoreBtn = document.createElement('button');
+        ignoreBtn.className = 'tw-attack-info-action-btn tw-attack-info-ignore-btn';
+        ignoreBtn.textContent = 'Ignore';
+        ignoreBtn.onclick = function() {
+            if (addToIgnoreList(coords)) {
+                if (isInTargetList) {
+                    removeFromTargetList(coords);
+                }
+                showStatus('Village ' + coords + ' added to ignore list', 'success');
+                panel.remove();
+            }
+        };
+        
+        var removeBtn = document.createElement('button');
+        removeBtn.className = 'tw-attack-info-action-btn tw-attack-info-remove-btn';
+        removeBtn.textContent = 'Remove';
+        removeBtn.onclick = function() {
+            if (isInTargetList) {
+                if (removeFromTargetList(coords)) {
+                    showStatus('Village ' + coords + ' removed from target list', 'success');
+                    panel.remove();
+                }
+            } else {
+                showStatus('Village not in target list', 'error');
+            }
+        };
+        
+        var statusMsg = document.createElement('div');
+        statusMsg.id = 'info-status';
+        statusMsg.className = 'tw-attack-info-status';
+        
+        actionButtons.appendChild(ignoreBtn);
+        actionButtons.appendChild(removeBtn);
+        
+        panel.appendChild(title);
+        panel.appendChild(coordsDisplay);
+        panel.appendChild(buildButtons);
+        panel.appendChild(actionButtons);
+        panel.appendChild(statusMsg);
+        
+        // Find where to insert the panel
+        var container = document.querySelector('#content_value > div.commands-container-outer');
+        if (container) {
+            container.insertBefore(panel, container.firstChild);
+        } else {
+            // Fallback to body
+            document.body.insertBefore(panel, document.body.firstChild);
+        }
+    }
+    
+    function findCoordinatesOnPage() {
+        // Look for coordinates in various places
+        var textNodes = document.evaluate('//text()[contains(., "|")]', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+        
+        for (var i = 0; i < textNodes.snapshotLength; i++) {
+            var node = textNodes.snapshotItem(i);
+            var text = node.textContent.trim();
+            
+            // Look for pattern like "xxx|yyy"
+            var match = text.match(/(\d+)\|(\d+)/);
+            if (match) {
+                return match[1] + '|' + match[2];
+            }
+        }
+        
+        // Also check in title
+        var title = document.querySelector('head > title');
+        if (title) {
+            var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
+            if (match) {
+                return match[1] + "|" + match[2];
+            }
+        }
+        
+        return null;
     }
     
     // ===== UI FUNCTIONS =====
@@ -2129,16 +2136,6 @@
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
         uiContainer.className = 'tw-attack-config';
-        
-        var closeBtn = document.createElement('button');
-        closeBtn.textContent = '×';
-        closeBtn.className = 'tw-attack-close-btn';
-        closeBtn.onclick = function() {
-            uiContainer.remove();
-            stopAutoUpdate();
-            var externalCheckbox = document.getElementById('external-auto-attack');
-            if (externalCheckbox) externalCheckbox.remove();
-        };
         
         var title = document.createElement('h3');
         title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
@@ -2175,95 +2172,37 @@
         autoAttackContainer.appendChild(autoAttackBtnB);
         autoAttackContainer.appendChild(autoAttackBtnC);
         
-        var worlds = getWorldsWithTargets();
-        var worldSelector;
-        if (worlds.length > 0) {
-            worldSelector = document.createElement('div');
-            worldSelector.style.cssText = `
-                margin-bottom: 20px;
-                padding: 12px;
-                background-color: #f0f8ff;
-                border-radius: 6px;
-                border: 1px solid #b8d4ff;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            `;
-            
-            var worldLabel = document.createElement('label');
-            worldLabel.textContent = 'Switch World: ';
-            worldLabel.style.marginRight = '10px';
-            worldLabel.style.fontWeight = 'bold';
-            
-            var worldSelect = document.createElement('select');
-            worldSelect.style.cssText = `
-                padding: 6px 10px;
-                border-radius: 4px;
-                border: 1px solid #ddd;
-                background: white;
-                font-size: 14px;
-                min-width: 150px;
-            `;
-            
-            if (worlds.indexOf(currentWorld) === -1) worlds.unshift(currentWorld);
-            
-            worlds.forEach(function(world) {
-                var option = document.createElement('option');
-                option.value = world;
-                option.textContent = world;
-                if (world === currentWorld) option.selected = true;
-                worldSelect.appendChild(option);
-            });
-            
-            worldSelect.onchange = function() {
-                saveTargetsToStorage();
-                saveBuildsToStorage();
-                saveSettingsToStorage();
-                saveTargetBuildsToStorage();
-                currentWorld = this.value;
-                title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
-                loadTargetsFromStorage();
-                loadBuildsFromStorage();
-                loadSettingsFromStorage();
-                loadTargetBuildsFromStorage();
-                updateBuildsUI();
-                updateSettingsUI();
-                updateTargetsListUI();
-                createExternalAutoAttackCheckbox();
-            };
-            
-            worldSelector.appendChild(worldLabel);
-            worldSelector.appendChild(worldSelect);
-        }
-        
         var infoSection = document.createElement('div');
         infoSection.id = 'world-info';
         infoSection.className = 'tw-attack-world-info';
         
         var worldInfo = document.createElement('div');
         worldInfo.innerHTML = '<strong>🌍 World:</strong> ' + currentWorld;
-        worldInfo.style.marginBottom = '8px';
+        worldInfo.style.marginBottom = '6px';
         
         var villageInfo = document.createElement('div');
         villageInfo.innerHTML = '<strong>🏠 Current Village:</strong> ' + (homeCoords || 'Not found');
-        villageInfo.style.marginBottom = '12px';
+        villageInfo.style.marginBottom = '8px';
         villageInfo.style.color = '#666';
         
         var villageUrl = document.createElement('div');
-        villageUrl.style.cssText = `margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ddd;`;
+        villageUrl.style.cssText = `margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd;`;
         
         var urlLink = document.createElement('a');
         urlLink.href = getVillageTxtUrl();
-        urlLink.textContent = '📥 Download village.txt for ' + currentWorld;
+        urlLink.textContent = '📥 Download village.txt';
         urlLink.target = '_blank';
         urlLink.style.cssText = `
             color: #2196F3;
             text-decoration: none;
             font-weight: bold;
             display: inline-block;
-            padding: 6px 12px;
+            padding: 4px 8px;
             background: #e3f2fd;
             border-radius: 4px;
             border: 1px solid #bbdefb;
             transition: background 0.2s;
+            font-size: 11px;
         `;
         urlLink.onmouseover = function() { this.style.background = '#bbdefb'; };
         urlLink.onmouseout = function() { this.style.background = '#e3f2fd'; };
@@ -2273,10 +2212,10 @@
         };
         
         var urlHelp = document.createElement('div');
-        urlHelp.textContent = 'Open this link, copy all text, and paste below:';
-        urlHelp.style.fontSize = '12px';
+        urlHelp.textContent = 'Open, copy all text, paste below:';
+        urlHelp.style.fontSize = '10px';
         urlHelp.style.color = '#666';
-        urlHelp.style.marginTop = '8px';
+        urlHelp.style.marginTop = '4px';
         
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
@@ -2301,7 +2240,6 @@
             settingsContainer = document.createElement('div');
             settingsContainer.id = 'settings-container';
             
-            // Include players villages setting
             var includePlayersSetting = document.createElement('div');
             includePlayersSetting.className = 'tw-attack-setting-row';
             
@@ -2312,12 +2250,11 @@
             var includePlayersCheckbox = document.createElement('input');
             includePlayersCheckbox.type = 'checkbox';
             includePlayersCheckbox.checked = settings.includePlayers;
-            includePlayersCheckbox.style.cssText = `transform: scale(1.3); margin-right: 10px;`;
+            includePlayersCheckbox.style.cssText = `transform: scale(1.2); margin-right: 8px;`;
             
             includePlayersSetting.appendChild(includePlayersLabel);
             includePlayersSetting.appendChild(includePlayersCheckbox);
             
-            // Max player points setting
             var maxPointsSetting = document.createElement('div');
             maxPointsSetting.className = 'tw-attack-setting-row';
             
@@ -2330,12 +2267,11 @@
             maxPointsInput.min = '1';
             maxPointsInput.value = settings.maxPlayerPoints;
             maxPointsInput.className = 'tw-attack-input';
-            maxPointsInput.style.width = '80px';
+            maxPointsInput.style.width = '70px';
             
             maxPointsSetting.appendChild(maxPointsLabel);
             maxPointsSetting.appendChild(maxPointsInput);
             
-            // Include bonus villages setting
             var includeBonusSetting = document.createElement('div');
             includeBonusSetting.className = 'tw-attack-setting-row';
             
@@ -2346,7 +2282,7 @@
             var includeBonusCheckbox = document.createElement('input');
             includeBonusCheckbox.type = 'checkbox';
             includeBonusCheckbox.checked = settings.includeBonusVillages;
-            includeBonusCheckbox.style.cssText = `transform: scale(1.3); margin-right: 10px;`;
+            includeBonusCheckbox.style.cssText = `transform: scale(1.2); margin-right: 8px;`;
             
             includeBonusSetting.appendChild(includeBonusLabel);
             includeBonusSetting.appendChild(includeBonusCheckbox);
@@ -2401,14 +2337,13 @@
                 var borderColor = buildKey === 'A' ? '#4CAF50' : buildKey === 'B' ? '#2196F3' : '#9C27B0';
                 buildHeader.style.borderBottomColor = borderColor;
                 
-                // Build title with enabled checkbox
                 var buildTitleContainer = document.createElement('div');
-                buildTitleContainer.style.cssText = 'display: flex; align-items: center; gap: 10px;';
+                buildTitleContainer.style.cssText = 'display: flex; align-items: center; gap: 8px;';
                 
                 var enabledCheckbox = document.createElement('input');
                 enabledCheckbox.type = 'checkbox';
                 enabledCheckbox.checked = build.enabled !== false;
-                enabledCheckbox.style.transform = 'scale(1.2)';
+                enabledCheckbox.style.transform = 'scale(1.1)';
                 enabledCheckbox.dataset.build = buildKey;
                 
                 var buildTitle = document.createElement('div');
@@ -2416,6 +2351,7 @@
                 if (buildKey === 'B') buildTitle.classList.add('tw-attack-build-title-b');
                 if (buildKey === 'C') buildTitle.classList.add('tw-attack-build-title-c');
                 buildTitle.textContent = 'Build ' + buildKey;
+                buildTitle.style.fontSize = '13px';
                 
                 enabledCheckbox.onchange = function() {
                     if (!troopBuilds[buildKey]) {
@@ -2427,13 +2363,12 @@
                 buildTitleContainer.appendChild(enabledCheckbox);
                 buildTitleContainer.appendChild(buildTitle);
                 
-                // Cooldown input
                 var cooldownContainer = document.createElement('div');
-                cooldownContainer.style.cssText = 'display: flex; align-items: center; gap: 5px; margin-left: 10px;';
+                cooldownContainer.style.cssText = 'display: flex; align-items: center; gap: 4px; margin-left: 8px;';
                 
                 var cooldownLabel = document.createElement('span');
-                cooldownLabel.textContent = 'Cooldown:';
-                cooldownLabel.style.fontSize = '12px';
+                cooldownLabel.textContent = 'CD:';
+                cooldownLabel.style.fontSize = '10px';
                 cooldownLabel.style.color = '#666';
                 
                 var cooldownInput = document.createElement('input');
@@ -2441,7 +2376,7 @@
                 cooldownInput.min = '1';
                 cooldownInput.max = '1440';
                 cooldownInput.value = build.cooldown || defaultCooldown;
-                cooldownInput.style.cssText = 'width: 50px; padding: 2px; font-size: 12px;';
+                cooldownInput.style.cssText = 'width: 45px; padding: 2px; font-size: 11px;';
                 cooldownInput.dataset.build = buildKey;
                 
                 cooldownInput.onchange = function() {
@@ -2457,10 +2392,12 @@
                 buildTitleContainer.appendChild(cooldownContainer);
                 
                 var saveBtn = document.createElement('button');
-                saveBtn.textContent = '💾 Save';
+                saveBtn.textContent = '💾';
                 saveBtn.className = 'tw-attack-build-save-btn';
                 if (buildKey === 'B') saveBtn.classList.add('tw-attack-build-save-btn-b');
                 if (buildKey === 'C') saveBtn.classList.add('tw-attack-build-save-btn-c');
+                saveBtn.style.padding = '4px 6px';
+                saveBtn.style.fontSize = '10px';
                 
                 saveBtn.onclick = (function(key) {
                     return function() {
@@ -2528,18 +2465,18 @@
         
         function saveBuild(buildKey) {
             saveBuildsToStorage();
-            showStatus('Build ' + buildKey + ' saved for ' + currentWorld, 'success');
+            showStatus('Build ' + buildKey + ' saved', 'success');
         }
         
         var pasteSection = document.createElement('div');
-        pasteSection.style.marginBottom = '20px';
+        pasteSection.style.marginBottom = '15px';
         
         var pasteLabel = document.createElement('label');
         pasteLabel.textContent = '📋 Paste village.txt content:';
         pasteLabel.style.display = 'block';
-        pasteLabel.style.marginBottom = '10px';
+        pasteLabel.style.marginBottom = '8px';
         pasteLabel.style.fontWeight = 'bold';
-        pasteLabel.style.fontSize = '14px';
+        pasteLabel.style.fontSize = '12px';
         
         var pasteTextarea = document.createElement('textarea');
         pasteTextarea.id = 'village-textarea';
@@ -2551,20 +2488,21 @@
         if (savedText) pasteTextarea.value = savedText;
             
         var distanceContainer = document.createElement('div');
-        distanceContainer.style.cssText = `margin-bottom: 15px; display: flex; align-items: center;`;
+        distanceContainer.style.cssText = `margin-bottom: 12px; display: flex; align-items: center;`;
         
         var distanceLabel = document.createElement('label');
         distanceLabel.textContent = 'Max Distance: ';
-        distanceLabel.style.marginRight = '10px';
+        distanceLabel.style.marginRight = '8px';
         distanceLabel.style.fontWeight = 'bold';
+        distanceLabel.style.fontSize = '12px';
         
         var distanceInput = document.createElement('input');
         distanceInput.type = 'number';
         distanceInput.value = '50';
         distanceInput.min = '1';
         distanceInput.className = 'tw-attack-input';
-        distanceInput.style.width = '80px';
-        distanceInput.style.marginRight = '15px';
+        distanceInput.style.width = '70px';
+        distanceInput.style.marginRight = '12px';
         
         distanceContainer.appendChild(distanceLabel);
         distanceContainer.appendChild(distanceInput);
@@ -2600,8 +2538,9 @@
         
         var targetsTitle = document.createElement('h4');
         targetsTitle.textContent = '🎯 Targets for ' + currentWorld + ':';
-        targetsTitle.style.marginBottom = '15px';
+        targetsTitle.style.marginBottom = '12px';
         targetsTitle.style.color = '#333';
+        targetsTitle.style.fontSize = '14px';
         
         var targetsList = document.createElement('div');
         targetsList.id = 'targets-list';
@@ -2609,23 +2548,31 @@
         targetsContainer.appendChild(targetsTitle);
         targetsContainer.appendChild(targetsList);
         
-        uiContainer.appendChild(closeBtn);
         uiContainer.appendChild(title);
         uiContainer.appendChild(toggleConfigBtn);
         uiContainer.appendChild(autoAttackContainer);
-        
-        if (worlds.length > 0) uiContainer.appendChild(worldSelector);
-        
         uiContainer.appendChild(infoSection);
         uiContainer.appendChild(settingsSection);
         uiContainer.appendChild(buildsSection);
         uiContainer.appendChild(pasteSection);
         uiContainer.appendChild(targetsContainer);
         
-        document.body.appendChild(uiContainer);
+        // Insert into the main page
+        var container = document.querySelector('#content_value > div.commands-container-outer');
+        if (container) {
+            var outgoing = container.querySelector('#commands_outgoings');
+            if (outgoing) {
+                container.insertBefore(uiContainer, outgoing);
+            } else {
+                container.appendChild(uiContainer);
+            }
+        } else {
+            // Fallback to body
+            document.body.appendChild(uiContainer);
+        }
+        
         updateTargetsListUI();
         startAutoUpdate();
-        createExternalAutoAttackCheckbox();
         
         function toggleConfigVisibility() {
             var sectionsToHide = [settingsSection, buildsSection, pasteSection];
@@ -2636,11 +2583,81 @@
             });
             
             if (clearBtn) clearBtn.style.display = configVisible ? 'block' : 'none';
-            
-            uiContainer.style.maxHeight = configVisible ? '85vh' : '70vh';
         }
         
         toggleConfigVisibility();
+    }
+    
+    function parseVillageText(text, maxDistance) {
+        try {
+            var villages = [];
+            var lines = text.split('\n');
+            var validLines = 0;
+            var currentTargets = getCurrentTargets();
+            
+            lines.forEach(function(line) {
+                if (!line.trim()) return;
+                
+                var parts = line.split(',');
+                if (parts.length >= 7) {
+                    var playerNumber = parseInt(parts[4]);
+                    var villagePoints = parseInt(parts[5]) || 0;
+                    var isBonusVillage = parseInt(parts[6]);
+                    
+                    var shouldInclude = false;
+                    
+                    if (isBonusVillage > 0 && settings.includeBonusVillages) {
+                        shouldInclude = true;
+                    } 
+                    else if (playerNumber === 0 && isBonusVillage === 0) {
+                        shouldInclude = true;
+                    } 
+                    else if (settings.includePlayers && playerNumber > 0 && villagePoints <= settings.maxPlayerPoints) {
+                        shouldInclude = true;
+                    }
+                    
+                    if (shouldInclude) {
+                        var villageName = decodeURIComponent(parts[1]).replace(/\+/g, ' ');
+                        var x = parts[2];
+                        var y = parts[3];
+                        var coords = x + '|' + y;
+                        var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
+                        
+                        if (!maxDistance || distance <= parseInt(maxDistance)) {
+                            if (currentTargets.indexOf(coords) === -1 && !isInIgnoreList(coords)) {
+                                villages.push({
+                                    name: villageName,
+                                    coords: coords,
+                                    distance: distance,
+                                    playerNumber: playerNumber,
+                                    points: villagePoints,
+                                    isBonus: isBonusVillage > 0
+                                });
+                            }
+                        }
+                        validLines++;
+                    }
+                }
+            });
+            
+            if (validLines === 0) {
+                showStatus('No valid villages found in the pasted text. Make sure you copied the correct content.', 'error');
+                return;
+            }
+            
+            villages.sort(function(a, b) { return a.distance - b.distance; });
+            
+            var alreadyAdded = validLines - villages.length;
+            var statusMessage = 'Found ' + villages.length + ' available villages';
+            if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list)';
+            statusMessage += ' out of ' + validLines + ' total villages';
+            
+            showStatus(statusMessage, 'success');
+            showVillagesSelection(villages);
+            
+        } catch (error) {
+            showStatus('Error parsing village.txt content: ' + error.message, 'error');
+        }
     }
     
     function showStatus(message, type) {
@@ -2661,6 +2678,14 @@
             default:
                 statusMsg.classList.add('tw-attack-status-info');
         }
+        
+        setTimeout(function() {
+            statusMsg.style.display = 'none';
+        }, 5000);
+    }
+    
+    function showError(message) {
+        showStatus(message, 'error');
     }
     
     function updateTargetsListUI() {
@@ -2671,7 +2696,7 @@
         var targets = targetList.split(' ').filter(Boolean);
         
         if (targets.length === 0) {
-            targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 20px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd;">No targets in list for ' + currentWorld + '</div>';
+            targetsList.innerHTML = '<div style="color: #999; font-style: italic; padding: 15px; text-align: center; background: #f8f9fa; border-radius: 6px; border: 1px dashed #ddd; font-size: 12px;">No targets in list for ' + currentWorld + '</div>';
             return;
         }
         
@@ -2694,17 +2719,8 @@
             showIgnoreListManagement();
         };
         
-        var refreshVillageDataBtn = document.createElement('button');
-        refreshVillageDataBtn.textContent = '🔄 Refresh Village Data';
-        refreshVillageDataBtn.className = 'tw-attack-manage-btn';
-        refreshVillageDataBtn.onclick = function() {
-            updateVillageDataForExistingTargets();
-            showStatus('Village data refreshed for all targets', 'success');
-        };
-        
         targetsList.appendChild(clearAllBtn);
         targetsList.appendChild(manageIgnoresBtn);
-        targetsList.appendChild(refreshVillageDataBtn);
         
         targets.forEach(function(target, index) {
             var targetItem = document.createElement('div');
@@ -2717,93 +2733,64 @@
             var villageData = getVillageData(target);
             var targetBuildSettings = getTargetBuilds(target);
             
-            // Village info container
             var villageInfoContainer = document.createElement('div');
             villageInfoContainer.style.cssText = `
                 display: flex;
                 flex-direction: column;
-                min-width: 200px;
+                min-width: 150px;
                 flex: 1;
             `;
             
-            // First line: Coords and village name with tag
             var firstLine = document.createElement('div');
             firstLine.style.cssText = `
                 display: flex;
                 align-items: center;
-                gap: 8px;
-                margin-bottom: 4px;
+                gap: 6px;
+                margin-bottom: 3px;
             `;
             
             var targetCoords = document.createElement('div');
             targetCoords.className = 'tw-attack-target-coords';
             targetCoords.textContent = target;
-            targetCoords.style.minWidth = '70px';
+            targetCoords.style.minWidth = '60px';
             
             var villageName = document.createElement('span');
             villageName.style.cssText = `
-                font-size: 13px;
+                font-size: 11px;
                 font-weight: bold;
                 color: #333;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
-                max-width: 200px;
+                max-width: 120px;
             `;
             
             var displayName = villageData.name;
-            if (displayName.length > 20) {
-                displayName = displayName.substring(0, 20) + '...';
+            if (displayName.length > 15) {
+                displayName = displayName.substring(0, 15) + '...';
             }
             villageName.textContent = displayName;
             
-            // Village type tag
             var villageTag = document.createElement('span');
-            villageTag.style.cssText = `
-                font-size: 11px;
-                padding: 1px 6px;
-                border-radius: 10px;
-                font-weight: bold;
-                white-space: nowrap;
-            `;
+            villageTag.className = 'tw-attack-village-tag';
             
             var villageType = '';
-            var tagColor = '';
             
             if (villageData.isBonus) {
                 villageType = 'Bonus';
-                tagColor = '#FFD700';
-                villageTag.style.backgroundColor = '#FFF8DC';
-                villageTag.style.color = '#B8860B';
-                villageTag.style.border = '1px solid #FFD700';
+                villageTag.classList.add('tw-attack-village-tag-bonus');
             } else if (villageData.playerNumber > 0) {
                 villageType = 'Player';
-                tagColor = '#ff4444';
-                villageTag.style.backgroundColor = '#FFE6E6';
-                villageTag.style.color = '#B22222';
-                villageTag.style.border = '1px solid #ff4444';
+                villageTag.classList.add('tw-attack-village-tag-player');
             } else {
                 villageType = 'Barbarian';
-                tagColor = '#666';
-                villageTag.style.backgroundColor = '#f0f0f0';
-                villageTag.style.color = '#666';
-                villageTag.style.border = '1px solid #ccc';
+                villageTag.classList.add('tw-attack-village-tag-barbarian');
             }
             
             villageTag.textContent = villageType;
             
-            // Points badge
             var pointsBadge = document.createElement('span');
-            pointsBadge.style.cssText = `
-                font-size: 11px;
-                background-color: #e3f2fd;
-                color: #1976D2;
-                padding: 1px 6px;
-                border-radius: 10px;
-                border: 1px solid #bbdefb;
-                font-weight: bold;
-                white-space: nowrap;
-            `;
+            pointsBadge.className = 'tw-attack-points-badge';
             pointsBadge.textContent = villageData.points + ' pts';
             
             firstLine.appendChild(targetCoords);
@@ -2811,23 +2798,20 @@
             firstLine.appendChild(villageTag);
             firstLine.appendChild(pointsBadge);
             
-            // Second line: Details and cooldown
             var secondLine = document.createElement('div');
             secondLine.className = 'tw-attack-target-details';
             secondLine.style.cssText = `
                 display: flex;
                 align-items: center;
-                gap: 10px;
+                gap: 8px;
                 flex-wrap: wrap;
-                font-size: 11px;
+                font-size: 10px;
                 color: #666;
             `;
             
             var distanceSpan = document.createElement('span');
             distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
             
-            var lastAttackSpan = document.createElement('span');
-            // Get the most recent attack from any build
             var mostRecentAttack = null;
             var mostRecentBuild = null;
             var buildCooldowns = loadBuildCooldownsFromStorage();
@@ -2842,7 +2826,6 @@
                 }
             }
             
-            // Fallback to old attack history
             if (!mostRecentAttack) {
                 var history = getAttackHistory();
                 if (history[target]) {
@@ -2855,18 +2838,17 @@
             if (mostRecentBuild && mostRecentBuild !== 'unknown') {
                 lastAttackText += ' (Build ' + mostRecentBuild + ')';
             }
+            var lastAttackSpan = document.createElement('span');
             lastAttackSpan.innerHTML = `<strong>Last:</strong> ${lastAttackText}`;
             
-            // Build cooldown indicators
             var cooldownSpan = document.createElement('span');
             var cooldownDetails = [];
             
-            // Check cooldown for each enabled build
             ['A', 'B', 'C'].forEach(function(buildKey) {
                 if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
                     var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
                     if (buildCooldownInfo.onCooldown) {
-                        cooldownDetails.push(`Build ${buildKey}: ${buildCooldownInfo.minutesLeft}m`);
+                        cooldownDetails.push(`${buildKey}: ${buildCooldownInfo.minutesLeft}m`);
                     }
                 }
             });
@@ -2875,7 +2857,7 @@
                 cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${cooldownDetails.join(', ')}</strong>`;
                 cooldownSpan.title = 'Build cooldowns: ' + cooldownDetails.join(', ');
             } else {
-                cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
+                cooldownSpan.innerHTML = `<strong style="color: #4CAF50;">✅</strong>`;
             }
             
             secondLine.appendChild(distanceSpan);
@@ -2890,7 +2872,6 @@
             var actionButtons = document.createElement('div');
             actionButtons.className = 'tw-attack-action-buttons';
             
-            // Build selection checkboxes with cooldown indicators
             ['A', 'B', 'C'].forEach(function(buildKey) {
                 var isEnabled = targetBuildSettings[buildKey];
                 var btn = document.createElement('button');
@@ -2900,7 +2881,6 @@
                 if (buildKey === 'B') btn.classList.add('b');
                 if (buildKey === 'C') btn.classList.add('c');
                 
-                // Add cooldown indicator
                 var buildCooldownInfo = getBuildCooldownInfo(target, buildKey);
                 var cooldownIndicator = document.createElement('span');
                 cooldownIndicator.className = 'tw-attack-build-cooldown-indicator';
@@ -2935,7 +2915,6 @@
             attackBtn.title = 'Attack with first available build';
             attackBtn.className = 'tw-attack-attack-btn';
             
-            // Check if any build is off cooldown and enabled
             var anyBuildReady = false;
             ['A', 'B', 'C'].forEach(function(buildKey) {
                 if (targetBuildSettings[buildKey] && settings.autoAttackBuilds[buildKey]) {
@@ -2959,7 +2938,7 @@
     
             var ignoreBtn = document.createElement('button');
             ignoreBtn.textContent = '👁️';
-            ignoreBtn.title = 'Add to ignore list (hide from future selections)';
+            ignoreBtn.title = 'Add to ignore list';
             ignoreBtn.className = 'tw-attack-ignore-btn';
             ignoreBtn.onclick = (function(targetCoords) {
                 return function() {
@@ -2984,28 +2963,6 @@
                 };
             })(target);
             
-            var editBtn = document.createElement('button');
-            editBtn.textContent = '✎';
-            editBtn.title = 'Edit village info';
-            editBtn.style.cssText = `
-                background: #666;
-                color: white;
-                border: none;
-                border-radius: 3px;
-                width: 20px;
-                height: 20px;
-                font-size: 10px;
-                cursor: pointer;
-                margin-left: 5px;
-            `;
-            editBtn.onclick = (function(targetCoords) {
-                return function(e) {
-                    e.stopPropagation();
-                    editVillageInfo(targetCoords);
-                };
-            })(target);
-            
-            firstLine.appendChild(editBtn);
             targetItem.appendChild(targetInfo);
             targetItem.appendChild(actionButtons);
             targetItem.appendChild(attackBtn);
@@ -3014,7 +2971,7 @@
             targetsList.appendChild(targetItem);
         });
     }
-     
+    
     function showVillagesSelection(villages) {
         var existingSelection = document.getElementById('villages-selection');
         if (existingSelection) existingSelection.remove();
@@ -3028,28 +2985,28 @@
         selectionContainer.className = 'tw-attack-selection-container';
         
         var header = document.createElement('div');
-        header.className = 'tw-attack-selection-header';
+        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;';
         
         var title = document.createElement('h3');
         title.textContent = '🎯 Select Villages for ' + currentWorld + ' (' + villages.length + ' available)';
-        title.className = 'tw-attack-selection-title';
+        title.style.margin = '0';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
-        closeBtn.className = 'tw-attack-selection-close-btn';
+        closeBtn.style.cssText = `
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+        `;
         closeBtn.onclick = function() { document.body.removeChild(overlay); };
         
         header.appendChild(title);
         header.appendChild(closeBtn);
-        
-        var searchContainer = document.createElement('div');
-        
-        var searchInput = document.createElement('input');
-        searchInput.type = 'text';
-        searchInput.placeholder = '🔍 Search villages...';
-        searchInput.className = 'tw-attack-search-input';
-        
-        searchContainer.appendChild(searchInput);
         
         var villagesContainer = document.createElement('div');
         villagesContainer.id = 'villages-container';
@@ -3060,8 +3017,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 20px;
-            padding-top: 20px;
+            margin-top: 15px;
+            padding-top: 15px;
             border-top: 2px solid #ddd;
         `;
         
@@ -3069,52 +3026,23 @@
         selectedCount.id = 'selected-count';
         selectedCount.textContent = '📌 Selected: 0';
         selectedCount.style.color = '#666';
-        selectedCount.style.fontSize = '14px';
-        
-        // Select All container
-        var selectAllContainer = document.createElement('div');
-        selectAllContainer.className = 'tw-attack-select-all-container';
-        
-        var selectAllCheckbox = document.createElement('input');
-        selectAllCheckbox.type = 'checkbox';
-        selectAllCheckbox.id = 'select-all-checkbox';
-        
-        var selectAllLabel = document.createElement('label');
-        selectAllLabel.htmlFor = 'select-all-checkbox';
-        selectAllLabel.textContent = 'Select All';
-        selectAllLabel.style.cursor = 'pointer';
-        selectAllLabel.style.marginRight = '10px';
-        
-        var selectAllBtn = document.createElement('button');
-        selectAllBtn.textContent = 'Select All';
-        selectAllBtn.className = 'tw-attack-select-all-btn';
-        
-        var deselectAllBtn = document.createElement('button');
-        deselectAllBtn.textContent = 'Deselect All';
-        deselectAllBtn.className = 'tw-attack-select-all-btn';
-        
-        selectAllContainer.appendChild(selectAllCheckbox);
-        selectAllContainer.appendChild(selectAllLabel);
-        selectAllContainer.appendChild(selectAllBtn);
-        selectAllContainer.appendChild(deselectAllBtn);
+        selectedCount.style.fontSize = '12px';
         
         var addSelectedBtn = document.createElement('button');
-        addSelectedBtn.textContent = '✅ Add Selected to List';
+        addSelectedBtn.textContent = '✅ Add Selected';
         addSelectedBtn.style.cssText = `
             background: #4CAF50;
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            font-size: 14px;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            font-size: 12px;
         `;
         addSelectedBtn.onclick = function() {
             var addedCount = 0;
             selectedVillages.forEach(function(coords) {
-                // Find the village data for this coordinate
                 var village = villages.find(v => v.coords === coords);
                 if (village) {
                     if (addToTargetList(coords, village)) addedCount++;
@@ -3122,64 +3050,35 @@
             });
             
             updateTargetsListUI();
-            showStatus('Added ' + addedCount + ' village(s) to target list for ' + currentWorld, 'success');
+            showStatus('Added ' + addedCount + ' village(s) to target list', 'success');
             document.body.removeChild(overlay);
         };
         
-        var closeFooterBtn = document.createElement('button');
-        closeFooterBtn.textContent = 'Close';
-        closeFooterBtn.style.cssText = `
-            background: #666;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-        `;
-        
         footer.appendChild(selectedCount);
-        footer.appendChild(closeFooterBtn);
         footer.appendChild(addSelectedBtn);
         
         selectionContainer.appendChild(header);
-        selectionContainer.appendChild(searchContainer);
-        selectionContainer.appendChild(selectAllContainer);
         selectionContainer.appendChild(villagesContainer);
         selectionContainer.appendChild(footer);
         overlay.appendChild(selectionContainer);
         document.body.appendChild(overlay);
         
         var selectedVillages = [];
-        var allVillageCheckboxes = [];
         
-        function updateVillagesList(filter) {
+        function updateVillagesList() {
             villagesContainer.innerHTML = '';
             selectedVillages = [];
-            allVillageCheckboxes = [];
             
-            var filtered = villages;
-            if (filter) {
-                var searchTerm = filter.toLowerCase();
-                filtered = villages.filter(function(village) {
-                    return village.name.toLowerCase().includes(searchTerm) || 
-                           village.coords.includes(searchTerm);
-                });
-            }
-            
-            if (filtered.length === 0) {
-                villagesContainer.innerHTML = '<div style="text-align: center; padding: 30px; color: #666; font-size: 14px;">No villages match your search</div>';
-                updateSelectedCount();
-                updateSelectAllCheckbox();
-                return;
-            }
-            
-            filtered.forEach(function(village, index) {
+            villages.forEach(function(village, index) {
                 var villageItem = document.createElement('div');
                 villageItem.className = index % 2 === 0 ? 'tw-attack-village-item' : 'tw-attack-village-item tw-attack-village-item-alt';
                 
                 var villageInfo = document.createElement('div');
-                villageInfo.className = 'tw-attack-village-info';
+                villageInfo.style.cssText = `
+                    display: flex;
+                    flex-direction: column;
+                    flex: 1;
+                `;
                 
                 var villageName = document.createElement('span');
                 villageName.style.cssText = `
@@ -3188,10 +3087,10 @@
                     overflow: hidden;
                     text-overflow: ellipsis;
                     margin-bottom: 2px;
+                    font-size: 12px;
                 `;
                 villageName.textContent = village.name + ' - ' + village.coords;
                 
-                // Add star for bonus villages or red circle for player villages
                 if (village.isBonus) {
                     var bonusStar = document.createElement('span');
                     bonusStar.className = 'tw-attack-bonus-star';
@@ -3207,15 +3106,15 @@
                 }
                 
                 var villageDetails = document.createElement('span');
-                villageDetails.className = 'tw-attack-village-details';
+                villageDetails.style.cssText = 'font-size: 10px; color: #666;';
                 
                 var detailsText = 'Distance: ' + village.distance.toFixed(2);
                 if (village.playerNumber > 0) {
-                    detailsText += ' | Player village | Points: ' + village.points;
+                    detailsText += ' | Player | Points: ' + village.points;
                 } else if (village.isBonus) {
-                    detailsText += ' | Bonus village';
+                    detailsText += ' | Bonus';
                 } else {
-                    detailsText += ' | Barbarian village';
+                    detailsText += ' | Barbarian';
                 }
                 
                 villageDetails.textContent = detailsText;
@@ -3225,8 +3124,7 @@
                 
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
-                checkbox.className = 'tw-attack-village-checkbox';
-                allVillageCheckboxes.push(checkbox);
+                checkbox.style.cssText = 'margin-left: 10px; transform: scale(1.2);';
                 
                 checkbox.onchange = function() {
                     if (this.checked) {
@@ -3240,7 +3138,6 @@
                         villageItem.style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9fa';
                     }
                     updateSelectedCount();
-                    updateSelectAllCheckbox();
                 };
                 
                 villageItem.onclick = function(e) {
@@ -3256,60 +3153,15 @@
             });
             
             updateSelectedCount();
-            updateSelectAllCheckbox();
         }
         
         function updateSelectedCount() {
             selectedCount.textContent = '📌 Selected: ' + selectedVillages.length;
         }
         
-        function updateSelectAllCheckbox() {
-            if (allVillageCheckboxes.length === 0) {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = false;
-                return;
-            }
-            
-            var checkedCount = allVillageCheckboxes.filter(cb => cb.checked).length;
-            if (checkedCount === 0) {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = false;
-            } else if (checkedCount === allVillageCheckboxes.length) {
-                selectAllCheckbox.checked = true;
-                selectAllCheckbox.indeterminate = false;
-            } else {
-                selectAllCheckbox.checked = false;
-                selectAllCheckbox.indeterminate = true;
-            }
-        }
-        
-        selectAllCheckbox.onchange = function() {
-            var shouldSelect = this.checked;
-            allVillageCheckboxes.forEach(function(checkbox) {
-                if (checkbox.checked !== shouldSelect) {
-                    checkbox.checked = shouldSelect;
-                    checkbox.dispatchEvent(new Event('change'));
-                }
-            });
-        };
-        
-        selectAllBtn.onclick = function() {
-            selectAllCheckbox.checked = true;
-            selectAllCheckbox.dispatchEvent(new Event('change'));
-        };
-        
-        deselectAllBtn.onclick = function() {
-            selectAllCheckbox.checked = false;
-            selectAllCheckbox.dispatchEvent(new Event('change'));
-        };
-        
-        searchInput.oninput = function() { updateVillagesList(this.value); };        
-        closeFooterBtn.onclick = function() { document.body.removeChild(overlay); };
-        
         updateVillagesList();
-        searchInput.focus();
     }
-
+    
     function showIgnoreListManagement() {
         var ignoreList = loadIgnoreFromStorage();
         
@@ -3324,10 +3176,10 @@
         container.style.cssText = `
             background: white;
             border-radius: 10px;
-            padding: 25px;
-            width: 600px;
+            padding: 20px;
+            width: 500px;
             max-width: 90vw;
-            max-height: 80vh;
+            max-height: 70vh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -3339,15 +3191,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
             border-bottom: 3px solid #ff9800;
         `;
         
         var title = document.createElement('h3');
         title.textContent = '👁️ Ignore List for ' + currentWorld + ' (' + ignoreList.length + ' villages)';
         title.style.margin = '0';
-        title.style.color = '#333';
+        title.style.fontSize = '14px';
         
         var closeBtn = document.createElement('button');
         closeBtn.textContent = '×';
@@ -3356,10 +3208,10 @@
             color: white;
             border: none;
             border-radius: 50%;
-            width: 28px;
-            height: 28px;
+            width: 24px;
+            height: 24px;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 16px;
         `;
         closeBtn.onclick = function() {
             document.body.removeChild(overlay);
@@ -3372,7 +3224,7 @@
         content.style.cssText = `
             flex: 1;
             overflow-y: auto;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             padding: 10px;
             border: 2px solid #ddd;
             border-radius: 8px;
@@ -3380,7 +3232,7 @@
         `;
         
         if (ignoreList.length === 0) {
-            content.innerHTML = '<div style="text-align: center; padding: 30px; color: #666; font-style: italic;">No villages in ignore list</div>';
+            content.innerHTML = '<div style="text-align: center; padding: 20px; color: #666; font-style: italic; font-size: 12px;">No villages in ignore list</div>';
         } else {
             ignoreList.forEach(function(coords, index) {
                 var item = document.createElement('div');
@@ -3388,24 +3240,24 @@
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    padding: 8px 12px;
-                    margin: 5px 0;
+                    padding: 6px 10px;
+                    margin: 4px 0;
                     background: ${index % 2 === 0 ? '#fff' : '#f8f9fa'};
                     border-radius: 6px;
                     border: 1px solid #e9ecef;
-                    font-size: 12px;
+                    font-size: 11px;
                 `;
                 
                 var coordsSpan = document.createElement('span');
                 coordsSpan.style.cssText = `
                     font-family: monospace;
                     font-weight: bold;
-                    font-size: 14px;
+                    font-size: 12px;
                 `;
                 coordsSpan.textContent = coords;
                 
                 var distanceSpan = document.createElement('span');
-                distanceSpan.style.cssText = `font-size: 11px; color: #666; margin-left: 10px;`;
+                distanceSpan.style.cssText = `font-size: 10px; color: #666; margin-left: 8px;`;
                 var distance = homeCoords ? calculateDistance(homeCoords, coords) : 0;
                 distanceSpan.textContent = 'Distance: ' + distance.toFixed(2);
                 
@@ -3415,10 +3267,10 @@
                     background: #4CAF50;
                     color: white;
                     border: none;
-                    padding: 4px 8px;
+                    padding: 3px 6px;
                     border-radius: 3px;
                     cursor: pointer;
-                    font-size: 11px;
+                    font-size: 10px;
                 `;
                 removeBtn.onclick = (function(coordsToRemove) {
                     return function() {
@@ -3442,21 +3294,20 @@
         var footer = document.createElement('div');
         footer.style.cssText = `
             display: flex;
-            justify-content: space-between;
-            gap: 10px;
+            gap: 8px;
         `;
         
         var clearAllBtn = document.createElement('button');
-        clearAllBtn.textContent = '🗑️ Clear All Ignores';
+        clearAllBtn.textContent = '🗑️ Clear All';
         clearAllBtn.style.cssText = `
             background: #ff4444;
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             cursor: pointer;
             flex: 1;
-            font-size: 12px;
+            font-size: 11px;
         `;
         clearAllBtn.onclick = function() {
             if (confirm('Clear all ignored villages for ' + currentWorld + '?')) {
@@ -3472,10 +3323,10 @@
             background: #666;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
         `;
         closeFooterBtn.onclick = function() {
             document.body.removeChild(overlay);
@@ -3490,224 +3341,7 @@
         overlay.appendChild(container);
         document.body.appendChild(overlay);
     }
-
-    function createExternalAutoAttackCheckbox() {
-        var existingCheckbox = document.getElementById('external-auto-attack');
-        if (existingCheckbox) existingCheckbox.remove();
-        
-        var checkboxContainer = document.createElement('div');
-        checkboxContainer.id = 'external-auto-attack';
-        checkboxContainer.className = 'tw-attack-external-auto';
-        checkboxContainer.style.top = settings.autoAttackPosition.y + 'px';
-        checkboxContainer.style.left = settings.autoAttackPosition.x + 'px';
-        
-        var isDragging = false;
-        var offsetX, offsetY;
-        
-        checkboxContainer.onmousedown = function(e) {
-            if (e.target.type === 'checkbox' || e.target.tagName === 'LABEL') return;
-            isDragging = true;
-            offsetX = e.clientX - checkboxContainer.offsetLeft;
-            offsetY = e.clientY - checkboxContainer.offsetTop;
-            e.preventDefault();
-        };
-        
-        document.onmousemove = function(e) {
-            if (!isDragging) return;
-            var x = e.clientX - offsetX;
-            var y = e.clientY - offsetY;
-            x = Math.max(0, Math.min(x, window.innerWidth - checkboxContainer.offsetWidth));
-            y = Math.max(0, Math.min(y, window.innerHeight - checkboxContainer.offsetHeight));
-            checkboxContainer.style.left = x + 'px';
-            checkboxContainer.style.top = y + 'px';
-            settings.autoAttackPosition.x = x;
-            settings.autoAttackPosition.y = y;
-        };
-        
-        document.onmouseup = function() {
-            if (isDragging) {
-                isDragging = false;
-                saveSettingsToStorage();
-            }
-        };
-        
-        // Header
-        var header = document.createElement('div');
-        header.style.cssText = `display: flex; align-items: center; gap: 8px;`;
-        
-        var label = document.createElement('span');
-        label.textContent = 'Auto-Attack:';
-        label.style.fontWeight = 'bold';
-        label.style.fontSize = '14px';
-        
-        var sliderContainer = document.createElement('label');
-        sliderContainer.style.cssText = `
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 26px;
-        `;
-        
-        var checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = settings.autoAttackEnabled;
-        checkbox.style.cssText = `opacity: 0; width: 0; height: 0;`;
-        
-        var slider = document.createElement('span');
-        slider.style.cssText = `
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        `;
-        
-        var sliderKnob = document.createElement('span');
-        sliderKnob.style.cssText = `
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        `;
-        
-        function updateSlider() {
-            if (checkbox.checked) {
-                slider.style.backgroundColor = '#4CAF50';
-                sliderKnob.style.transform = 'translateX(24px)';
-            } else {
-                slider.style.backgroundColor = '#ccc';
-                sliderKnob.style.transform = 'translateX(0)';
-            }
-        }
-        
-        updateSlider();
-        
-        checkbox.onchange = function() {
-            settings.autoAttackEnabled = this.checked;
-            saveSettingsToStorage();
-            updateSlider();
-            
-            if (settings.autoAttackEnabled) {
-                showStatus('External auto-attack enabled', 'success');
-                setTimeout(function() {
-                    autoAttackNext();
-                }, 2000);
-            } else {
-                showStatus('External auto-attack disabled', 'info');
-            }
-        };
-        
-        slider.appendChild(sliderKnob);
-        sliderContainer.appendChild(checkbox);
-        sliderContainer.appendChild(slider);
-        
-        header.appendChild(label);
-        header.appendChild(sliderContainer);
-        
-        // Build selection checkboxes
-        var buildSelection = document.createElement('div');
-        buildSelection.style.cssText = `
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin-top: 5px;
-        `;
-        
-        // Initialize if not exists
-        if (!settings.autoAttackBuilds) {
-            settings.autoAttackBuilds = { A: true, B: false, C: false };
-        }
-        
-        ['A', 'B', 'C'].forEach(function(buildKey) {
-            var buildContainer = document.createElement('div');
-            buildContainer.style.cssText = `display: flex; align-items: center; gap: 6px;`;
-            
-            var buildCheckbox = document.createElement('input');
-            buildCheckbox.type = 'checkbox';
-            buildCheckbox.id = 'external-build-' + buildKey.toLowerCase();
-            buildCheckbox.checked = settings.autoAttackBuilds[buildKey];
-            buildCheckbox.style.cssText = `transform: scale(1.1);`;
-            
-            var buildLabel = document.createElement('label');
-            buildLabel.htmlFor = 'external-build-' + buildKey.toLowerCase();
-            buildLabel.textContent = 'Build ' + buildKey;
-            var color = buildKey === 'A' ? '#4CAF50' : buildKey === 'B' ? '#2196F3' : '#9C27B0';
-            buildLabel.style.cssText = `font-size: 13px; color: ${color}; font-weight: bold; cursor: pointer;`;
-            
-            buildContainer.appendChild(buildCheckbox);
-            buildContainer.appendChild(buildLabel);
-            buildSelection.appendChild(buildContainer);
-            
-            buildCheckbox.onchange = function() {
-                settings.autoAttackBuilds[buildKey] = this.checked;
-                saveSettingsToStorage();
-            };
-        });
-        
-        var helpText = document.createElement('div');
-        helpText.textContent = 'Drag to move';
-        helpText.style.cssText = `font-size: 10px; color: #666; margin-top: 4px; text-align: center;`;
-        
-        checkboxContainer.appendChild(header);
-        checkboxContainer.appendChild(buildSelection);
-        checkboxContainer.appendChild(helpText);
-        document.body.appendChild(checkboxContainer);
-    }
-
-    function editVillageInfo(target) {
-        var villageData = getVillageData(target);
-        
-        // Provide a better default value in the prompt
-        var defaultName = villageData.name;
-        if (defaultName === "Barbarian Village" || 
-            defaultName === "Player Village" || 
-            defaultName === "Bonus Village") {
-            defaultName = "";
-        }
-        
-        var newName = prompt('Enter village name (leave empty for default):', defaultName);
-        if (newName === null) return;
-        
-        var newPoints = prompt('Enter village points:', villageData.points);
-        if (newPoints === null) return;
-        
-        var newType = prompt('Enter village type (barbarian/player/bonus):', 
-            villageData.isBonus ? 'bonus' : villageData.playerNumber > 0 ? 'player' : 'barbarian');
-        if (newType === null) return;
-        
-        // Use entered name or generate appropriate default
-        var finalName = newName.trim();
-        if (!finalName) {
-            if (newType === 'bonus') {
-                finalName = "Bonus Village";
-            } else if (newType === 'player') {
-                finalName = "Player Village";
-            } else {
-                finalName = "Barbarian Village";
-            }
-        }
-        
-        var updatedData = {
-            name: finalName,
-            points: parseInt(newPoints) || 0,
-            playerNumber: newType === 'player' ? 1 : 0,
-            isBonus: newType === 'bonus'
-        };
-        
-        saveVillageData(target, updatedData);
-        updateTargetsListUI();
-        showStatus('Village info updated for ' + target, 'success');
-    }
-
+    
     function startAutoUpdate() {
         if (updateInterval) clearInterval(updateInterval);
         updateInterval = setInterval(function() {
@@ -3725,45 +3359,54 @@
     // ===== MAIN EXECUTION =====
     
     currentWorld = getWorldName();
-    console.log("Current world:", currentWorld);
+    homeCoords = getCurrentVillageCoords();
     
-    // Load all data
     loadSettingsFromStorage();
     loadTargetsFromStorage();
     loadBuildsFromStorage();
     loadTargetBuildsFromStorage();
     
-    // Update village data for existing targets
     updateVillageDataForExistingTargets();
     
-    homeCoords = getCurrentVillageCoords();
-    console.log("Home coords:", homeCoords);
+    // Check current page URL to determine what to do
+    var currentUrl = window.location.href;
     
-    // Create main UI
-    if (!checkForAntibot()) {
-        createConfigUI();
-        
-        // Start auto-attack if enabled
-        if (settings.autoAttackEnabled) {
-            console.log("Auto-attack enabled on startup, starting in 2 seconds...");
-            setTimeout(function() {
-                autoAttackNext();
-            }, 2000);
+    if (currentUrl.includes('&screen=info_village')) {
+        // Info village page - show control panel
+        createInfoVillagePanel();
+    } else if (currentUrl.includes('screen=place')) {
+        if (currentUrl.includes('&try=confirm')) {
+            // Submit page - run submit script
+            runSubmitScript();
+        } else {
+            // Attack page - create main config UI
+            if (!checkForAntibot()) {
+                createConfigUI();
+                
+                if (settings.autoAttackEnabled) {
+                    setTimeout(function() {
+                        autoAttackNext();
+                    }, 2000);
+                }
+            }
+        }
+    } else {
+        // Other pages - create config UI if we can find the container
+        var container = document.querySelector('#content_value > div.commands-container-outer');
+        if (container) {
+            createConfigUI();
         }
     }
     
-    // Run submit script check
-    runSubmitScript();
-    
-    // Set up periodic check for submit script
-    const submitCheckInterval = setInterval(runSubmitScript, 500);
-    
-    // Auto-stop submit check after 5 minutes
-    setTimeout(() => {
-        if (!submitScriptExecuted) {
-            clearInterval(submitCheckInterval);
-            console.log('⏰ Stopped submit script checking after timeout');
-        }
-    }, 5 * 60 * 1000);
+    // Set up periodic check for submit script on submit pages
+    if (currentUrl.includes('&screen=place&try=confirm')) {
+        const submitCheckInterval = setInterval(runSubmitScript, 500);
+        
+        setTimeout(() => {
+            if (!submitScriptExecuted) {
+                clearInterval(submitCheckInterval);
+            }
+        }, 5 * 60 * 1000);
+    }
 
 })();
