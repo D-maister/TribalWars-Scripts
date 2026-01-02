@@ -337,6 +337,10 @@
             var allTargetBuilds = this.storage.get(CONFIG.storageKeys.targetBuilds);
             window.TWAttack.state.targetBuilds = (allTargetBuilds && allTargetBuilds[world]) ? allTargetBuilds[world] : {};
             
+            // Load ignore list
+            var allIgnore = this.storage.get(CONFIG.storageKeys.ignore);
+            window.TWAttack.state.ignoreList = (allIgnore && allIgnore[world]) ? allIgnore[world] : [];
+            
             console.log('TW Attack: State loaded for', world);
         },
         
