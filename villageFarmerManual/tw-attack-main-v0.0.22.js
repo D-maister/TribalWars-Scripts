@@ -9,11 +9,11 @@
         version: '2.0.0',
         baseUrl: 'https://cdn.jsdelivr.net/gh/D-maister/TribalWars-Scripts@main/villageFarmerManual/',
         scripts: {
+            attack: 'tw-attack-attack-v0.0.7.js',
             styles: 'tw-attack-styles-v0.0.1.js',
-            attack: 'tw-attack-attack-v0.0.6.js',
             submit: 'tw-attack-submit-v0.0.1.js',
-            village: 'tw-attack-village-v0.0.8.js',
-            utils: 'tw-attack-utils-v0.0.8.js'
+            utils: 'tw-attack-utils-v0.0.8.js',
+            village: 'tw-attack-village-v0.0.9.js'
         },
         storageKeys: {
             targets: 'twAttackTargets',
