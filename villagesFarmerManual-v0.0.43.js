@@ -19,6 +19,49 @@
             border-bottom: 2px solid #4CAF50;
             padding-bottom: 8px;
             font-size: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .tw-attack-title-text {
+            flex: 1;
+        }
+        
+        .tw-attack-title-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .auto-attack-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .auto-attack-toggle input[type="checkbox"] {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+        
+        .auto-attack-start-btn {
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        
+        .auto-attack-start-btn:hover {
+            opacity: 0.9;
         }
         
         .tw-attack-toggle-btn {
@@ -2684,21 +2727,72 @@
         uiContainer.id = 'tw-attack-config';
         uiContainer.className = 'tw-attack-config';
         
-        // Create title container with title and auto-attack button
-        var titleContainer = document.createElement('div');
-        titleContainer.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #4CAF50;
-        `;
-        
+        // Create title with controls
         var title = document.createElement('h3');
-        title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
         title.className = 'tw-attack-title';
-        title.style.margin = '0'; // Remove default margin
+        
+        // Title text container
+        var titleText = document.createElement('span');
+        titleText.className = 'tw-attack-title-text';
+        titleText.textContent = '⚔️ TW Attack Config - ' + currentWorld;
+        
+        // Title controls container
+        var titleControls = document.createElement('div');
+        titleControls.className = 'tw-attack-title-controls';
+        
+        // Auto-attack toggle
+        var autoAttackToggle = document.createElement('div');
+        autoAttackToggle.className = 'auto-attack-toggle';
+        
+        var autoAttackLabel = document.createElement('span');
+        autoAttackLabel.textContent = 'Auto-Attack:';
+        
+        var autoAttackCheckbox = document.createElement('input');
+        autoAttackCheckbox.type = 'checkbox';
+        autoAttackCheckbox.id = 'auto-attack-toggle';
+        autoAttackCheckbox.checked = settings.autoAttackEnabled;
+        
+        autoAttackCheckbox.onchange = function() {
+            settings.autoAttackEnabled = this.checked;
+            saveSettingsToStorage();
+            
+            if (this.checked) {
+                showStatus('Auto-attack enabled', 'success');
+                // Start auto-attack if on the right page
+                var currentUrl = window.location.href;
+                if (currentUrl.includes('screen=place') && !currentUrl.includes('&try=confirm')) {
+                    setTimeout(function() {
+                        autoAttackNext();
+                    }, 2000);
+                }
+            } else {
+                showStatus('Auto-attack disabled', 'info');
+            }
+        };
+        
+        // Start button
+        var autoAttackBtn = document.createElement('button');
+        autoAttackBtn.textContent = '⚡ Start';
+        autoAttackBtn.className = 'auto-attack-start-btn';
+        autoAttackBtn.title = 'Start auto-attack sequence';
+        
+        autoAttackBtn.onclick = function() {
+            if (settings.autoAttackEnabled) {
+                autoAttackNext();
+            } else {
+                showStatus('Enable auto-attack first by checking the checkbox', 'error');
+            }
+        };
+        
+        // Assemble the controls
+        autoAttackToggle.appendChild(autoAttackLabel);
+        autoAttackToggle.appendChild(autoAttackCheckbox);
+        titleControls.appendChild(autoAttackToggle);
+        titleControls.appendChild(autoAttackBtn);
+        
+        // Assemble the title
+        title.appendChild(titleText);
+        title.appendChild(titleControls);
         
         // Create auto-attack toggle container
         var autoAttackToggleContainer = document.createElement('div');
