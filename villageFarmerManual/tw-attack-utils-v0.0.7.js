@@ -137,15 +137,28 @@
         // Get village.txt URL
         getVillageTxtUrl: function() {
             var url = window.location.href;
-            var domain = 'voynaplemyon.com'; // default
+            var worldName = window.TWAttack.state.currentWorld;
+            var domain = '';
             
+            // Check which domain we're on
             if (url.includes('tribalwars.net')) {
                 domain = 'tribalwars.net';
             } else if (url.includes('voynaplemyon.com')) {
                 domain = 'voynaplemyon.com';
+            } else {
+                // Try to extract domain from URL as fallback
+                var match = url.match(/https?:\/\/([^\/]+)/);
+                if (match) {
+                    domain = match[1];
+                } else {
+                    domain = 'voynaplemyon.com'; // Default fallback
+                }
             }
             
-            return 'https://' + window.TWAttack.state.currentWorld + '.' + domain + '/map/village.txt';
+            // Construct the correct URL
+            // Note: tribalwars.net uses format like https://en147.tribalwars.net/map/village.txt
+            // voynaplemyon.com uses format like https://pl101.voynaplemyon.com/map/village.txt
+            return 'https://' + worldName + '.' + domain + '/map/village.txt';
         },
         
         // Parse village text
