@@ -154,7 +154,20 @@
                 var villages = [];
                 var lines = text.split('\n');
                 var validLines = 0;
-                var currentTargets = window.TWAttack.targets.getCurrent();
+                
+                // Get current targets
+                var currentTargets = [];
+                if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.getCurrent === 'function') {
+                    currentTargets = window.TWAttack.targets.getCurrent();
+                } else if (window.TWAttack.state && window.TWAttack.state.targetList) {
+                    currentTargets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+                }
+                
+                // Get ignore list
+                var ignoreList = [];
+                if (window.TWAttack.state && window.TWAttack.state.ignoreList) {
+                    ignoreList = window.TWAttack.state.ignoreList;
+                }
                 
                 lines.forEach(function(line) {
                     if (!line.trim()) return;
@@ -183,10 +196,11 @@
                             var y = parts[3];
                             var coords = x + '|' + y;
                             var distance = window.TWAttack.state.homeCoords ? 
-                                window.TWAttack.utils.calculateDistance(window.TWAttack.state.homeCoords, coords) : 0;
+                                this.calculateDistance(window.TWAttack.state.homeCoords, coords) : 0;
                             
                             if (!maxDistance || distance <= parseInt(maxDistance)) {
-                                if (currentTargets.indexOf(coords) === -1) {
+                                // Check if not already in targets or ignore list
+                                if (currentTargets.indexOf(coords) === -1 && ignoreList.indexOf(coords) === -1) {
                                     villages.push({
                                         name: villageName,
                                         coords: coords,
@@ -200,7 +214,7 @@
                             validLines++;
                         }
                     }
-                });
+                }.bind(this));
                 
                 if (validLines === 0) {
                     this.showError('No valid villages found in the pasted text.');
@@ -211,13 +225,15 @@
                 
                 var alreadyAdded = validLines - villages.length;
                 var statusMessage = 'Found ' + villages.length + ' available villages';
-                if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list)';
+                if (alreadyAdded > 0) statusMessage += ' (' + alreadyAdded + ' already in list or ignored)';
                 statusMessage += ' out of ' + validLines + ' total villages';
                 
                 this.showStatus(statusMessage, 'success');
                 
                 // Show selection UI
-                this.showVillagesSelection(villages);
+                if (villages.length > 0) {
+                    this.showVillagesSelection(villages);
+                }
                 
             } catch (error) {
                 this.showError('Error parsing village.txt content: ' + error.message);
@@ -307,8 +323,30 @@
                 var addedCount = 0;
                 selectedVillages.forEach(function(coords) {
                     var village = villagesData.find(v => v.coords === coords);
-                    if (village && window.TWAttack.targets.add(coords, village)) {
-                        addedCount++;
+                    if (village) {
+                        // Use the targets.add function
+                        if (window.TWAttack && window.TWAttack.targets && typeof window.TWAttack.targets.add === 'function') {
+                            if (window.TWAttack.targets.add(coords, village)) {
+                                addedCount++;
+                            }
+                        } else {
+                            // Fallback
+                            if (window.TWAttack.state && window.TWAttack.state.targetList) {
+                                var targets = window.TWAttack.state.targetList.split(' ').filter(Boolean);
+                                if (targets.indexOf(coords) === -1) {
+                                    targets.push(coords);
+                                    window.TWAttack.state.targetList = targets.join(' ');
+                                    // Save village data
+                                    var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData) || {};
+                                    var world = window.TWAttack.state.currentWorld;
+                                    if (!allVillageData[world]) allVillageData[world] = {};
+                                    allVillageData[world][coords] = village;
+                                    window.TWAttack.storage.set(window.TWAttack.config.storageKeys.villageData, allVillageData);
+                                    window.TWAttack.saveState();
+                                    addedCount++;
+                                }
+                            }
+                        }
                     }
                 });
                 
@@ -317,7 +355,7 @@
                     window.TWAttack.modules.attack.updateTargetsListUI();
                 }
                 
-                window.TWAttack.utils.showStatus('Added ' + addedCount + ' village(s) to target list', 'success');
+                Utils.showStatus('Added ' + addedCount + ' village(s) to target list', 'success');
                 document.body.removeChild(overlay);
             };
             
@@ -536,31 +574,6 @@
                 console.error('Error formatting time:', e);
                 return "Unknown";
             }
-        },
-        
-        // Get world name from URL
-        getWorldName: function() {
-            var url = window.location.href;
-            // Match both voynaplemyon.com and tribalwars.net
-            var match = url.match(/https?:\/\/([^\/]+?)\.(?:voynaplemyon\.com|tribalwars\.net)/);
-            return match ? match[1] : "unknown";
-        },
-        
-        // Get current village coordinates
-        getCurrentVillageCoords: function() {
-            if (window.TWAttack.state.homeCoords) {
-                return window.TWAttack.state.homeCoords;
-            }
-            
-            var title = document.querySelector('head > title');
-            if (title) {
-                var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
-                if (match) {
-                    window.TWAttack.state.homeCoords = match[1] + "|" + match[2];
-                    return window.TWAttack.state.homeCoords;
-                }
-            }
-            return "";
         }
     };
     
