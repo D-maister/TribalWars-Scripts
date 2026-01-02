@@ -4,16 +4,15 @@
 (function() {
     'use strict';
     
-    // Configuration - UPDATE THESE URLs to your GitHub raw URLs
+    // Configuration
     const CONFIG = {
-        version: '1.0.0',
-        baseUrl: 'https://cdn.jsdelivr.net/gh/D-maister/TribalWars-Scripts@main/villageFarmerManual/', // UPDATE THIS
+        version: '2.0.0',
         scripts: {
-            styles: 'tw-attack-styles-v0.0.1.js',
-            attack: 'tw-attack-attack-v0.0.5.js',
-            submit: 'tw-attack-submit-v0.0.1.js',
-            village: 'tw-attack-village-v0.0.1.js',
-            utils: 'tw-attack-utils-v0.0.5.js'
+            styles: 'tw-attack-styles.js',
+            attack: 'tw-attack-attack.js',
+            submit: 'tw-attack-submit.js',
+            village: 'tw-attack-village.js',
+            utils: 'tw-attack-utils.js'
         },
         storageKeys: {
             targets: 'twAttackTargets',
@@ -38,6 +37,7 @@
             settings: {},
             troopBuilds: {},
             targetBuilds: {},
+            ignoreList: [],
             isInitialized: false,
             isAttacking: false,
             submitScriptExecuted: false
@@ -87,34 +87,22 @@
         utils: {
             getWorldName: function() {
                 var url = window.location.href;
-                // Extract subdomain before any known tribal wars domain
-                var domains = ['voynaplemyon.com', 'tribalwars.net', 'tribalwars.com'];
-                
-                for (var i = 0; i < domains.length; i++) {
-                    var pattern = 'https?://([^/.]+)\\.' + domains[i].replace(/\./g, '\\.');
-                    var match = url.match(new RegExp(pattern));
-                    if (match) {
-                        return match[1];
-                    }
-                }
-                
-                // Fallback: try to extract any subdomain
-                var match = url.match(/https?:\/\/([^\/.]+)\./);
+                // Match both voynaplemyon.com and tribalwars.net
+                var match = url.match(/https?:\/\/([^\/]+?)\.(?:voynaplemyon\.com|tribalwars\.net)/);
                 return match ? match[1] : "unknown";
             },
             
             getCurrentVillageCoords: function() {
-                // Cache to prevent recursion
-                if (window.TWAttack.state._coordsCache) {
-                    return window.TWAttack.state._coordsCache;
+                if (window.TWAttack.state.homeCoords) {
+                    return window.TWAttack.state.homeCoords;
                 }
                 
                 var title = document.querySelector('head > title');
                 if (title) {
                     var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
                     if (match) {
-                        window.TWAttack.state._coordsCache = match[1] + "|" + match[2];
-                        return window.TWAttack.state._coordsCache;
+                        window.TWAttack.state.homeCoords = match[1] + "|" + match[2];
+                        return window.TWAttack.state.homeCoords;
                     }
                 }
                 return "";
@@ -122,45 +110,31 @@
             
             calculateDistance: function(coord1, coord2) {
                 if (!coord1 || !coord2) return 0;
-                var parts1 = coord1.split("|");
-                var parts2 = coord2.split("|");
-                var dx = parseInt(parts1[0]) - parseInt(parts2[0]);
-                var dy = parseInt(parts1[1]) - parseInt(parts2[1]);
-                return Math.round(100 * Math.sqrt(dx * dx + dy * dy)) / 100;
+                try {
+                    var parts1 = coord1.split("|");
+                    var parts2 = coord2.split("|");
+                    var dx = parseInt(parts1[0]) - parseInt(parts2[0]);
+                    var dy = parseInt(parts1[1]) - parseInt(parts2[1]);
+                    return Math.round(100 * Math.sqrt(dx * dx + dy * dy)) / 100;
+                } catch (e) {
+                    console.error('Error calculating distance:', e);
+                    return 0;
+                }
             },
             
             formatTimeSince: function(lastAttack) {
                 if (!lastAttack) return "Never";
-                var now = new Date();
-                var diffMs = now - lastAttack;
-                var diffMins = Math.floor(diffMs / 60000);
-                if (diffMins < 60) return diffMins + "m ago";
-                else if (diffMins < 1440) return Math.floor(diffMins / 60) + "h ago";
-                else return Math.floor(diffMins / 1440) + "d ago";
-            },
-            
-            showStatus: function(message, type) {
-                var statusMsg = document.getElementById('tw-attack-status');
-                if (!statusMsg) {
-                    statusMsg = document.createElement('div');
-                    statusMsg.id = 'tw-attack-status';
-                    statusMsg.className = 'tw-attack-status';
-                    document.body.appendChild(statusMsg);
+                try {
+                    var now = new Date();
+                    var diffMs = now - lastAttack;
+                    var diffMins = Math.floor(diffMs / 60000);
+                    if (diffMins < 60) return diffMins + "m ago";
+                    else if (diffMins < 1440) return Math.floor(diffMins / 60) + "h ago";
+                    else return Math.floor(diffMins / 1440) + "d ago";
+                } catch (e) {
+                    console.error('Error formatting time:', e);
+                    return "Unknown";
                 }
-                
-                statusMsg.textContent = message;
-                statusMsg.style.display = 'block';
-                statusMsg.className = 'tw-attack-status';
-                
-                if (type === 'success') {
-                    statusMsg.classList.add('tw-attack-status-success');
-                } else if (type === 'error') {
-                    statusMsg.classList.add('tw-attack-status-error');
-                }
-                
-                setTimeout(function() {
-                    statusMsg.style.display = 'none';
-                }, 5000);
             }
         },
         
@@ -172,7 +146,7 @@
             
             isAttackPage: function() {
                 var url = window.location.href;
-                var isScreenPlace = url.includes('screen=place');
+                var isScreenPlace = url.endsWith('screen=place');
                 var hasVillageId = url.includes('screen=place&village=');
                 var hasModeCommand = url.includes('mode=command');
                 var hasModeSim = url.includes('mode=sim');
@@ -191,6 +165,10 @@
             
             isSubmitPage: function() {
                 return window.location.href.includes('&screen=place&try=confirm');
+            },
+            
+            shouldShowConfigUI: function() {
+                return this.isInfoVillage() || this.isAttackPage() || this.isSubmitPage();
             }
         },
         
@@ -198,17 +176,10 @@
         loader: {
             loadScript: function(src) {
                 return new Promise(function(resolve, reject) {
-                    // Add cache busting parameter
-                    var cacheBuster = '?ts=' + new Date().getTime();
-                    var scriptUrl = src + cacheBuster;
-                    
                     var script = document.createElement('script');
-                    script.src = scriptUrl;
+                    script.src = src;
                     script.onload = resolve;
-                    script.onerror = function(error) {
-                        console.error('Failed to load script:', src, error);
-                        reject(error);
-                    };
+                    script.onerror = reject;
                     document.head.appendChild(script);
                 });
             },
@@ -220,37 +191,19 @@
                     return Promise.reject('Unknown module');
                 }
                 
-                // Build full URL to GitHub
-                var fullUrl = CONFIG.baseUrl + scriptSrc;
-                console.log('Loading module from:', fullUrl);
-                
-                return this.loadScript(fullUrl).catch(function(error) {
+                return this.loadScript(scriptSrc).catch(function(error) {
                     console.error('Failed to load module', moduleName, ':', error);
-                    // Try to load from same directory as fallback
-                    if (CONFIG.baseUrl !== window.location.origin + '/') {
-                        console.log('Trying to load from current directory...');
-                        return window.TWAttack.loader.loadScript(scriptSrc);
-                    }
-                    throw error;
                 });
             },
             
             loadAll: function() {
-                console.log('TW Attack: Starting module loading...');              
                 var modules = ['styles', 'utils', 'attack', 'submit', 'village'];
                 var promises = modules.map(function(module) {
                     return window.TWAttack.loader.loadModule(module);
                 });
                 
-                return Promise.allSettled(promises).then(function(results) {
-                    console.log('TW Attack: Module loading results:', results);
-                    
-                    var failed = results.filter(r => r.status === 'rejected').length;
-                    if (failed > 0) {
-                        console.warn('TW Attack:', failed, 'modules failed to load');
-                        window.TWAttack.utils.showStatus(failed + ' modules failed to load. Check console.', 'error');
-                    }
-                    
+                return Promise.allSettled(promises).then(function() {
+                    console.log('TW Attack: All modules loaded');
                     window.TWAttack.initialize();
                 });
             }
@@ -259,8 +212,6 @@
         // Initialization
         initialize: function() {
             if (window.TWAttack.state.isInitialized) return;
-            
-            console.log('TW Attack: Initializing for world...');
             
             // Load state
             window.TWAttack.state.currentWorld = window.TWAttack.utils.getWorldName();
@@ -271,27 +222,19 @@
             
             // Initialize based on page type
             if (window.TWAttack.pages.isInfoVillage()) {
-                console.log('TW Attack: Info village page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.village) {
                     window.TWAttack.modules.village.initialize();
-                } else {
-                    console.warn('Village module not loaded');
                 }
             } else if (window.TWAttack.pages.isAttackPage()) {
-                console.log('TW Attack: Attack page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.attack) {
                     window.TWAttack.modules.attack.initialize();
-                } else {
-                    console.warn('Attack module not loaded');
                 }
             } else if (window.TWAttack.pages.isSubmitPage()) {
-                console.log('TW Attack: Submit page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.submit) {
                     window.TWAttack.modules.submit.initialize();
-                } else {
-                    console.warn('Submit module not loaded');
                 }
-            } 
+            }
+            // No else block - don't show config on other pages
             
             window.TWAttack.state.isInitialized = true;
             console.log('TW Attack initialized for world:', window.TWAttack.state.currentWorld);
@@ -368,11 +311,21 @@
             allTargetBuilds[world] = window.TWAttack.state.targetBuilds;
             this.storage.set(CONFIG.storageKeys.targetBuilds, allTargetBuilds);
             
+            // Save ignore list
+            var allIgnore = this.storage.get(CONFIG.storageKeys.ignore) || {};
+            allIgnore[world] = window.TWAttack.state.ignoreList;
+            this.storage.set(CONFIG.storageKeys.ignore, allIgnore);
+            
             console.log('TW Attack: State saved for', world);
         },
         
         // Target list management
         targets: {
+            getCurrent: function() {
+                if (!window.TWAttack.state.targetList) return [];
+                return window.TWAttack.state.targetList.split(' ').filter(Boolean);
+            },
+            
             add: function(target, villageData) {
                 var targets = this.getCurrent();
                 if (targets.indexOf(target) === -1) {
@@ -386,12 +339,37 @@
                     
                     // Save village data if provided
                     if (villageData) {
-                        var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData) || {};
-                        if (!allVillageData[window.TWAttack.state.currentWorld]) {
-                            allVillageData[window.TWAttack.state.currentWorld] = {};
+                        var allVillageData = window.TWAttack.storage.get(CONFIG.storageKeys.villageData) || {};
+                        var world = window.TWAttack.state.currentWorld;
+                        if (!allVillageData[world]) {
+                            allVillageData[world] = {};
                         }
-                        allVillageData[window.TWAttack.state.currentWorld][target] = villageData;
-                        window.TWAttack.storage.set(window.TWAttack.config.storageKeys.villageData, allVillageData);
+                        allVillageData[world][target] = villageData;
+                        window.TWAttack.storage.set(CONFIG.storageKeys.villageData, allVillageData);
+                    }
+                    
+                    window.TWAttack.saveState();
+                    return true;
+                }
+                return false;
+            },
+            
+            remove: function(target) {
+                var targets = this.getCurrent();
+                var index = targets.indexOf(target);
+                if (index !== -1) {
+                    targets.splice(index, 1);
+                    window.TWAttack.state.targetList = targets.join(' ');
+                    
+                    // Remove target builds
+                    delete window.TWAttack.state.targetBuilds[target];
+                    
+                    // Remove village data
+                    var allVillageData = window.TWAttack.storage.get(CONFIG.storageKeys.villageData) || {};
+                    var world = window.TWAttack.state.currentWorld;
+                    if (allVillageData[world] && allVillageData[world][target]) {
+                        delete allVillageData[world][target];
+                        window.TWAttack.storage.set(CONFIG.storageKeys.villageData, allVillageData);
                     }
                     
                     window.TWAttack.saveState();
@@ -403,6 +381,15 @@
             clear: function() {
                 window.TWAttack.state.targetList = "";
                 window.TWAttack.state.targetBuilds = {};
+                
+                // Clear village data for this world
+                var allVillageData = window.TWAttack.storage.get(CONFIG.storageKeys.villageData) || {};
+                var world = window.TWAttack.state.currentWorld;
+                if (allVillageData[world]) {
+                    allVillageData[world] = {};
+                    window.TWAttack.storage.set(CONFIG.storageKeys.villageData, allVillageData);
+                }
+                
                 window.TWAttack.saveState();
             }
         },
