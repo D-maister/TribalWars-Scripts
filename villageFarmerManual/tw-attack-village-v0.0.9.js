@@ -607,13 +607,22 @@
                 ignoreList[window.TWAttack.state.currentWorld] = [];
             }
             
-            // Add to ignore list
+            // Check if already in ignore list
             if (ignoreList[window.TWAttack.state.currentWorld].indexOf(coords) === -1) {
+                // Add to ignore list
                 ignoreList[window.TWAttack.state.currentWorld].push(coords);
                 window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
                 
+                // Update the global state ignore list
+                window.TWAttack.state.ignoreList = ignoreList[window.TWAttack.state.currentWorld];
+                
                 if (isInTargetList) {
+                    // Remove from target list
                     window.TWAttack.targets.remove(coords);
+                    
+                    // Force refresh the targets in the global state
+                    window.TWAttack.state.targetList = window.TWAttack.targets.getCurrent().join(' ');
+                    window.TWAttack.saveState();
                 }
                 
                 this.showInfoStatus('Village ' + coords + ' added to ignore list', 'success');
@@ -633,8 +642,56 @@
                         btn.style.cursor = 'not-allowed';
                     });
                     
+                    // Update toggle button to show it's now removed
+                    var toggleBtn = panel.querySelector('.tw-attack-info-toggle-btn');
+                    if (toggleBtn) {
+                        toggleBtn.textContent = 'Add to List';
+                        toggleBtn.classList.remove('remove');
+                        toggleBtn.classList.add('add');
+                        toggleBtn.title = 'Add village to target list';
+                        toggleBtn.disabled = true; // Disable since village is ignored
+                    }
+                    
+                    // Update build buttons
+                    var buildButtons = panel.querySelectorAll('.tw-attack-info-build-btn');
+                    buildButtons.forEach(function(btn) {
+                        btn.disabled = true;
+                    });
+                    
                     // Update status
-                    this.showInfoStatus('Village ignored. Refresh page to remove this panel.', 'info');
+                    this.showInfoStatus('Village ignored. To remove from ignore list, use the attack page config.', 'info');
+                }
+            } else {
+                // Already in ignore list - remove it
+                var index = ignoreList[window.TWAttack.state.currentWorld].indexOf(coords);
+                if (index > -1) {
+                    ignoreList[window.TWAttack.state.currentWorld].splice(index, 1);
+                    window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
+                    
+                    // Update the global state ignore list
+                    window.TWAttack.state.ignoreList = ignoreList[window.TWAttack.state.currentWorld];
+                    
+                    this.showInfoStatus('Village ' + coords + ' removed from ignore list', 'success');
+                    
+                    // Re-enable the panel
+                    var panel = document.getElementById('tw-attack-info-panel');
+                    if (panel) {
+                        panel.style.borderColor = '';
+                        panel.querySelector('.tw-attack-info-title').textContent = '⚔️ TW Attack Control';
+                        
+                        // Re-enable all buttons
+                        var buttons = panel.querySelectorAll('button');
+                        buttons.forEach(function(btn) {
+                            btn.disabled = false;
+                            btn.style.opacity = '1';
+                            btn.style.cursor = 'pointer';
+                        });
+                        
+                        // Update the panel to reflect current state
+                        setTimeout(() => {
+                            this.updateInfoVillagePanel(panel, coords);
+                        }, 100);
+                    }
                 }
             }
         },
