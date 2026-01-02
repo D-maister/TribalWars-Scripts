@@ -2742,18 +2742,20 @@
         if (currentUrl.includes('&screen=info_village')) {
             // Info village page - show control panel
             createInfoVillagePanel();
+            return; // Stop here for info village pages
         } else if (currentUrl.includes('screen=place')) {
             if (currentUrl.includes('&try=confirm')) {
                 // Submit page - run submit script
                 runSubmitScript();
+                return; // Stop here for submit pages
             } else if (currentUrl.includes('mode=sim')) {
                 // Simulation mode - don't show attack config
                 console.log('Simulation mode - attack config disabled');
-                return; // Add return here to stop execution
+                return; // Stop here for simulation mode
             } else if (currentUrl.includes('mode=command') || !currentUrl.includes('mode=')) {
                 // Attack page (command mode or no mode) - create main config UI
                 if (!checkForAntibot()) {
-                    // DON'T call createConfigUI() here - just continue to create UI
+                    // Continue to create UI
                     
                     if (settings.autoAttackEnabled) {
                         setTimeout(function() {
@@ -2761,6 +2763,8 @@
                         }, 2000);
                     }
                 }
+            } else {
+                return; // Not a valid attack page
             }
         } else {
             // Other pages - create config UI if we can find the container
@@ -2768,7 +2772,7 @@
             if (!container) {
                 return; // No container found, exit function
             }
-            // DON'T call createConfigUI() here - just continue to create UI
+            // Continue to create UI
         }
         
         // Set up periodic check for submit script on submit pages
@@ -2781,18 +2785,8 @@
                 }
             }, 5 * 60 * 1000);
         }
-
-        // Create title container with title and auto-attack button
-        var titleContainer = document.createElement('div');
-        titleContainer.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 8px;
-            border-bottom: 2px solid #4CAF50;
-        `;
-        
+    
+        // Create main container
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
         uiContainer.className = 'tw-attack-config';
@@ -2863,86 +2857,6 @@
         // Assemble the title
         title.appendChild(titleText);
         title.appendChild(titleControls);
-        
-        // Create auto-attack toggle container
-        var autoAttackToggleContainer = document.createElement('div');
-        autoAttackToggleContainer.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        `;
-        
-        var autoAttackLabel = document.createElement('span');
-        autoAttackLabel.textContent = 'Auto-Attack:';
-        autoAttackLabel.style.cssText = `
-            font-size: 12px;
-            font-weight: bold;
-            color: #333;
-        `;
-        
-        var autoAttackCheckbox = document.createElement('input');
-        autoAttackCheckbox.type = 'checkbox';
-        autoAttackCheckbox.id = 'auto-attack-toggle';
-        autoAttackCheckbox.checked = settings.autoAttackEnabled;
-        autoAttackCheckbox.style.cssText = `
-            transform: scale(1.2);
-            cursor: pointer;
-        `;
-        
-        autoAttackCheckbox.onchange = function() {
-            settings.autoAttackEnabled = this.checked;
-            saveSettingsToStorage();
-            
-            if (this.checked) {
-                showStatus('Auto-attack enabled', 'success');
-                // Start auto-attack if on the right page
-                if (currentUrl.includes('screen=place') && !currentUrl.includes('&try=confirm')) {
-                    setTimeout(function() {
-                        autoAttackNext();
-                    }, 2000);
-                }
-            } else {
-                showStatus('Auto-attack disabled', 'info');
-            }
-        };
-        
-        var autoAttackBtn = document.createElement('button');
-        autoAttackBtn.textContent = '⚡ Start';
-        autoAttackBtn.className = 'tw-attack-auto-btn-a';
-        autoAttackBtn.style.cssText = `
-            padding: 4px 12px;
-            font-size: 11px;
-            font-weight: bold;
-            border: none;
-            border-radius: 4px;
-            color: white;
-            cursor: pointer;
-            background: linear-gradient(to right, #ff416c, #ff4b2b);
-            transition: opacity 0.2s;
-        `;
-        
-        autoAttackBtn.onclick = function() {
-            if (settings.autoAttackEnabled) {
-                autoAttackNext();
-            } else {
-                showStatus('Enable auto-attack first by checking the checkbox', 'error');
-            }
-        };
-        
-        autoAttackBtn.onmouseover = function() {
-            this.style.opacity = '0.9';
-        };
-        
-        autoAttackBtn.onmouseout = function() {
-            this.style.opacity = '1';
-        };
-        
-        autoAttackToggleContainer.appendChild(autoAttackLabel);
-        autoAttackToggleContainer.appendChild(autoAttackCheckbox);
-        autoAttackToggleContainer.appendChild(autoAttackBtn);
-        
-        titleContainer.appendChild(title);
-        titleContainer.appendChild(autoAttackToggleContainer);
         
         var toggleConfigBtn = document.createElement('button');
         toggleConfigBtn.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
@@ -3088,31 +3002,12 @@
         urlHelp.style.color = '#666';
         urlHelp.style.marginTop = '4px';
         
-        // Add helper functions to get current domain and village ID
-        function getCurrentDomain() {
-            var url = window.location.href;
-            var match = url.match(/https?:\/\/([^\/]+?)\//);
-            return match ? match[1] : window.location.hostname;
-        }
-        
-        function getCurrentVillageId() {
-            // Try to extract village ID from URL
-            var url = window.location.href;
-            var match = url.match(/[?&]village=(\d+)/);
-            if (match) return match[1];
-            
-            // Try to get it from the page
-            var villageIdElement = document.querySelector('input[name="village"]');
-            if (villageIdElement) return villageIdElement.value;
-            
-            return '';
-        }
+        villageUrl.appendChild(linksContainer);
+        villageUrl.appendChild(urlHelp);
         
         infoSection.appendChild(worldInfo);
         infoSection.appendChild(villageInfo);
         infoSection.appendChild(villageUrl);
-        infoSection.appendChild(urlLink);
-        infoSection.appendChild(urlHelp);
         
         var settingsSection = document.createElement('div');
         settingsSection.id = 'settings-section';
@@ -3439,6 +3334,7 @@
         targetsContainer.appendChild(targetsTitle);
         targetsContainer.appendChild(targetsList);
         
+        // Assemble the UI
         uiContainer.appendChild(title);
         uiContainer.appendChild(toggleConfigBtn);
         uiContainer.appendChild(autoAttackContainer);
