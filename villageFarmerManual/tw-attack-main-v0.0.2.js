@@ -4,9 +4,10 @@
 (function() {
     'use strict';
     
-    // Configuration
+    // Configuration - UPDATE THESE URLs to your GitHub raw URLs
     const CONFIG = {
         version: '1.0.0',
+        baseUrl: 'https://cdn.jsdelivr.net/gh/D-maister/TribalWars-Scripts@main/villageFarmerManual/', // UPDATE THIS
         scripts: {
             styles: 'tw-attack-styles-v0.0.1.js',
             attack: 'tw-attack-attack-v0.0.1.js',
@@ -91,16 +92,17 @@
             },
             
             getCurrentVillageCoords: function() {
-                if (window.TWAttack.state.homeCoords) {
-                    return window.TWAttack.state.homeCoords;
+                // Cache to prevent recursion
+                if (window.TWAttack.state._coordsCache) {
+                    return window.TWAttack.state._coordsCache;
                 }
                 
                 var title = document.querySelector('head > title');
                 if (title) {
                     var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
                     if (match) {
-                        window.TWAttack.state.homeCoords = match[1] + "|" + match[2];
-                        return window.TWAttack.state.homeCoords;
+                        window.TWAttack.state._coordsCache = match[1] + "|" + match[2];
+                        return window.TWAttack.state._coordsCache;
                     }
                 }
                 return "";
@@ -123,6 +125,30 @@
                 if (diffMins < 60) return diffMins + "m ago";
                 else if (diffMins < 1440) return Math.floor(diffMins / 60) + "h ago";
                 else return Math.floor(diffMins / 1440) + "d ago";
+            },
+            
+            showStatus: function(message, type) {
+                var statusMsg = document.getElementById('tw-attack-status');
+                if (!statusMsg) {
+                    statusMsg = document.createElement('div');
+                    statusMsg.id = 'tw-attack-status';
+                    statusMsg.className = 'tw-attack-status';
+                    document.body.appendChild(statusMsg);
+                }
+                
+                statusMsg.textContent = message;
+                statusMsg.style.display = 'block';
+                statusMsg.className = 'tw-attack-status';
+                
+                if (type === 'success') {
+                    statusMsg.classList.add('tw-attack-status-success');
+                } else if (type === 'error') {
+                    statusMsg.classList.add('tw-attack-status-error');
+                }
+                
+                setTimeout(function() {
+                    statusMsg.style.display = 'none';
+                }, 5000);
             }
         },
         
@@ -134,7 +160,7 @@
             
             isAttackPage: function() {
                 var url = window.location.href;
-                var isScreenPlace = url.endsWith('screen=place');
+                var isScreenPlace = url.includes('screen=place');
                 var hasVillageId = url.includes('screen=place&village=');
                 var hasModeCommand = url.includes('mode=command');
                 var hasModeSim = url.includes('mode=sim');
@@ -160,10 +186,17 @@
         loader: {
             loadScript: function(src) {
                 return new Promise(function(resolve, reject) {
+                    // Add cache busting parameter
+                    var cacheBuster = '?ts=' + new Date().getTime();
+                    var scriptUrl = src + cacheBuster;
+                    
                     var script = document.createElement('script');
-                    script.src = src;
+                    script.src = scriptUrl;
                     script.onload = resolve;
-                    script.onerror = reject;
+                    script.onerror = function(error) {
+                        console.error('Failed to load script:', src, error);
+                        reject(error);
+                    };
                     document.head.appendChild(script);
                 });
             },
@@ -175,19 +208,37 @@
                     return Promise.reject('Unknown module');
                 }
                 
-                return this.loadScript(scriptSrc).catch(function(error) {
+                // Build full URL to GitHub
+                var fullUrl = CONFIG.baseUrl + scriptSrc;
+                console.log('Loading module from:', fullUrl);
+                
+                return this.loadScript(fullUrl).catch(function(error) {
                     console.error('Failed to load module', moduleName, ':', error);
+                    // Try to load from same directory as fallback
+                    if (CONFIG.baseUrl !== window.location.origin + '/') {
+                        console.log('Trying to load from current directory...');
+                        return window.TWAttack.loader.loadScript(scriptSrc);
+                    }
+                    throw error;
                 });
             },
             
             loadAll: function() {
+                console.log('TW Attack: Starting module loading...');              
                 var modules = ['styles', 'utils', 'attack', 'submit', 'village'];
                 var promises = modules.map(function(module) {
                     return window.TWAttack.loader.loadModule(module);
                 });
                 
-                return Promise.allSettled(promises).then(function() {
-                    console.log('TW Attack: All modules loaded');
+                return Promise.allSettled(promises).then(function(results) {
+                    console.log('TW Attack: Module loading results:', results);
+                    
+                    var failed = results.filter(r => r.status === 'rejected').length;
+                    if (failed > 0) {
+                        console.warn('TW Attack:', failed, 'modules failed to load');
+                        window.TWAttack.utils.showStatus(failed + ' modules failed to load. Check console.', 'error');
+                    }
+                    
                     window.TWAttack.initialize();
                 });
             }
@@ -196,6 +247,8 @@
         // Initialization
         initialize: function() {
             if (window.TWAttack.state.isInitialized) return;
+            
+            console.log('TW Attack: Initializing for world...');
             
             // Load state
             window.TWAttack.state.currentWorld = window.TWAttack.utils.getWorldName();
@@ -206,18 +259,28 @@
             
             // Initialize based on page type
             if (window.TWAttack.pages.isInfoVillage()) {
+                console.log('TW Attack: Info village page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.village) {
                     window.TWAttack.modules.village.initialize();
+                } else {
+                    console.warn('Village module not loaded');
                 }
             } else if (window.TWAttack.pages.isAttackPage()) {
+                console.log('TW Attack: Attack page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.attack) {
                     window.TWAttack.modules.attack.initialize();
+                } else {
+                    console.warn('Attack module not loaded');
                 }
             } else if (window.TWAttack.pages.isSubmitPage()) {
+                console.log('TW Attack: Submit page detected');
                 if (window.TWAttack.modules && window.TWAttack.modules.submit) {
                     window.TWAttack.modules.submit.initialize();
+                } else {
+                    console.warn('Submit module not loaded');
                 }
             } else {
+                console.log('TW Attack: Other page detected');
                 // Try to load config UI if on any other page
                 if (window.TWAttack.modules && window.TWAttack.modules.attack) {
                     window.TWAttack.modules.attack.createConfigUI();
