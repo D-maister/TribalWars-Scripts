@@ -12,7 +12,7 @@
             styles: 'tw-attack-styles-v0.0.1.js',
             attack: 'tw-attack-attack-v0.0.6.js',
             submit: 'tw-attack-submit-v0.0.1.js',
-            village: 'tw-attack-village-v0.0.3.js',
+            village: 'tw-attack-village-v0.0.4.js',
             utils: 'tw-attack-utils-v0.0.8.js'
         },
         storageKeys: {
