@@ -1626,11 +1626,38 @@
         var currentUrl = location.href;
         var doc = window.frames.length > 0 ? window.main.document : document;
         
-        // Check if we're on the place page WITHOUT try=confirm
-        if (currentUrl.indexOf("screen=place") > -1 && 
-            currentUrl.indexOf("try=confirm") < 0 && 
-            doc.forms[0]) {
-            
+        // Check if we're on the correct place page
+        // Should be: screen=place AND (mode=command OR no mode parameter)
+        // Should NOT be: screen=place&mode=sim or other modes
+        var hasScreenPlace = currentUrl.includes('screen=place');
+        var hasModeCommand = currentUrl.includes('mode=command');
+        var hasModeSim = currentUrl.includes('mode=sim');
+        var hasModeOther = currentUrl.match(/mode=[^&]+/) && !hasModeCommand;
+        var hasTryConfirm = currentUrl.includes('try=confirm');
+        
+        // Valid attack pages:
+        // 1. screen=place&mode=command
+        // 2. screen=place (without mode parameter)
+        // 3. screen=place (with try=confirm but we handle that separately)
+        
+        var isValidAttackPage = false;
+        
+        if (hasScreenPlace) {
+            if (hasModeCommand) {
+                // screen=place&mode=command is valid
+                isValidAttackPage = true;
+            } else if (!hasModeSim && !hasModeOther) {
+                // screen=place without mode parameter or with only try=confirm is valid
+                isValidAttackPage = true;
+            }
+        }
+        
+        // If we're on the submit confirmation page, don't attack
+        if (hasTryConfirm && !hasModeCommand) {
+            isValidAttackPage = false;
+        }
+        
+        if (isValidAttackPage && doc.forms[0]) {
             var availableTroops = getAvailableTroops();
             var build = troopBuilds[buildKey] || defaultBuilds[buildKey] || defaultBuilds["A"];
             
@@ -1697,7 +1724,7 @@
                 }
             }, 500);
         } else {
-            showStatus('Please go to Rally Point > Place tab to attack', 'error');
+            showStatus('Please go to Rally Point > Place tab to attack (not simulation mode)', 'error');
         }
     }
     
@@ -1728,6 +1755,37 @@
     
     function autoAttackNext() {
         if (checkForAntibot()) return;
+        
+        // Check if we're on a valid attack page
+        var currentUrl = location.href;
+        var hasScreenPlace = currentUrl.includes('screen=place');
+        var hasModeCommand = currentUrl.includes('mode=command');
+        var hasModeSim = currentUrl.includes('mode=sim');
+        var hasModeOther = currentUrl.match(/mode=[^&]+/) && !hasModeCommand;
+        var hasTryConfirm = currentUrl.includes('try=confirm');
+        
+        var isValidAttackPage = false;
+        
+        if (hasScreenPlace) {
+            if (hasModeCommand) {
+                isValidAttackPage = true;
+            } else if (!hasModeSim && !hasModeOther && !hasTryConfirm) {
+                isValidAttackPage = true;
+            }
+        }
+        
+        if (!isValidAttackPage) {
+            showStatus('Auto-attack only works on Rally Point > Place tab (not simulation mode)', 'error');
+            
+            // Retry after delay if auto-attack is enabled
+            if (settings.autoAttackEnabled) {
+                setTimeout(function() {
+                    autoAttackNext();
+                }, 60000);
+            }
+            return;
+        }
+        
         cleanupOldHistory();
         
         var targets = targetList.split(" ").filter(Boolean);
@@ -2062,9 +2120,10 @@
             return;
         }
         
-        // Check if panel already exists
+        // Check if panel already exists - if it does, just update it
         var existingPanel = document.getElementById('tw-attack-info-panel');
         if (existingPanel) {
+            // Remove existing panel to recreate it
             existingPanel.remove();
         }
         
@@ -2260,7 +2319,7 @@
                 // Remove from list
                 if (removeFromTargetList(coords)) {
                     showStatus('Village ' + coords + ' removed from target list', 'success');
-                    // Refresh the panel
+                    // Refresh the panel instead of removing it
                     setTimeout(createInfoVillagePanel, 100);
                 }
             } else {
@@ -2279,7 +2338,7 @@
                         }
                     });
                     showStatus('Village ' + coords + ' added to target list', 'success');
-                    // Refresh the panel
+                    // Refresh the panel instead of removing it
                     setTimeout(createInfoVillagePanel, 100);
                 }
             }
@@ -2294,7 +2353,8 @@
                     removeFromTargetList(coords);
                 }
                 showStatus('Village ' + coords + ' added to ignore list', 'success');
-                panel.remove();
+                // Refresh the panel instead of removing it
+                setTimeout(createInfoVillagePanel, 100);
             }
         };
         
@@ -2393,10 +2453,57 @@
         currentWorld = getWorldName();
         homeCoords = getCurrentVillageCoords();
         
+        loadSettingsFromStorage();
         loadTargetsFromStorage();
         loadBuildsFromStorage();
-        loadSettingsFromStorage();
         loadTargetBuildsFromStorage();
+        
+        updateVillageDataForExistingTargets();
+        
+        // Check current page URL to determine what to do
+        var currentUrl = window.location.href;
+        
+        if (currentUrl.includes('&screen=info_village')) {
+            // Info village page - show control panel
+            createInfoVillagePanel();
+        } else if (currentUrl.includes('screen=place')) {
+            if (currentUrl.includes('&try=confirm')) {
+                // Submit page - run submit script
+                runSubmitScript();
+            } else if (currentUrl.includes('mode=sim')) {
+                // Simulation mode - don't show attack config
+                // You could optionally show a message or minimal config here
+                console.log('Simulation mode - attack config disabled');
+            } else if (currentUrl.includes('mode=command') || !currentUrl.includes('mode=')) {
+                // Attack page (command mode or no mode) - create main config UI
+                if (!checkForAntibot()) {
+                    createConfigUI();
+                    
+                    if (settings.autoAttackEnabled) {
+                        setTimeout(function() {
+                            autoAttackNext();
+                        }, 2000);
+                    }
+                }
+            }
+        } else {
+            // Other pages - create config UI if we can find the container
+            var container = document.querySelector('#content_value > div.commands-container-outer');
+            if (container) {
+                createConfigUI();
+            }
+        }
+        
+        // Set up periodic check for submit script on submit pages
+        if (currentUrl.includes('&screen=place&try=confirm')) {
+            const submitCheckInterval = setInterval(runSubmitScript, 500);
+            
+            setTimeout(() => {
+                if (!submitScriptExecuted) {
+                    clearInterval(submitCheckInterval);
+                }
+            }, 5 * 60 * 1000);
+        }
         
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
