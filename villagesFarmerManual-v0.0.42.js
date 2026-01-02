@@ -2680,15 +2680,105 @@
             }, 5 * 60 * 1000);
         }
         
-        // ... rest of your UI creation code (keep everything from line 81 onward)
-        
         var uiContainer = document.createElement('div');
         uiContainer.id = 'tw-attack-config';
         uiContainer.className = 'tw-attack-config';
         
+        // Create title container with title and auto-attack button
+        var titleContainer = document.createElement('div');
+        titleContainer.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #4CAF50;
+        `;
+        
         var title = document.createElement('h3');
         title.textContent = '⚔️ TW Attack Config - ' + currentWorld;
         title.className = 'tw-attack-title';
+        title.style.margin = '0'; // Remove default margin
+        
+        // Create auto-attack toggle container
+        var autoAttackToggleContainer = document.createElement('div');
+        autoAttackToggleContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+        
+        var autoAttackLabel = document.createElement('span');
+        autoAttackLabel.textContent = 'Auto-Attack:';
+        autoAttackLabel.style.cssText = `
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+        `;
+        
+        var autoAttackCheckbox = document.createElement('input');
+        autoAttackCheckbox.type = 'checkbox';
+        autoAttackCheckbox.id = 'auto-attack-toggle';
+        autoAttackCheckbox.checked = settings.autoAttackEnabled;
+        autoAttackCheckbox.style.cssText = `
+            transform: scale(1.2);
+            cursor: pointer;
+        `;
+        
+        autoAttackCheckbox.onchange = function() {
+            settings.autoAttackEnabled = this.checked;
+            saveSettingsToStorage();
+            
+            if (this.checked) {
+                showStatus('Auto-attack enabled', 'success');
+                // Start auto-attack if on the right page
+                if (currentUrl.includes('screen=place') && !currentUrl.includes('&try=confirm')) {
+                    setTimeout(function() {
+                        autoAttackNext();
+                    }, 2000);
+                }
+            } else {
+                showStatus('Auto-attack disabled', 'info');
+            }
+        };
+        
+        var autoAttackBtn = document.createElement('button');
+        autoAttackBtn.textContent = '⚡ Start';
+        autoAttackBtn.className = 'tw-attack-auto-btn-a';
+        autoAttackBtn.style.cssText = `
+            padding: 4px 12px;
+            font-size: 11px;
+            font-weight: bold;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            background: linear-gradient(to right, #ff416c, #ff4b2b);
+            transition: opacity 0.2s;
+        `;
+        
+        autoAttackBtn.onclick = function() {
+            if (settings.autoAttackEnabled) {
+                autoAttackNext();
+            } else {
+                showStatus('Enable auto-attack first by checking the checkbox', 'error');
+            }
+        };
+        
+        autoAttackBtn.onmouseover = function() {
+            this.style.opacity = '0.9';
+        };
+        
+        autoAttackBtn.onmouseout = function() {
+            this.style.opacity = '1';
+        };
+        
+        autoAttackToggleContainer.appendChild(autoAttackLabel);
+        autoAttackToggleContainer.appendChild(autoAttackCheckbox);
+        autoAttackToggleContainer.appendChild(autoAttackBtn);
+        
+        titleContainer.appendChild(title);
+        titleContainer.appendChild(autoAttackToggleContainer);
         
         var toggleConfigBtn = document.createElement('button');
         toggleConfigBtn.textContent = configVisible ? '▲ Hide Config' : '▼ Show Config';
