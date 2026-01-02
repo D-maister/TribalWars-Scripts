@@ -2132,26 +2132,39 @@
     }
    
     function findCoordinatesOnPage() {
-        // Look for coordinates in various places
-        var textNodes = document.evaluate('//text()[contains(., "|")]', document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-        
-        for (var i = 0; i < textNodes.snapshotLength; i++) {
-            var node = textNodes.snapshotItem(i);
-            var text = node.textContent.trim();
-            
-            // Look for pattern like "xxx|yyy"
-            var match = text.match(/(\d+)\|(\d+)/);
-            if (match) {
-                return match[1] + '|' + match[2];
-            }
+        // Check if we're on an info_village page
+        if (!window.location.href.includes('&screen=info_village')) {
+            return null;
         }
-        
-        // Also check in title
-        var title = document.querySelector('head > title');
-        if (title) {
-            var match = title.textContent.match(/\((\d+)\|(\d+)\)/);
-            if (match) {
-                return match[1] + "|" + match[2];
+              
+        var contentValue = document.querySelector('td#content_value');
+        if (contentValue) {
+            // Get all text from content_value
+            var allText = contentValue.textContent;
+            
+            // Look for coordinates pattern
+            var matches = allText.match(/(\d+)\s*\|\s*(\d+)/g);
+            if (matches) {
+                // Take the first match that looks like valid coordinates
+                for (var i = 0; i < matches.length; i++) {
+                    var match = matches[i].match(/(\d+)\s*\|\s*(\d+)/);
+                    if (match) {
+                        var x = parseInt(match[1]);
+                        var y = parseInt(match[2]);
+                        
+                        // Coordinates are usually within reasonable bounds
+                        if (x >= 0 && x <= 1000 && y >= 0 && y <= 1000) {
+                            // Check if it's isolated (not part of a larger number)
+                            var beforeMatch = allText.substring(0, allText.indexOf(matches[i]));
+                            var afterMatch = allText.substring(allText.indexOf(matches[i]) + matches[i].length);
+                            
+                            // If there's a digit before or after, it might not be coordinates
+                            if (!beforeMatch.match(/\d$/) && !afterMatch.match(/^\d/)) {
+                                return match[1].trim() + '|' + match[2].trim();
+                            }
+                        }
+                    }
+                }
             }
         }
         
