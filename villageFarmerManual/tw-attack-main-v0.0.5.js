@@ -13,7 +13,7 @@
             attack: 'tw-attack-attack-v0.0.1.js',
             submit: 'tw-attack-submit-v0.0.1.js',
             village: 'tw-attack-village-v0.0.1.js',
-            utils: 'tw-attack-utils-v0.0.2.js'
+            utils: 'tw-attack-utils-v0.0.4.js'
         },
         storageKeys: {
             targets: 'twAttackTargets',
