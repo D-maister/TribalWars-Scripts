@@ -631,7 +631,7 @@
             font-weight: bold;
             font-size: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
             min-width: 80px;
             position: relative;
         }
@@ -641,19 +641,37 @@
             box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
         
+        /* Build A - Red */
         .tw-attack-info-build-btn.a {
             background: linear-gradient(to right, #ff416c, #ff4b2b);
         }
         
+        .tw-attack-info-build-btn.a.not-checked {
+            background: linear-gradient(to right, #cccccc, #999999) !important;
+            color: #666666 !important;
+        }
+        
+        /* Build B - Blue */
         .tw-attack-info-build-btn.b {
             background: linear-gradient(to right, #2196F3, #1976D2);
         }
         
+        .tw-attack-info-build-btn.b.not-checked {
+            background: linear-gradient(to right, #cccccc, #999999) !important;
+            color: #666666 !important;
+        }
+        
+        /* Build C - Purple */
         .tw-attack-info-build-btn.c {
             background: linear-gradient(to right, #9C27B0, #7B1FA2);
         }
         
-        /* Disabled state - completely grayed out */
+        .tw-attack-info-build-btn.c.not-checked {
+            background: linear-gradient(to right, #cccccc, #999999) !important;
+            color: #666666 !important;
+        }
+        
+        /* Disabled state - completely grayed out (disabled in settings) */
         .tw-attack-info-build-btn.disabled {
             background: linear-gradient(to right, #cccccc, #999999) !important;
             color: #666666 !important;
@@ -666,26 +684,16 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
         }
         
-        /* Enabled state */
+        /* Enabled and checked state */
         .tw-attack-info-build-btn.checked {
             box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
             opacity: 1;
         }
         
-        /* Disabled (not checked) but available state */
-        .tw-attack-info-build-btn:not(.checked):not(.disabled) {
-            opacity: 0.6;
-        }
-        
-        /* On cooldown state */
+        /* On cooldown state - still clickable */
         .tw-attack-info-build-btn.on-cooldown {
-            opacity: 0.7;
-            cursor: pointer; /* Still clickable to disable */
-        }
-        
-        .tw-attack-info-build-btn.on-cooldown:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+            opacity: 0.8;
+            cursor: pointer;
         }
         
         .tw-attack-info-cooldown-indicator {
@@ -726,9 +734,9 @@
             border: none;
             color: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
             flex: 1;
-            max-width: 120px;
+            max-width: 150px;
         }
         
         .tw-attack-info-action-btn:hover {
@@ -736,24 +744,13 @@
             box-shadow: 0 3px 6px rgba(0,0,0,0.15);
         }
         
-        .tw-attack-info-action-btn:disabled {
-            background: linear-gradient(to right, #cccccc, #999999) !important;
-            color: #666666 !important;
-            cursor: not-allowed !important;
-            opacity: 0.5 !important;
-            transform: none !important;
-        }
-        
-        .tw-attack-info-action-btn:disabled:hover {
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        /* Toggle button (Add/Remove) */
+        .tw-attack-info-toggle-btn {
+            /* Dynamic background set in JS */
         }
         
         .tw-attack-info-ignore-btn {
             background: linear-gradient(to right, #ff9800, #f57c00);
-        }
-        
-        .tw-attack-info-remove-btn {
-            background: linear-gradient(to right, #ff4444, #ff3333);
         }
         
         .tw-attack-info-status {
@@ -2121,6 +2118,7 @@
                     btn.classList.add('checked');
                     btn.title = 'Build ' + buildKey + ' enabled for this village';
                 } else {
+                    btn.classList.add('not-checked');
                     btn.title = 'Build ' + buildKey + ' disabled for this village';
                 }
                 
@@ -2168,9 +2166,6 @@
                     font-weight: bold;
                     z-index: 2;
                 `;
-                if (isBuildEnabledForTarget) {
-                    btn.style.opacity = '0.7';
-                }
             } else {
                 // Build ready - green indicator
                 cooldownIndicator.textContent = '✓';
@@ -2213,10 +2208,11 @@
                         addToTargetList(coords, villageData);
                         setTargetBuild(coords, buildKey, true);
                         isInTargetList = true;
+                        this.classList.remove('not-checked');
                         this.classList.add('checked');
                         showStatus('Village ' + coords + ' added to target list with Build ' + buildKey + ' enabled', 'success');
                         
-                        // Refresh the panel to update cooldown indicator
+                        // Refresh the panel to update everything
                         setTimeout(createInfoVillagePanel, 100);
                     } else if (isInTargetList) {
                         // Toggle build for existing target
@@ -2224,10 +2220,12 @@
                         setTargetBuild(coords, buildKey, newState);
                         
                         if (newState) {
+                            this.classList.remove('not-checked');
                             this.classList.add('checked');
                             showStatus('Build ' + buildKey + ' enabled for ' + coords, 'success');
                         } else {
                             this.classList.remove('checked');
+                            this.classList.add('not-checked');
                             showStatus('Build ' + buildKey + ' disabled for ' + coords, 'success');
                         }
                         
@@ -2243,6 +2241,50 @@
         var actionButtons = document.createElement('div');
         actionButtons.className = 'tw-attack-info-actions';
         
+        // Single toggle button for Add/Remove
+        var toggleListBtn = document.createElement('button');
+        toggleListBtn.className = 'tw-attack-info-action-btn tw-attack-info-toggle-btn';
+        
+        if (isInTargetList) {
+            toggleListBtn.textContent = 'Remove from List';
+            toggleListBtn.style.background = 'linear-gradient(to right, #ff4444, #ff3333)';
+            toggleListBtn.title = 'Remove village from target list';
+        } else {
+            toggleListBtn.textContent = 'Add to List';
+            toggleListBtn.style.background = 'linear-gradient(to right, #4CAF50, #45a049)';
+            toggleListBtn.title = 'Add village to target list';
+        }
+        
+        toggleListBtn.onclick = function() {
+            if (isInTargetList) {
+                // Remove from list
+                if (removeFromTargetList(coords)) {
+                    showStatus('Village ' + coords + ' removed from target list', 'success');
+                    // Refresh the panel
+                    setTimeout(createInfoVillagePanel, 100);
+                }
+            } else {
+                // Add to list (with all enabled builds disabled by default)
+                var villageData = {
+                    name: "Village from Info Page",
+                    points: 0,
+                    playerNumber: 0,
+                    isBonus: false
+                };
+                if (addToTargetList(coords, villageData)) {
+                    // By default, disable all builds when adding new village
+                    ['A', 'B', 'C'].forEach(function(buildKey) {
+                        if (buildSettings[buildKey]) {
+                            setTargetBuild(coords, buildKey, false);
+                        }
+                    });
+                    showStatus('Village ' + coords + ' added to target list', 'success');
+                    // Refresh the panel
+                    setTimeout(createInfoVillagePanel, 100);
+                }
+            }
+        };
+        
         var ignoreBtn = document.createElement('button');
         ignoreBtn.className = 'tw-attack-info-action-btn tw-attack-info-ignore-btn';
         ignoreBtn.textContent = 'Ignore';
@@ -2256,29 +2298,12 @@
             }
         };
         
-        var removeBtn = document.createElement('button');
-        removeBtn.className = 'tw-attack-info-action-btn tw-attack-info-remove-btn';
-        removeBtn.textContent = isInTargetList ? 'Remove' : 'Not in List';
-        if (!isInTargetList) {
-            removeBtn.disabled = true;
-            removeBtn.style.opacity = '0.5';
-            removeBtn.style.cursor = 'not-allowed';
-        }
-        removeBtn.onclick = function() {
-            if (isInTargetList) {
-                if (removeFromTargetList(coords)) {
-                    showStatus('Village ' + coords + ' removed from target list', 'success');
-                    panel.remove();
-                }
-            }
-        };
-        
         var statusMsg = document.createElement('div');
         statusMsg.id = 'info-status';
         statusMsg.className = 'tw-attack-info-status';
         
+        actionButtons.appendChild(toggleListBtn);
         actionButtons.appendChild(ignoreBtn);
-        actionButtons.appendChild(removeBtn);
         
         panel.appendChild(title);
         panel.appendChild(coordsDisplay);
@@ -2314,55 +2339,6 @@
             } else {
                 showStatus('Village in target list but no builds enabled', 'error');
             }
-        }
-    }
-    
-    // Helper function to show status in info panel
-    function showStatus(message, type) {
-        // Try to show in info panel status first
-        var statusMsg = document.getElementById('info-status');
-        if (statusMsg) {
-            statusMsg.textContent = message;
-            statusMsg.style.display = 'block';
-            statusMsg.className = 'tw-attack-info-status';
-            
-            switch(type) {
-                case 'success':
-                    statusMsg.classList.add('tw-attack-status-success');
-                    break;
-                case 'error':
-                    statusMsg.classList.add('tw-attack-status-error');
-                    break;
-                default:
-                    statusMsg.classList.add('tw-attack-status-info');
-            }
-            
-            setTimeout(function() {
-                statusMsg.style.display = 'none';
-            }, 5000);
-        }
-        
-        // Also show in main status if available
-        var mainStatus = document.getElementById('parse-status');
-        if (mainStatus) {
-            mainStatus.textContent = message;
-            mainStatus.style.display = 'block';
-            mainStatus.className = 'tw-attack-status';
-            
-            switch(type) {
-                case 'success':
-                    mainStatus.classList.add('tw-attack-status-success');
-                    break;
-                case 'error':
-                    mainStatus.classList.add('tw-attack-status-error');
-                    break;
-                default:
-                    mainStatus.classList.add('tw-attack-status-info');
-            }
-            
-            setTimeout(function() {
-                mainStatus.style.display = 'none';
-            }, 5000);
         }
     }
    
