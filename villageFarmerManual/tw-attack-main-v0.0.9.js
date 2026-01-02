@@ -8,11 +8,11 @@
     const CONFIG = {
         version: '2.0.0',
         scripts: {
-            styles: 'tw-attack-styles.js',
-            attack: 'tw-attack-attack.js',
-            submit: 'tw-attack-submit.js',
-            village: 'tw-attack-village.js',
-            utils: 'tw-attack-utils.js'
+            styles: 'tw-attack-styles-v0.0.1.js',
+            attack: 'tw-attack-attack-v0.0.6.js',
+            submit: 'tw-attack-submit-v0.0.1.js',
+            village: 'tw-attack-village-v0.0.6.js',
+            utils: 'tw-attack-utils-v0.0.1.js'
         },
         storageKeys: {
             targets: 'twAttackTargets',
