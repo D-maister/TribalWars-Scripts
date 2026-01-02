@@ -2646,12 +2646,17 @@
                 runSubmitScript();
             } else if (currentUrl.includes('mode=sim')) {
                 // Simulation mode - don't show attack config
-                // You could optionally show a message or minimal config here
                 console.log('Simulation mode - attack config disabled');
             } else if (currentUrl.includes('mode=command') || !currentUrl.includes('mode=')) {
                 // Attack page (command mode or no mode) - create main config UI
                 if (!checkForAntibot()) {
-                    createConfigUI();
+                    // REMOVED: createConfigUI(); // This was causing recursion
+                    
+                    // Create UI only once
+                    var existingUI = document.getElementById('tw-attack-config');
+                    if (!existingUI) {
+                        createConfigUI(); // Now it only creates if it doesn't exist
+                    }
                     
                     if (settings.autoAttackEnabled) {
                         setTimeout(function() {
@@ -2664,7 +2669,13 @@
             // Other pages - create config UI if we can find the container
             var container = document.querySelector('#content_value > div.commands-container-outer');
             if (container) {
-                createConfigUI();
+                // REMOVED: createConfigUI(); // This was causing recursion
+                
+                // Create UI only once
+                var existingUI = document.getElementById('tw-attack-config');
+                if (!existingUI) {
+                    createConfigUI(); // Now it only creates if it doesn't exist
+                }
             }
         }
         
