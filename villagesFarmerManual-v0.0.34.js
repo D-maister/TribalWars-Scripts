@@ -611,25 +611,29 @@
         
         .tw-attack-info-build-buttons {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 12px;
             justify-content: center;
             flex-wrap: wrap;
         }
         
+        .tw-attack-info-build-container {
+            position: relative;
+            display: inline-block;
+        }
+        
         .tw-attack-info-build-btn {
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 8px 15px;
             border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
             font-size: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
-            min-width: 70px;
-            flex: 1;
-            max-width: 100px;
+            min-width: 80px;
+            position: relative;
         }
         
         .tw-attack-info-build-btn:hover {
@@ -651,16 +655,45 @@
         
         .tw-attack-info-build-btn.checked {
             box-shadow: 0 0 0 3px rgba(0,0,0,0.2);
-            opacity: 0.9;
         }
         
         .tw-attack-info-build-btn:not(.checked) {
-            opacity: 0.7;
+            opacity: 0.6;
+        }
+        
+        .tw-attack-info-build-btn:disabled,
+        .tw-attack-info-build-btn.on-cooldown {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .tw-attack-info-build-btn:disabled:hover,
+        .tw-attack-info-build-btn.on-cooldown:hover {
+            transform: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tw-attack-info-cooldown-indicator {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff6b6b;
+            color: white;
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 8px;
+            border: 1px solid white;
+            font-weight: bold;
+            z-index: 2;
+        }
+        
+        .tw-attack-info-cooldown-indicator.ready {
+            background: #4CAF50;
         }
         
         .tw-attack-info-actions {
             display: flex;
-            gap: 8px;
+            gap: 10px;
             justify-content: center;
         }
         
@@ -681,6 +714,16 @@
         .tw-attack-info-action-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+        }
+        
+        .tw-attack-info-action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .tw-attack-info-action-btn:disabled:hover {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         .tw-attack-info-ignore-btn {
@@ -2010,6 +2053,9 @@
         var isInTargetList = getCurrentTargets().includes(coords);
         var targetBuildSettings = isInTargetList ? getTargetBuilds(coords) : { A: false, B: false, C: false };
         
+        // Get build data from settings to check which builds are actually enabled
+        var buildSettings = settings.autoAttackBuilds || { A: true, B: false, C: false };
+        
         // Create panel
         var panel = document.createElement('div');
         panel.id = 'tw-attack-info-panel';
@@ -2026,20 +2072,83 @@
         var buildButtons = document.createElement('div');
         buildButtons.className = 'tw-attack-info-build-buttons';
         
-        // Create build buttons
+        // Create build buttons with cooldown indicators
         ['A', 'B', 'C'].forEach(function(buildKey) {
+            var isBuildEnabledInSettings = buildSettings[buildKey] !== false;
+            var isBuildEnabledForTarget = targetBuildSettings[buildKey];
+            
+            // Only create button if build is enabled in settings
+            if (!isBuildEnabledInSettings) {
+                return;
+            }
+            
+            var btnContainer = document.createElement('div');
+            btnContainer.className = 'tw-attack-info-build-container';
+            btnContainer.style.cssText = 'position: relative; display: inline-block;';
+            
             var btn = document.createElement('button');
             btn.className = 'tw-attack-info-build-btn ' + buildKey.toLowerCase();
             btn.textContent = 'Build ' + buildKey;
             btn.dataset.build = buildKey;
             
-            if (targetBuildSettings[buildKey]) {
+            // Check if build is enabled for this target
+            if (isBuildEnabledForTarget) {
                 btn.classList.add('checked');
             }
             
-            btn.onclick = (function(buildKey, coords) {
+            // Add cooldown indicator
+            var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
+            var cooldownIndicator = document.createElement('span');
+            cooldownIndicator.className = 'tw-attack-info-cooldown-indicator';
+            
+            if (cooldownInfo.onCooldown) {
+                cooldownIndicator.textContent = cooldownInfo.minutesLeft + 'm';
+                cooldownIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    background: #ff6b6b;
+                    color: white;
+                    font-size: 9px;
+                    padding: 1px 3px;
+                    border-radius: 8px;
+                    border: 1px solid white;
+                    font-weight: bold;
+                    z-index: 2;
+                `;
+                btn.style.opacity = '0.7';
+                btn.title = 'Build ' + buildKey + ' on cooldown: ' + cooldownInfo.minutesLeft + ' minutes remaining';
+            } else {
+                cooldownIndicator.textContent = '✓';
+                cooldownIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    background: #4CAF50;
+                    color: white;
+                    font-size: 9px;
+                    padding: 1px 3px;
+                    border-radius: 8px;
+                    border: 1px solid white;
+                    font-weight: bold;
+                    z-index: 2;
+                `;
+                btn.title = 'Build ' + buildKey + ' ready (cooldown: ' + cooldownInfo.cooldown + ' minutes)';
+            }
+            
+            btnContainer.appendChild(btn);
+            btnContainer.appendChild(cooldownIndicator);
+            
+            btn.onclick = (function(buildKey, coords, isBuildEnabledForTarget) {
                 return function() {
                     var isChecked = this.classList.contains('checked');
+                    var cooldownInfo = getBuildCooldownInfo(coords, buildKey);
+                    
+                    // Check if build is on cooldown
+                    if (cooldownInfo.onCooldown) {
+                        showStatus('Build ' + buildKey + ' is on cooldown for ' + coords + ' (' + cooldownInfo.minutesLeft + 'm remaining)', 'error');
+                        return;
+                    }
                     
                     if (!isInTargetList && !isChecked) {
                         // Add to target list with this build enabled
@@ -2054,6 +2163,9 @@
                         isInTargetList = true;
                         this.classList.add('checked');
                         showStatus('Village ' + coords + ' added to target list with Build ' + buildKey + ' enabled', 'success');
+                        
+                        // Refresh the panel to update cooldown indicator
+                        setTimeout(createInfoVillagePanel, 100);
                     } else if (isInTargetList) {
                         // Toggle build for existing target
                         var newState = !isChecked;
@@ -2066,9 +2178,9 @@
                         showStatus('Build ' + buildKey + ' ' + (newState ? 'enabled' : 'disabled') + ' for ' + coords, 'success');
                     }
                 };
-            })(buildKey, coords);
+            })(buildKey, coords, isBuildEnabledForTarget);
             
-            buildButtons.appendChild(btn);
+            buildButtons.appendChild(btnContainer);
         });
         
         var actionButtons = document.createElement('div');
@@ -2089,15 +2201,18 @@
         
         var removeBtn = document.createElement('button');
         removeBtn.className = 'tw-attack-info-action-btn tw-attack-info-remove-btn';
-        removeBtn.textContent = 'Remove';
+        removeBtn.textContent = isInTargetList ? 'Remove' : 'Not in List';
+        if (!isInTargetList) {
+            removeBtn.disabled = true;
+            removeBtn.style.opacity = '0.5';
+            removeBtn.style.cursor = 'not-allowed';
+        }
         removeBtn.onclick = function() {
             if (isInTargetList) {
                 if (removeFromTargetList(coords)) {
                     showStatus('Village ' + coords + ' removed from target list', 'success');
                     panel.remove();
                 }
-            } else {
-                showStatus('Village not in target list', 'error');
             }
         };
         
@@ -2117,17 +2232,80 @@
         // Find the minimap div and insert panel right after it
         var minimap = document.querySelector('div#minimap');
         if (minimap && minimap.parentNode) {
-            // Insert the panel right after the minimap
             minimap.parentNode.insertBefore(panel, minimap.nextSibling);
         } else {
-            // Fallback: find the commands container
             var container = document.querySelector('#content_value > div.commands-container-outer');
             if (container) {
                 container.insertBefore(panel, container.firstChild);
             } else {
-                // Fallback to body
                 document.body.insertBefore(panel, document.body.firstChild);
             }
+        }
+        
+        // Show status if village is already in target list
+        if (isInTargetList) {
+            // Check which builds are enabled for this target
+            var enabledBuilds = [];
+            ['A', 'B', 'C'].forEach(function(buildKey) {
+                if (targetBuildSettings[buildKey] && buildSettings[buildKey]) {
+                    enabledBuilds.push(buildKey);
+                }
+            });
+            
+            if (enabledBuilds.length > 0) {
+                showStatus('Village in target list. Enabled builds: ' + enabledBuilds.join(', '), 'success');
+            } else {
+                showStatus('Village in target list but no builds enabled', 'error');
+            }
+        }
+    }
+    
+    // Helper function to show status in info panel
+    function showStatus(message, type) {
+        // Try to show in info panel status first
+        var statusMsg = document.getElementById('info-status');
+        if (statusMsg) {
+            statusMsg.textContent = message;
+            statusMsg.style.display = 'block';
+            statusMsg.className = 'tw-attack-info-status';
+            
+            switch(type) {
+                case 'success':
+                    statusMsg.classList.add('tw-attack-status-success');
+                    break;
+                case 'error':
+                    statusMsg.classList.add('tw-attack-status-error');
+                    break;
+                default:
+                    statusMsg.classList.add('tw-attack-status-info');
+            }
+            
+            setTimeout(function() {
+                statusMsg.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Also show in main status if available
+        var mainStatus = document.getElementById('parse-status');
+        if (mainStatus) {
+            mainStatus.textContent = message;
+            mainStatus.style.display = 'block';
+            mainStatus.className = 'tw-attack-status';
+            
+            switch(type) {
+                case 'success':
+                    mainStatus.classList.add('tw-attack-status-success');
+                    break;
+                case 'error':
+                    mainStatus.classList.add('tw-attack-status-error');
+                    break;
+                default:
+                    mainStatus.classList.add('tw-attack-status-info');
+            }
+            
+            setTimeout(function() {
+                mainStatus.style.display = 'none';
+            }, 5000);
         }
     }
    
