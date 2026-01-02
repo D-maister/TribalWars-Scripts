@@ -615,29 +615,77 @@
                 var villageInfoContainer = document.createElement('div');
                 villageInfoContainer.style.cssText = 'display: flex; flex-direction: column; min-width: 150px; flex: 1;';
                 
-                // First line: Coordinates and basic info
+                // First line: Coordinates, name, and tags
                 var firstLine = document.createElement('div');
-                firstLine.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 3px;';
+                firstLine.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 3px; flex-wrap: wrap;';
                 
                 var targetCoords = document.createElement('div');
                 targetCoords.className = 'tw-attack-target-coords';
                 targetCoords.textContent = target;
+                targetCoords.style.minWidth = '60px';
                 
-                var distance = window.TWAttack.utils.calculateDistance(window.TWAttack.state.homeCoords, target);
-                var distanceSpan = document.createElement('span');
-                distanceSpan.style.cssText = 'font-size: 11px; color: #666;';
-                distanceSpan.textContent = 'Dist: ' + distance.toFixed(2);
+                // Try to get village data from storage
+                var villageData = { name: "Unknown Village", points: 0, playerNumber: 0, isBonus: false };
+                var allVillageData = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.villageData);
+                if (allVillageData && allVillageData[window.TWAttack.state.currentWorld] && allVillageData[window.TWAttack.state.currentWorld][target]) {
+                    villageData = allVillageData[window.TWAttack.state.currentWorld][target];
+                }
+                
+                var villageName = document.createElement('span');
+                villageName.style.cssText = 'font-size: 11px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;';
+                
+                // Truncate long names
+                var displayName = villageData.name;
+                if (displayName.length > 15) {
+                    displayName = displayName.substring(0, 15) + '...';
+                }
+                villageName.textContent = displayName;
+                villageName.title = villageData.name; // Show full name on hover
+                
+                // Create village type tag
+                var villageTag = document.createElement('span');
+                villageTag.className = 'tw-attack-village-tag';
+                
+                if (villageData.isBonus) {
+                    villageTag.classList.add('tw-attack-village-tag-bonus');
+                    villageTag.textContent = 'Bonus';
+                    villageTag.title = 'Bonus Village';
+                } else if (villageData.playerNumber > 0) {
+                    villageTag.classList.add('tw-attack-village-tag-player');
+                    villageTag.textContent = 'Player';
+                    villageTag.title = 'Player Village - ' + villageData.points + ' points';
+                } else {
+                    villageTag.classList.add('tw-attack-village-tag-barbarian');
+                    villageTag.textContent = 'Barbarian';
+                    villageTag.title = 'Barbarian Village';
+                }
+                
+                // Points badge for player villages
+                var pointsBadge = null;
+                if (villageData.playerNumber > 0 && villageData.points > 0) {
+                    pointsBadge = document.createElement('span');
+                    pointsBadge.className = 'tw-attack-points-badge';
+                    pointsBadge.textContent = villageData.points + ' pts';
+                    pointsBadge.title = 'Village points: ' + villageData.points;
+                }
                 
                 firstLine.appendChild(targetCoords);
-                firstLine.appendChild(distanceSpan);
+                firstLine.appendChild(villageName);
+                firstLine.appendChild(villageTag);
+                if (pointsBadge) firstLine.appendChild(pointsBadge);
                 
-                // Second line: Cooldown and status info
+                // Second line: Distance, cooldown, and last attack
                 var secondLine = document.createElement('div');
                 secondLine.className = 'tw-attack-target-details';
                 secondLine.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 10px; color: #666;';
                 
+                var distance = window.TWAttack.utils.calculateDistance(window.TWAttack.state.homeCoords, target);
+                var distanceSpan = document.createElement('span');
+                distanceSpan.innerHTML = `<strong>Distance:</strong> ${distance.toFixed(2)}`;
+                
+                secondLine.appendChild(distanceSpan);
+                
                 // Get cooldown info for each build
-                var cooldownInfo = '';
                 var hasCooldown = false;
                 var allCooldownMinutes = [];
                 
@@ -654,10 +702,12 @@
                 if (hasCooldown) {
                     var cooldownSpan = document.createElement('span');
                     cooldownSpan.innerHTML = `<strong style="color: #ff6b6b;">⏳ ${allCooldownMinutes.join(', ')}</strong>`;
+                    cooldownSpan.title = 'Build cooldowns: ' + allCooldownMinutes.join(', ');
                     secondLine.appendChild(cooldownSpan);
                 } else {
                     var readySpan = document.createElement('span');
-                    readySpan.innerHTML = `<strong style="color: #4CAF50;">✅ Ready</strong>`;
+                    readySpan.innerHTML = `<strong style="color: #4CAF50;">✅</strong>`;
+                    readySpan.title = 'All builds ready';
                     secondLine.appendChild(readySpan);
                 }
                 
@@ -683,6 +733,7 @@
                     var timeSince = window.TWAttack.utils.formatTimeSince(new Date(lastAttack));
                     lastAttackSpan.textContent = 'Last: ' + timeSince;
                     if (lastBuild) lastAttackSpan.textContent += ' (' + lastBuild + ')';
+                    lastAttackSpan.title = 'Last attack: ' + new Date(lastAttack).toLocaleString();
                     secondLine.appendChild(lastAttackSpan);
                 }
                 
@@ -710,11 +761,11 @@
                     if (buildCooldown.onCooldown) {
                         cooldownIndicator.classList.add('tw-attack-build-cooldown-cooldown');
                         cooldownIndicator.textContent = buildCooldown.minutesLeft + 'm';
-                        btn.title = 'Build ' + buildKey + ' on cooldown: ' + buildCooldown.minutesLeft + ' minutes remaining';
+                        btn.title = 'Build ' + buildKey + ' on cooldown: ' + buildCooldown.minutesLeft + ' minutes remaining (CD: ' + buildCooldown.cooldown + 'm)';
                     } else {
                         cooldownIndicator.classList.add('tw-attack-build-cooldown-ready');
                         cooldownIndicator.textContent = '✓';
-                        btn.title = 'Build ' + buildKey + ' ready';
+                        btn.title = 'Build ' + buildKey + ' ready (CD: ' + buildCooldown.cooldown + 'm)';
                     }
                     
                     btn.appendChild(cooldownIndicator);
@@ -758,22 +809,57 @@
                     })(target);
                 }
                 
+                // Add IGNORE button
+                var ignoreBtn = document.createElement('button');
+                ignoreBtn.textContent = '👁️';
+                ignoreBtn.title = 'Add to ignore list';
+                ignoreBtn.className = 'tw-attack-ignore-btn';
+                ignoreBtn.onclick = (function(targetCoords, villageData) {
+                    return function() {
+                        // Load ignore list
+                        var ignoreList = window.TWAttack.storage.get(window.TWAttack.config.storageKeys.ignore) || {};
+                        if (!ignoreList[window.TWAttack.state.currentWorld]) {
+                            ignoreList[window.TWAttack.state.currentWorld] = [];
+                        }
+                        
+                        // Add to ignore list
+                        if (ignoreList[window.TWAttack.state.currentWorld].indexOf(targetCoords) === -1) {
+                            ignoreList[window.TWAttack.state.currentWorld].push(targetCoords);
+                            window.TWAttack.storage.set(window.TWAttack.config.storageKeys.ignore, ignoreList);
+                            
+                            // Remove from target list
+                            window.TWAttack.targets.remove(targetCoords);
+                            
+                            // Show success message
+                            var villageType = villageData.isBonus ? 'Bonus village' : 
+                                            villageData.playerNumber > 0 ? 'Player village' : 'Barbarian village';
+                            window.TWAttack.utils.showStatus(villageType + ' ' + targetCoords + ' added to ignore list', 'success');
+                            
+                            // Update UI
+                            AttackModule.updateTargetsListUI();
+                        }
+                    };
+                })(target, villageData);
+                
                 var removeBtn = document.createElement('button');
                 removeBtn.textContent = '✕';
                 removeBtn.title = 'Remove target';
                 removeBtn.className = 'tw-attack-remove-btn';
-                removeBtn.onclick = (function(targetToRemove) {
+                removeBtn.onclick = (function(targetToRemove, villageData) {
                     return function() {
                         if (window.TWAttack.targets.remove(targetToRemove)) {
+                            var villageType = villageData.isBonus ? 'Bonus village' : 
+                                            villageData.playerNumber > 0 ? 'Player village' : 'Barbarian village';
+                            window.TWAttack.utils.showStatus(villageType + ' ' + targetToRemove + ' removed from target list', 'success');
                             AttackModule.updateTargetsListUI();
-                            window.TWAttack.utils.showStatus('Target removed: ' + targetToRemove, 'success');
                         }
                     };
-                })(target);
+                })(target, villageData);
                 
                 targetItem.appendChild(targetInfo);
                 targetItem.appendChild(actionButtons);
                 targetItem.appendChild(attackBtn);
+                targetItem.appendChild(ignoreBtn);
                 targetItem.appendChild(removeBtn);
                 targetsList.appendChild(targetItem);
             });
