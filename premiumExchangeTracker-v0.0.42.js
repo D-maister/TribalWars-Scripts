@@ -1103,10 +1103,12 @@ class ExchangeTracker {
                 this.checkExchangeRates();
             }
             
+            // IMPORTANT: Always update UI when new data is saved
+            // This ensures charts update even if stats aren't currently visible
             if (this.isStatVisible) {
                 this.updateStatsUI();
                 if (this.showCharts) {
-                    this.updateCharts();
+                    this.updateCharts(); // Make sure charts are updated
                 }
             }
         } catch (e) {
@@ -2256,6 +2258,8 @@ class ExchangeTracker {
     updateCharts() {
         if (!this.showCharts || !this.data.length) return;
         
+        console.log('[TW Exchange Tracker] Updating charts...');
+        
         // Update line charts
         this.resourceTypes.forEach(resource => {
             const chartContainer = document.querySelector(`#tw-chart-${resource}`);
@@ -2269,6 +2273,8 @@ class ExchangeTracker {
         if (barChartContainer) {
             this.createBarChart(barChartContainer);
         }
+        
+        console.log('[TW Exchange Tracker] Charts updated');
     }
 
     toggleCharts() {
@@ -2414,7 +2420,7 @@ class ExchangeTracker {
         if (chartsGrid) {
             if (this.showCharts && this.data.length > 0) {
                 chartsGrid.style.display = 'grid';
-                this.updateCharts();
+                this.updateCharts(); // THIS IS THE KEY LINE - update charts!
             } else {
                 chartsGrid.style.display = 'none';
             }
