@@ -748,11 +748,9 @@ class ExchangeTracker {
                 const observer = new MutationObserver((mutations) => {
                     mutations.forEach((mutation) => {
                         if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                            // Check exchange rates immediately when price starts changing
-                            this.checkExchangeRates();
-                            
-                            // Then save the data after a short delay
-                            setTimeout(() => this.saveData(), 100);
+                            // Only save data when price changes
+                            // Exchange rates will be checked AFTER data is saved
+                            this.saveData();
                         }
                     });
                 });
@@ -846,24 +844,12 @@ class ExchangeTracker {
             return;
         }
         
-        // Store current value
+        // Store current state
         const currentValue = input.value;
+        const wasDisabled = input.disabled;
         
-        // Only proceed if field is empty or we're checking a different amount
-        if (currentValue && parseInt(currentValue) === amount) {
-            // Already has the value we want to check, just read the cost
-            const costElement = input.closest('td')?.querySelector('.cost');
-            if (costElement) {
-                const premiumCost = this.extractPremiumCost(costElement);
-                if (premiumCost !== null) {
-                    const rate = `${amount} <-> ${premiumCost}`;
-                    this.updateExchangeRateDisplay(type, resource, rate);
-                } else {
-                    this.updateExchangeRateDisplay(type, resource, '—');
-                }
-            }
-            return;
-        }
+        // Make sure input is enabled
+        input.disabled = false;
         
         // Set new value
         input.value = amount;
@@ -888,12 +874,19 @@ class ExchangeTracker {
                 this.updateExchangeRateDisplay(type, resource, '—');
             }
             
-            // Clear the input field
+            // Clear the input field properly without disabling
             input.value = '';
+            
+            // Restore disabled state if it was originally disabled
+            input.disabled = wasDisabled;
             
             // Trigger input event again to clear any visual feedback
             const clearEvent = new Event('input', { bubbles: true });
             input.dispatchEvent(clearEvent);
+            
+            // Also trigger change event for good measure
+            const changeEvent = new Event('change', { bubbles: true });
+            input.dispatchEvent(changeEvent);
         }, 100);
     }
 
@@ -1242,6 +1235,11 @@ class ExchangeTracker {
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             console.log('[TW Exchange Tracker] Data saved, records:', this.data.length);
+            
+            // Check exchange rates AFTER new data is saved
+            if (this.isStatVisible) {
+                this.checkExchangeRates();
+            }
             
             if (this.isStatVisible) {
                 this.updateStatsUI();
@@ -2137,11 +2135,9 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
-            // Exchange rates will only be checked on price changes now
-            // But we should check once when stats are first opened
+            // Check exchange rates when stats are first opened
             setTimeout(() => this.checkExchangeRates(), 500);
             
-            // Keep UI refresh interval for stats display
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
