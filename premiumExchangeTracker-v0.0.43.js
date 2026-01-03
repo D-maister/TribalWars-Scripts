@@ -1871,12 +1871,18 @@ class ExchangeTracker {
         svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        // Get data points (limited for performance)
+        // Get the MOST RECENT data points for the chart
+        // We want to show the newest records, not the oldest
         const maxPoints = 100;
-        const step = Math.max(1, Math.floor(this.data.length / maxPoints));
+        
+        // Since this.data[0] is newest, we need to take the newest records
+        // But we still want to plot them from left (older) to right (newer)
+        // So we'll take the newest maxPoints records and reverse them
+        
         const points = [];
         
-        for (let i = this.data.length - 1; i >= 0; i -= step) {
+        // Take the most recent records (newest first in this.data)
+        for (let i = 0; i < Math.min(this.data.length, maxPoints); i++) {
             const record = this.data[i];
             if (record.resources[resource].cost > 0) {
                 points.push({
@@ -1886,15 +1892,13 @@ class ExchangeTracker {
                     index: i
                 });
             }
-            
-            // Stop when we have enough points
-            if (points.length >= maxPoints) {
-                break;
-            }
         }
         
-        // Now points array has OLDEST first (because we started from the end)
-        // No need to reverse it
+        // Now reverse the points so oldest of the recent data is left, newest is right
+        points.reverse();
+        
+        console.log(`[TW Exchange Tracker] Chart points for ${resource}: ${points.length}`);
+        console.log(`[TW Exchange Tracker] Oldest point: ${points[0]?.date}, Newest point: ${points[points.length-1]?.date}`);
         
         if (points.length < 2) return;
         
@@ -1953,7 +1957,7 @@ class ExchangeTracker {
         maxLine.setAttribute('y2', maxY);
         svg.appendChild(maxLine);
         
-        // Create data line (points are already in chronological order: oldest to newest)
+        // Create data line (points are now in chronological order: older recent → newest)
         const pathData = points.map((point, index) => {
             const x = padding.left + (width * index / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
@@ -1997,10 +2001,10 @@ class ExchangeTracker {
             svg.appendChild(circle);
         });
         
-        // Create X-axis labels (oldest on left, newest on right)
+        // Create X-axis labels (older recent on left, newest on right)
         const labelIndices = [];
         if (points.length >= 5) {
-            labelIndices.push(0); // Oldest (left side)
+            labelIndices.push(0); // Oldest of recent data (left side)
             labelIndices.push(Math.floor(points.length / 4));
             labelIndices.push(Math.floor(points.length / 2));
             labelIndices.push(Math.floor(points.length * 3 / 4));
