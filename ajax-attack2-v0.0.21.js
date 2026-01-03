@@ -1,16 +1,17 @@
-// Tribal Wars Attack Script - Millisecond Precision Version
-// Supports +100ms, +1.5s, +500ms, etc.
+// Tribal Wars Attack Script - Persistent Data Version
+// Stores initialization data for scheduled attacks
 
-class MillisecondPrecisionAttack {
+class PersistentTribalWarsAttack {
     constructor() {
         this.domain = null;
         this.villageId = null;
         this.csrfHash = null;
         this.initialized = false;
         this.scheduledAttacks = new Map();
+        this.attackData = new Map(); // Store attack-specific data
     }
     
-    // [Initialization and core methods remain the same...]
+    // Initialize and STORE data
     async init() {
         try {
             this.domain = window.location.hostname;
@@ -19,20 +20,90 @@ class MillisecondPrecisionAttack {
             this.csrfHash = this._extractCSRF();
             
             if (!this.villageId || !this.csrfHash) {
-                throw new Error('Missing village ID or CSRF');
+                throw new Error('Missing village ID or CSRF. Please navigate to a Tribal Wars page.');
             }
             
             console.log(`✅ Initialized: ${this.domain}, Village: ${this.villageId}`);
             this.initialized = true;
+            
+            // Store initialization data for later use
+            this._storeInitializationData();
+            
             return true;
             
         } catch (error) {
             console.error('❌ Initialization failed:', error.message);
+            
+            // Try to load stored data as fallback
+            this._loadStoredData();
+            
+            if (this.villageId && this.csrfHash) {
+                console.log('📂 Using stored data from previous session');
+                this.initialized = true;
+                return true;
+            }
+            
             throw error;
         }
     }
     
-    // Helper methods remain the same...
+    // Store initialization data in localStorage
+    _storeInitializationData() {
+        const storageKey = 'tw_attack_data';
+        const data = {
+            domain: this.domain,
+            villageId: this.villageId,
+            csrfHash: this.csrfHash,
+            timestamp: Date.now()
+        };
+        
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(data));
+            console.log('💾 Stored attack data for scheduled attacks');
+        } catch (e) {
+            console.warn('Could not store data in localStorage:', e.message);
+        }
+    }
+    
+    // Load stored data from localStorage
+    _loadStoredData() {
+        const storageKey = 'tw_attack_data';
+        try {
+            const stored = localStorage.getItem(storageKey);
+            if (stored) {
+                const data = JSON.parse(stored);
+                
+                // Only use if not too old (1 hour)
+                if (Date.now() - data.timestamp < 3600000) {
+                    this.domain = data.domain;
+                    this.villageId = data.villageId;
+                    this.csrfHash = data.csrfHash;
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not load stored data:', e.message);
+        }
+        return false;
+    }
+    
+    // Store attack-specific data
+    _storeAttackData(attackId, data) {
+        this.attackData.set(attackId, {
+            ...data,
+            domain: this.domain,
+            villageId: this.villageId,
+            csrfHash: this.csrfHash,
+            storedAt: Date.now()
+        });
+    }
+    
+    // Get attack data
+    _getAttackData(attackId) {
+        return this.attackData.get(attackId);
+    }
+    
+    // Helper methods (same as before)
     _extractVillageId() {
         const urlParams = new URLSearchParams(window.location.search);
         const village = urlParams.get('village');
@@ -76,9 +147,28 @@ class MillisecondPrecisionAttack {
         };
     }
     
-    // Core attack function remains the same...
-    async _executeAttack(x, y, troops = {}) {
-        if (!this.initialized) await this.init();
+    // Core attack function - NOW WITH PERSISTENT DATA
+    async _executeAttack(x, y, troops = {}, attackId = null) {
+        // Try to get attack-specific data if provided
+        let attackData = attackId ? this._getAttackData(attackId) : null;
+        
+        // Use attack-specific data if available, otherwise use current instance data
+        const domain = attackData?.domain || this.domain;
+        const villageId = attackData?.villageId || this.villageId;
+        const csrfHash = attackData?.csrfHash || this.csrfHash;
+        
+        // If still not initialized, try to init
+        if (!this.initialized && !attackData) {
+            try {
+                await this.init();
+            } catch (error) {
+                return {
+                    success: false,
+                    error: `Cannot execute attack: ${error.message}`,
+                    target: { x, y }
+                };
+            }
+        }
         
         console.log(`⚔️ Executing attack to ${x}|${y}...`);
         
@@ -104,7 +194,7 @@ class MillisecondPrecisionAttack {
             const confirmData = new URLSearchParams();
             confirmData.append(dynamicField.name, dynamicField.value);
             confirmData.append('template_id', '');
-            confirmData.append('source_village', this.villageId);
+            confirmData.append('source_village', villageId);
             
             for (const [unit, count] of Object.entries(allTroops)) {
                 confirmData.append(unit, count.toString());
@@ -114,9 +204,11 @@ class MillisecondPrecisionAttack {
             confirmData.append('y', y.toString());
             confirmData.append('input', '');
             confirmData.append('attack', 'l');
-            confirmData.append('h', this.csrfHash);
+            confirmData.append('h', csrfHash);
             
-            const confirmResponse = await fetch(`https://${this.domain}/game.php?village=${this.villageId}&screen=place&ajax=confirm`, {
+            const confirmUrl = `https://${domain}/game.php?village=${villageId}&screen=place&ajax=confirm`;
+            
+            const confirmResponse = await fetch(confirmUrl, {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json, text/javascript, */*; q=0.01',
@@ -155,18 +247,20 @@ class MillisecondPrecisionAttack {
             finalData.append('cb', 'troop_confirm_submit');
             finalData.append('x', x.toString());
             finalData.append('y', y.toString());
-            finalData.append('source_village', this.villageId);
-            finalData.append('village', this.villageId);
+            finalData.append('source_village', villageId);
+            finalData.append('village', villageId);
             
             for (const [unit, count] of Object.entries(allTroops)) {
                 finalData.append(unit, count.toString());
             }
             
             finalData.append('building', 'main');
-            finalData.append('h', this.csrfHash);
-            finalData.append('h', this.csrfHash);
+            finalData.append('h', csrfHash);
+            finalData.append('h', csrfHash);
             
-            const finalResponse = await fetch(`https://${this.domain}/game.php?village=${this.villageId}&screen=place&ajaxaction=popup_command`, {
+            const finalUrl = `https://${domain}/game.php?village=${villageId}&screen=place&ajaxaction=popup_command`;
+            
+            const finalResponse = await fetch(finalUrl, {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json, text/javascript, */*; q=0.01',
@@ -182,6 +276,11 @@ class MillisecondPrecisionAttack {
             
             console.log(`✅ Attack sent to ${x}|${y}`);
             
+            // Clean up stored attack data
+            if (attackId) {
+                this.attackData.delete(attackId);
+            }
+            
             return {
                 success: true,
                 message: `Attack sent to ${x}|${y}`,
@@ -192,6 +291,7 @@ class MillisecondPrecisionAttack {
             
         } catch (error) {
             console.error(`✗ Attack to ${x}|${y} failed:`, error.message);
+            
             return {
                 success: false,
                 error: error.message,
@@ -201,18 +301,15 @@ class MillisecondPrecisionAttack {
         }
     }
     
-    // UPDATED: Parse time with millisecond support
+    // Parse time (same as before)
     _parseTime(timeStr) {
         if (!timeStr) return null;
         
-        // Timestamp (ms or seconds)
         if (/^\d+$/.test(timeStr)) {
             const ts = parseInt(timeStr);
             return ts < 10000000000 ? ts * 1000 : ts;
         }
         
-        // NEW: Relative time with milliseconds support
-        // Supports: +100ms, +1.5s, +500ms, +0.5s, +1m, +2h, etc.
         const relativeMatch = timeStr.match(/^\+(\d*\.?\d+)(ms|s|m|h)$/);
         if (relativeMatch) {
             const value = parseFloat(relativeMatch[1]);
@@ -224,13 +321,12 @@ class MillisecondPrecisionAttack {
                 case 's': ms = value * 1000; break;
                 case 'm': ms = value * 60 * 1000; break;
                 case 'h': ms = value * 60 * 60 * 1000; break;
-                default: ms = value * 1000; // Default to seconds
+                default: ms = value * 1000;
             }
             
             return Date.now() + ms;
         }
         
-        // HH:MM:SS or HH:MM:SS:SSS (with milliseconds)
         const timeOnlyMatch = timeStr.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?(?::(\d{1,3}))?$/);
         if (timeOnlyMatch) {
             const now = new Date();
@@ -241,7 +337,6 @@ class MillisecondPrecisionAttack {
             
             const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, second, ms);
             
-            // If time passed today, schedule for tomorrow
             if (target.getTime() <= now.getTime()) {
                 target.setDate(target.getDate() + 1);
             }
@@ -249,7 +344,6 @@ class MillisecondPrecisionAttack {
             return target.getTime();
         }
         
-        // YYYY-MM-DD HH:MM:SS or YYYY-MM-DD HH:MM:SS:SSS
         const fullMatch = timeStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?::(\d{1,3}))?$/);
         if (fullMatch) {
             const year = parseInt(fullMatch[1]);
@@ -263,7 +357,6 @@ class MillisecondPrecisionAttack {
             return new Date(year, month, day, hour, minute, second, ms).getTime();
         }
         
-        // Try Date.parse as last resort
         const parsed = Date.parse(timeStr);
         return isNaN(parsed) ? null : parsed;
     }
@@ -273,14 +366,27 @@ class MillisecondPrecisionAttack {
         return await this._executeAttack(x, y, troops);
     }
     
-    // PRECISE TIMING ATTACK WITH MILLISECOND SUPPORT
+    // SCHEDULED ATTACK WITH PERSISTENT DATA
     async attackPreciseTime(x, y, troops = {}, startTime) {
+        // Ensure we're initialized before scheduling
+        if (!this.initialized) {
+            try {
+                await this.init();
+            } catch (error) {
+                return {
+                    success: false,
+                    error: `Cannot schedule attack: ${error.message}`,
+                    target: { x, y }
+                };
+            }
+        }
+        
         const targetTime = this._parseTime(startTime);
         
         if (!targetTime) {
             return {
                 success: false,
-                error: `Invalid time format: ${startTime}. Use: "+100ms", "+1.5s", "14:30:00:500", etc.`,
+                error: `Invalid time format: ${startTime}`,
                 target: { x, y }
             };
         }
@@ -293,7 +399,6 @@ class MillisecondPrecisionAttack {
             return await this._executeAttack(x, y, troops);
         }
         
-        // Format delay for display
         let delayText = '';
         if (delay < 1000) {
             delayText = `${delay}ms`;
@@ -310,12 +415,20 @@ class MillisecondPrecisionAttack {
         // Generate unique ID
         const attackId = `attack_${x}_${y}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        // Schedule with millisecond precision
+        // STORE attack data before scheduling
+        this._storeAttackData(attackId, {
+            x, y, troops,
+            targetTime: targetTime
+        });
+        
+        // Schedule the attack
         const timeoutId = setTimeout(async () => {
             console.log(`🚀 Scheduled time reached for ${x}|${y} (${new Date().toISOString()})`);
-            const result = await this._executeAttack(x, y, troops);
             
-            // Update stored attack
+            // Execute with stored attack data
+            const result = await this._executeAttack(x, y, troops, attackId);
+            
+            // Update scheduled attacks map
             const attack = this.scheduledAttacks.get(attackId);
             if (attack) {
                 attack.result = result;
@@ -325,7 +438,7 @@ class MillisecondPrecisionAttack {
             
         }, delay);
         
-        // Store attack info
+        // Store in scheduled attacks map
         this.scheduledAttacks.set(attackId, {
             id: attackId,
             target: { x, y },
@@ -350,21 +463,34 @@ class MillisecondPrecisionAttack {
         };
     }
     
-    // BATCH ATTACKS WITH MILLISECOND PRECISION
+    // BATCH ATTACKS
     async attackMultiple(targets, options = {}) {
         const {
             delay = 2000,
             parallel = true,
-            stagger = true // Whether to stagger attacks when no startTime specified
+            stagger = true
         } = options;
         
         console.log(`📦 Scheduling ${targets.length} attacks...`);
+        
+        // Ensure initialization BEFORE scheduling batch
+        if (!this.initialized) {
+            try {
+                await this.init();
+            } catch (error) {
+                return {
+                    success: false,
+                    error: `Cannot schedule batch: ${error.message}`,
+                    batchId: `batch_failed_${Date.now()}`
+                };
+            }
+        }
         
         const results = [];
         const scheduledAttacks = [];
         
         if (parallel) {
-            // PARALLEL: Schedule all independently
+            // Schedule all in parallel
             for (let i = 0; i < targets.length; i++) {
                 const target = targets[i];
                 
@@ -372,14 +498,11 @@ class MillisecondPrecisionAttack {
                 
                 let result;
                 if (target.startTime) {
-                    // Use specified start time
                     result = await this.attackPreciseTime(target.x, target.y, target.troops || {}, target.startTime);
                 } else if (stagger) {
-                    // Calculate staggered time
                     const staggeredTime = Date.now() + (i * delay);
                     result = await this.attackPreciseTime(target.x, target.y, target.troops || {}, staggeredTime);
                 } else {
-                    // All at same time (no stagger)
                     result = await this.attackPreciseTime(target.x, target.y, target.troops || {}, Date.now());
                 }
                 
@@ -394,7 +517,7 @@ class MillisecondPrecisionAttack {
             console.log(`✅ All ${targets.length} attacks scheduled in parallel`);
             
         } else {
-            // SEQUENTIAL: Wait for each to complete
+            // Sequential execution
             for (let i = 0; i < targets.length; i++) {
                 const target = targets[i];
                 
@@ -434,6 +557,10 @@ class MillisecondPrecisionAttack {
             clearTimeout(attack.timeoutId);
             attack.status = 'cancelled';
             attack.cancelledAt = new Date().toISOString();
+            
+            // Clean up stored data
+            this.attackData.delete(attackId);
+            
             console.log(`❌ Cancelled scheduled attack ${attackId}`);
             return { success: true, attackId, message: 'Attack cancelled' };
         }
@@ -459,89 +586,99 @@ class MillisecondPrecisionAttack {
             village: this.villageId,
             csrf: this.csrfHash ? '***' + this.csrfHash.slice(-4) : null,
             initialized: this.initialized,
-            scheduledAttacks: this.scheduledAttacks.size
+            scheduledAttacks: this.scheduledAttacks.size,
+            storedAttackData: this.attackData.size
         };
+    }
+    
+    // Manual set for testing
+    manualSet(villageId, csrfHash, domain = null) {
+        this.villageId = villageId;
+        this.csrfHash = csrfHash;
+        if (domain) this.domain = domain;
+        this.initialized = true;
+        this._storeInitializationData();
+        console.log(`✅ Manually set: Village ${villageId}, CSRF: ***${csrfHash.slice(-4)}`);
     }
 }
 
 // Create instance
-const msAttack = new MillisecondPrecisionAttack();
+const persistentAttack = new PersistentTribalWarsAttack();
 
 // Initialize
-msAttack.init().then(() => {
-    console.log('🎯 Tribal Wars Millisecond-Precision Attack ready!');
+persistentAttack.init().then(() => {
+    console.log('🎯 Tribal Wars Persistent Attack ready!');
 }).catch(err => {
-    console.warn('Will initialize on first attack');
+    console.warn('⚠️ Not initialized yet. Will initialize on first attack or use manualSet().');
 });
 
 // Export functions
 window.attack = async function(x, y, troops) {
-    return await msAttack.attack(x, y, troops);
+    return await persistentAttack.attack(x, y, troops);
 };
 
 window.attackPreciseTime = async function(x, y, troops, startTime) {
-    return await msAttack.attackPreciseTime(x, y, troops, startTime);
+    return await persistentAttack.attackPreciseTime(x, y, troops, startTime);
 };
 
 window.attackMultiple = async function(targets, options) {
-    return await msAttack.attackMultiple(targets, options);
+    return await persistentAttack.attackMultiple(targets, options);
 };
 
 window.cancelScheduledAttack = function(attackId) {
-    return msAttack.cancelScheduledAttack(attackId);
+    return persistentAttack.cancelScheduledAttack(attackId);
 };
 
 window.getScheduledAttacks = function() {
-    return msAttack.getScheduledAttacks();
+    return persistentAttack.getScheduledAttacks();
 };
 
 window.getAttackInfo = function() {
-    return msAttack.getInfo();
+    return persistentAttack.getInfo();
 };
 
-console.log('🎯 Tribal Wars Millisecond-Precision Attack Script loaded!');
+window.manualSet = function(villageId, csrfHash, domain) {
+    return persistentAttack.manualSet(villageId, csrfHash, domain);
+};
+
+window.clearStoredData = function() {
+    localStorage.removeItem('tw_attack_data');
+    console.log('🧹 Cleared stored attack data');
+};
+
+console.log('🎯 Tribal Wars Persistent Attack Script loaded!');
 console.log('');
-console.log('🌟 NEW FEATURES:');
-console.log('- Millisecond precision: +100ms, +500ms, +1.5s');
-console.log('- Decimal seconds: +0.5s, +1.25s, +2.75s');
-console.log('- Millisecond display in logs');
-console.log('- Parallel scheduling with exact timing');
+console.log('🔄 KEY FIX: Data persistence for scheduled attacks');
+console.log('- Stores village ID and CSRF hash for scheduled attacks');
+console.log('- Works even if page context changes');
+console.log('- Uses localStorage as backup');
 console.log('');
 console.log('COMMANDS:');
 console.log('attack(x, y, troops) - Immediate attack');
-console.log('attackPreciseTime(x, y, troops, time) - Schedule with ms precision');
+console.log('attackPreciseTime(x, y, troops, time) - Schedule attack');
 console.log('attackMultiple(targets, options) - Batch attacks');
-console.log('cancelScheduledAttack(id) - Cancel scheduled attack');
+console.log('manualSet(villageId, csrfHash, domain) - Manual setup');
 console.log('getScheduledAttacks() - View scheduled attacks');
-console.log('getAttackInfo() - Get current info');
+console.log('clearStoredData() - Clear stored data');
 console.log('');
-console.log('TIME FORMATS (NEW!):');
-console.log('- "+100ms" - 100 milliseconds from now');
-console.log('- "+500ms" - 500 milliseconds from now');
-console.log('- "+1.5s" - 1.5 seconds from now');
-console.log('- "+0.25s" - 0.25 seconds from now');
-console.log('- "+2.75s" - 2.75 seconds from now');
-console.log('- "+1m" - 1 minute from now');
-console.log('- "+2h" - 2 hours from now');
-console.log('- "14:30:00:500" - Today at 14:30:00.500');
-console.log('- "2026-01-25 14:30:00:250" - Specific date with ms');
+console.log('IF INITIALIZATION FAILS:');
+console.log('// Manual setup (get these from your Tribal Wars URL)');
+console.log('manualSet("25034", "683500cb", "en152.tribalwars.net")');
+console.log('');
+console.log('// Then schedule attacks');
+console.log('await attackPreciseTime(541, 654, {spear:1}, "+100ms")');
 console.log('');
 console.log('EXAMPLES:');
-console.log('// Millisecond precision attacks');
-console.log('await attackPreciseTime(541, 654, {spear:1}, "+100ms")');
-console.log('await attackPreciseTime(540, 653, {spear:1}, "+500ms")');
-console.log('await attackPreciseTime(542, 655, {spear:1}, "+1.5s")');
+console.log('// 1. First, ensure initialization');
+console.log('// If auto-init fails, use manual setup:');
+console.log('manualSet("25034", "683500cb")');
 console.log('');
-console.log('// Staggered attacks with ms precision');
-console.log('await attackMultiple([');
+console.log('// 2. Schedule millisecond-precision attacks');
+console.log('const batch = await attackMultiple([');
 console.log('  {x:541, y:654, troops:{spear:1}, startTime:"+100ms"},');
-console.log('  {x:540, y:653, troops:{spear:1}, startTime:"+600ms"},');
-console.log('  {x:542, y:655, troops:{spear:1}, startTime:"+1100ms"}');
+console.log('  {x:540, y:653, troops:{spear:1}, startTime:"+200ms"},');
+console.log('  {x:542, y:655, troops:{spear:1}, startTime:"+300ms"}');
 console.log('], {parallel: true})');
 console.log('');
-console.log('// High-frequency attack wave');
-console.log('const wave = [];');
-console.log('for (let i = 0; i < 10; i++) {');
-console.log('  wave.push({x:541, y:654, troops:{spear:1}, startTime:`+${i*100}ms`})');
-console.log('}');
-console.log('await attackMultiple(wave, {parallel: true})');
+console.log('// 3. Check scheduled attacks');
+console.log('getScheduledAttacks()');
