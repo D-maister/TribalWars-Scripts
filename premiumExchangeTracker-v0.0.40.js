@@ -1869,27 +1869,34 @@ class ExchangeTracker {
         svg.setAttribute('viewBox', '0 0 400 200');
         svg.setAttribute('preserveAspectRatio', 'none');
         
-        // Get data points (limited for performance) - NEWEST DATA FIRST in this.data
+        // Get data points (limited for performance)
         const maxPoints = 100;
         const step = Math.max(1, Math.floor(this.data.length / maxPoints));
         const points = [];
         
-        // Collect points in chronological order (oldest to newest)
-        for (let i = Math.min(this.data.length, maxPoints * step) - 1; i >= 0; i -= step) {
+        // IMPORTANT: this.data has NEWEST records first (index 0 = newest)
+        // We need to collect OLDEST records first for the chart
+        // So we iterate from the END of the array to the BEGINNING
+        for (let i = this.data.length - 1; i >= 0; i -= step) {
             const record = this.data[i];
             if (record.resources[resource].cost > 0) {
                 points.push({
                     time: record.timestamp.split(' - ')[1],
                     value: record.resources[resource].cost,
                     date: record.timestamp,
-                    index: i // Store original index for reference
+                    index: i
                 });
+            }
+            
+            // Stop when we have enough points
+            if (points.length >= maxPoints) {
+                break;
             }
         }
         
-        // Reverse points so oldest is on left, newest on right
-        points.reverse();
-               
+        // Now points array has OLDEST first (because we started from the end)
+        // No need to reverse it
+        
         if (points.length < 2) return;
         
         // Calculate scales
@@ -1947,7 +1954,7 @@ class ExchangeTracker {
         maxLine.setAttribute('y2', maxY);
         svg.appendChild(maxLine);
         
-        // Create data line (oldest on left, newest on right)
+        // Create data line (points are already in chronological order: oldest to newest)
         const pathData = points.map((point, index) => {
             const x = padding.left + (width * index / (points.length - 1));
             const y = padding.top + height * (1 - (point.value - minVal) / range);
