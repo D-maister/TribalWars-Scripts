@@ -1874,9 +1874,6 @@ class ExchangeTracker {
         const step = Math.max(1, Math.floor(this.data.length / maxPoints));
         const points = [];
         
-        // IMPORTANT: this.data has NEWEST records first (index 0 = newest)
-        // We need to collect OLDEST records first for the chart
-        // So we iterate from the END of the array to the BEGINNING
         for (let i = this.data.length - 1; i >= 0; i -= step) {
             const record = this.data[i];
             if (record.resources[resource].cost > 0) {
