@@ -848,6 +848,22 @@ class ExchangeTracker {
         // Store current value
         const currentValue = input.value;
         
+        // Only proceed if field is empty or we're checking a different amount
+        if (currentValue && parseInt(currentValue) === amount) {
+            // Already has the value we want to check, just read the cost
+            const costElement = input.closest('td')?.querySelector('.cost');
+            if (costElement) {
+                const premiumCost = this.extractPremiumCost(costElement);
+                if (premiumCost !== null) {
+                    const rate = `${amount} <-> ${premiumCost}`;
+                    this.updateExchangeRateDisplay(type, resource, rate);
+                } else {
+                    this.updateExchangeRateDisplay(type, resource, '—');
+                }
+            }
+            return;
+        }
+        
         // Set new value
         input.value = amount;
         
@@ -860,19 +876,55 @@ class ExchangeTracker {
             // Get the cost element
             const costElement = input.closest('td')?.querySelector('.cost');
             if (costElement) {
-                const costText = costElement.textContent || costElement.innerText;
-                const rate = costText.trim();
-                
-                // Update UI
-                this.updateExchangeRateDisplay(type, resource, rate);
+                const premiumCost = this.extractPremiumCost(costElement);
+                if (premiumCost !== null) {
+                    const rate = `${amount} <-> ${premiumCost}`;
+                    this.updateExchangeRateDisplay(type, resource, rate);
+                } else {
+                    this.updateExchangeRateDisplay(type, resource, '—');
+                }
             } else {
                 this.updateExchangeRateDisplay(type, resource, '—');
             }
             
-            // Restore original value
-            input.value = currentValue;
-            input.dispatchEvent(event);
+            // Clear the input field
+            input.value = '';
+            
+            // Trigger input event again to clear any visual feedback
+            const clearEvent = new Event('input', { bubbles: true });
+            input.dispatchEvent(clearEvent);
         }, 100);
+    }
+
+    extractPremiumCost(costElement) {
+        const costText = costElement.textContent || costElement.innerText;
+        
+        // Try different patterns to extract the premium cost
+        // Pattern 1: "14" (just the number)
+        const justNumber = costText.match(/^(\d+)$/);
+        if (justNumber) {
+            return parseInt(justNumber[1]);
+        }
+        
+        // Pattern 2: "10000 for 14 premium" or similar
+        const forPattern = costText.match(/for\s+(\d+)/i);
+        if (forPattern) {
+            return parseInt(forPattern[1]);
+        }
+        
+        // Pattern 3: "14 premium" or "14 PP" or similar
+        const premiumPattern = costText.match(/(\d+)\s+(?:premium|pp|gold)/i);
+        if (premiumPattern) {
+            return parseInt(premiumPattern[1]);
+        }
+        
+        // Pattern 4: Any number (last resort)
+        const anyNumber = costText.match(/\d+/);
+        if (anyNumber) {
+            return parseInt(anyNumber[0]);
+        }
+        
+        return null;
     }
 
     updateExchangeRateDisplay(type, resource, rate) {
