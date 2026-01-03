@@ -751,7 +751,7 @@ class ExchangeTracker {
                             // Check exchange rates immediately when price starts changing
                             this.checkExchangeRates();
                             
-                            // Then save the data
+                            // Then save the data after a short delay
                             setTimeout(() => this.saveData(), 100);
                         }
                     });
@@ -773,12 +773,13 @@ class ExchangeTracker {
         // Clear existing interval
         if (this.exchangeRateInterval) {
             clearInterval(this.exchangeRateInterval);
+            this.exchangeRateInterval = null;
         }
         
-        // Start checking exchange rates every 30 seconds
-        this.exchangeRateInterval = setInterval(() => {
-            this.checkExchangeRates();
-        }, 30000); // Check every 30 seconds
+        // Exchange rates will now only be checked when:
+        // 1. Prices change (via MutationObserver)
+        // 2. Resource amount input changes
+        // 3. Stats are first opened
     }
 
     checkExchangeRates() {
@@ -802,23 +803,23 @@ class ExchangeTracker {
             }
         });
         
-        // Use a small delay to ensure the price change is complete
-        setTimeout(() => {
-            // Check buy rates for all resources
-            this.resourceTypes.forEach(resource => {
-                this.getExchangeRate('buy', resource, resourceAmount);
-            });
-            
-            // Check sell rates for all resources
-            this.resourceTypes.forEach(resource => {
-                const sellAmount = Math.min(resourceAmount, currentResources[resource]);
-                if (sellAmount > 0) {
-                    this.getExchangeRate('sell', resource, sellAmount);
-                } else {
-                    this.updateExchangeRateDisplay('sell', resource, '—');
-                }
-            });
-        }, 50); // Small delay to ensure DOM is updated
+        // No delay needed here since we're already in a MutationObserver callback
+        // which fires after the price change has started
+        
+        // Check buy rates for all resources
+        this.resourceTypes.forEach(resource => {
+            this.getExchangeRate('buy', resource, resourceAmount);
+        });
+        
+        // Check sell rates for all resources
+        this.resourceTypes.forEach(resource => {
+            const sellAmount = Math.min(resourceAmount, currentResources[resource]);
+            if (sellAmount > 0) {
+                this.getExchangeRate('sell', resource, sellAmount);
+            } else {
+                this.updateExchangeRateDisplay('sell', resource, '—');
+            }
+        });
     }
 
     checkSingleResource(resource, currentAmount) {
@@ -2136,12 +2137,11 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
-            // Start exchange rate monitoring when stats are shown
-            this.startExchangeRateMonitoring();
-            
-            // Check rates immediately
+            // Exchange rates will only be checked on price changes now
+            // But we should check once when stats are first opened
             setTimeout(() => this.checkExchangeRates(), 500);
             
+            // Keep UI refresh interval for stats display
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
