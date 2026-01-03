@@ -748,8 +748,11 @@ class ExchangeTracker {
                 const observer = new MutationObserver((mutations) => {
                     mutations.forEach((mutation) => {
                         if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                            this.saveData();
-                            this.checkAutoTrade();
+                            // Check exchange rates immediately when price starts changing
+                            this.checkExchangeRates();
+                            
+                            // Then save the data
+                            setTimeout(() => this.saveData(), 100);
                         }
                     });
                 });
@@ -772,10 +775,10 @@ class ExchangeTracker {
             clearInterval(this.exchangeRateInterval);
         }
         
-        // Start checking exchange rates
+        // Start checking exchange rates every 30 seconds
         this.exchangeRateInterval = setInterval(() => {
             this.checkExchangeRates();
-        }, 1000); // Start with 1 second, will be updated after first check
+        }, 30000); // Check every 30 seconds
     }
 
     checkExchangeRates() {
@@ -799,20 +802,23 @@ class ExchangeTracker {
             }
         });
         
-        // Check buy rates for all resources
-        this.resourceTypes.forEach(resource => {
-            this.getExchangeRate('buy', resource, resourceAmount);
-        });
-        
-        // Check sell rates for all resources (using available amount or resourceAmount, whichever is smaller)
-        this.resourceTypes.forEach(resource => {
-            const sellAmount = Math.min(resourceAmount, currentResources[resource]);
-            if (sellAmount > 0) {
-                this.getExchangeRate('sell', resource, sellAmount);
-            } else {
-                this.updateExchangeRateDisplay('sell', resource, '—');
-            }
-        });
+        // Use a small delay to ensure the price change is complete
+        setTimeout(() => {
+            // Check buy rates for all resources
+            this.resourceTypes.forEach(resource => {
+                this.getExchangeRate('buy', resource, resourceAmount);
+            });
+            
+            // Check sell rates for all resources
+            this.resourceTypes.forEach(resource => {
+                const sellAmount = Math.min(resourceAmount, currentResources[resource]);
+                if (sellAmount > 0) {
+                    this.getExchangeRate('sell', resource, sellAmount);
+                } else {
+                    this.updateExchangeRateDisplay('sell', resource, '—');
+                }
+            });
+        }, 50); // Small delay to ensure DOM is updated
     }
 
     checkSingleResource(resource, currentAmount) {
@@ -1183,11 +1189,6 @@ class ExchangeTracker {
         try {
             localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             console.log('[TW Exchange Tracker] Data saved, records:', this.data.length);
-            
-            // Trigger exchange rate check when new data is added
-            if (this.isStatVisible) {
-                this.checkExchangeRates();
-            }
             
             if (this.isStatVisible) {
                 this.updateStatsUI();
@@ -2085,6 +2086,9 @@ class ExchangeTracker {
             
             // Start exchange rate monitoring when stats are shown
             this.startExchangeRateMonitoring();
+            
+            // Check rates immediately
+            setTimeout(() => this.checkExchangeRates(), 500);
             
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
