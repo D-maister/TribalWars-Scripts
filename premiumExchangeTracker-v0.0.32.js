@@ -21,10 +21,6 @@ class ExchangeTracker {
         };
         this.minMaxCache = {};
         this.recentMinMaxCache = {};
-        this.exchangeRateData = {
-            buy: { wood: 0, stone: 0, iron: 0 },
-            sell: { wood: 0, stone: 0, iron: 0 }
-        };
         this.exchangeRateInterval = null;
         
         this.autoTrade = {
@@ -785,13 +781,11 @@ class ExchangeTracker {
     checkExchangeRates() {
         if (!this.isStatVisible) return;
         
-        // Check one resource at a time
-        const resourcesToCheck = this.resourceTypes.filter(resource => 
-            this.exchangeRateData.buy[resource] > 0 || 
-            this.exchangeRateData.sell[resource] > 0
-        );
+        // Get resource amount from input#tw-resource-amount
+        const amountInput = document.querySelector('#tw-resource-amount');
+        if (!amountInput) return;
         
-        if (resourcesToCheck.length === 0) return;
+        const resourceAmount = parseInt(amountInput.value) || 1000;
         
         // Get current resource amounts
         const currentResources = {};
@@ -805,20 +799,20 @@ class ExchangeTracker {
             }
         });
         
-        // Check each resource with 1 second pause
-        resourcesToCheck.forEach((resource, index) => {
-            setTimeout(() => {
-                this.checkSingleResource(resource, currentResources[resource]);
-            }, index * 1000);
+        // Check buy rates for all resources
+        this.resourceTypes.forEach(resource => {
+            this.getExchangeRate('buy', resource, resourceAmount);
         });
         
-        // Update interval to check all resources every 10 seconds
-        if (this.exchangeRateInterval) {
-            clearInterval(this.exchangeRateInterval);
-            this.exchangeRateInterval = setInterval(() => {
-                this.checkExchangeRates();
-            }, 10000); // Check all every 10 seconds
-        }
+        // Check sell rates for all resources (using available amount or resourceAmount, whichever is smaller)
+        this.resourceTypes.forEach(resource => {
+            const sellAmount = Math.min(resourceAmount, currentResources[resource]);
+            if (sellAmount > 0) {
+                this.getExchangeRate('sell', resource, sellAmount);
+            } else {
+                this.updateExchangeRateDisplay('sell', resource, '—');
+            }
+        });
     }
 
     checkSingleResource(resource, currentAmount) {
@@ -840,7 +834,10 @@ class ExchangeTracker {
         const inputSelector = `.premium-exchange-input[data-type="${type}"][data-resource="${resource}"]`;
         const input = document.querySelector(inputSelector);
         
-        if (!input) return;
+        if (!input) {
+            this.updateExchangeRateDisplay(type, resource, '—');
+            return;
+        }
         
         // Store current value
         const currentValue = input.value;
@@ -862,6 +859,8 @@ class ExchangeTracker {
                 
                 // Update UI
                 this.updateExchangeRateDisplay(type, resource, rate);
+            } else {
+                this.updateExchangeRateDisplay(type, resource, '—');
             }
             
             // Restore original value
@@ -1185,6 +1184,11 @@ class ExchangeTracker {
             localStorage.setItem(this.storageKey, JSON.stringify(this.data));
             console.log('[TW Exchange Tracker] Data saved, records:', this.data.length);
             
+            // Trigger exchange rate check when new data is added
+            if (this.isStatVisible) {
+                this.checkExchangeRates();
+            }
+            
             if (this.isStatVisible) {
                 this.updateStatsUI();
                 if (this.showCharts) {
@@ -1341,6 +1345,13 @@ class ExchangeTracker {
         header.textContent = 'Exchange Rate';
         container.appendChild(header);
         
+        const infoText = document.createElement('div');
+        infoText.style.fontSize = '10px';
+        infoText.style.color = '#666';
+        infoText.style.marginBottom = '5px';
+        infoText.textContent = 'Using resource amount from "Resource amount" input below';
+        container.appendChild(infoText);
+        
         const table = document.createElement('table');
         table.className = 'tw-exchange-rate-table';
         
@@ -1364,123 +1375,49 @@ class ExchangeTracker {
         // Body rows
         const tbody = document.createElement('tbody');
         
-        // Buy row
+        // Buy rate row
         const buyRow = document.createElement('tr');
         buyRow.className = 'tw-exchange-rate-buy';
         
         const buyTypeCell = document.createElement('td');
-        buyTypeCell.textContent = 'Buy Resource';
+        buyTypeCell.textContent = 'Buy Rate';
+        buyTypeCell.style.fontSize = '10px';
+        buyTypeCell.style.fontWeight = 'bold';
         buyRow.appendChild(buyTypeCell);
         
         this.resourceTypes.forEach(resource => {
             const cell = document.createElement('td');
             cell.className = 'tw-exchange-rate-cell';
             cell.id = `tw-exchange-rate-buy-${resource}`;
-            
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.min = '0';
-            input.max = '1000000';
-            input.value = this.exchangeRateData.buy[resource] || '';
-            input.style.width = '50px';
-            input.style.padding = '2px';
-            input.style.fontSize = '10px';
-            
-            input.onchange = (e) => {
-                const value = parseInt(e.target.value) || 0;
-                this.exchangeRateData.buy[resource] = value;
-                this.saveAutoTradeSettings();
-                
-                // Trigger exchange rate check
-                if (value > 0) {
-                    this.getExchangeRate('buy', resource, value);
-                }
-            };
-            
-            cell.appendChild(input);
+            cell.textContent = '—';
+            cell.style.fontSize = '10px';
+            cell.style.fontWeight = 'bold';
             buyRow.appendChild(cell);
         });
         
         tbody.appendChild(buyRow);
         
-        // Sell row
+        // Sell rate row
         const sellRow = document.createElement('tr');
         sellRow.className = 'tw-exchange-rate-sell';
         
         const sellTypeCell = document.createElement('td');
-        sellTypeCell.textContent = 'Sale Resource';
+        sellTypeCell.textContent = 'Sell Rate';
+        sellTypeCell.style.fontSize = '10px';
+        sellTypeCell.style.fontWeight = 'bold';
         sellRow.appendChild(sellTypeCell);
         
         this.resourceTypes.forEach(resource => {
             const cell = document.createElement('td');
             cell.className = 'tw-exchange-rate-cell';
             cell.id = `tw-exchange-rate-sell-${resource}`;
-            
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.min = '0';
-            input.max = '1000000';
-            input.value = this.exchangeRateData.sell[resource] || '';
-            input.style.width = '50px';
-            input.style.padding = '2px';
-            input.style.fontSize = '10px';
-            
-            input.onchange = (e) => {
-                const value = parseInt(e.target.value) || 0;
-                this.exchangeRateData.sell[resource] = value;
-                this.saveAutoTradeSettings();
-                
-                // Get current resource amount and adjust if necessary
-                const resourceElem = document.getElementById(resource);
-                if (resourceElem && resourceElem.classList.contains('res')) {
-                    const currentText = resourceElem.textContent || resourceElem.innerText;
-                    const currentAmount = parseInt(currentText.replace(/\s+/g, '')) || 0;
-                    
-                    if (value > currentAmount) {
-                        input.value = currentAmount;
-                        this.exchangeRateData.sell[resource] = currentAmount;
-                        this.saveAutoTradeSettings();
-                    }
-                }
-                
-                // Trigger exchange rate check
-                if (this.exchangeRateData.sell[resource] > 0) {
-                    this.getExchangeRate('sell', resource, this.exchangeRateData.sell[resource]);
-                }
-            };
-            
-            cell.appendChild(input);
+            cell.textContent = '—';
+            cell.style.fontSize = '10px';
+            cell.style.fontWeight = 'bold';
             sellRow.appendChild(cell);
         });
         
         tbody.appendChild(sellRow);
-        
-        // Rate display rows
-        const rateTypes = [
-            { type: 'buy', label: 'Buy Rate' },
-            { type: 'sell', label: 'Sell Rate' }
-        ];
-        
-        rateTypes.forEach(rateType => {
-            const rateRow = document.createElement('tr');
-            
-            const rateLabelCell = document.createElement('td');
-            rateLabelCell.textContent = rateType.label;
-            rateLabelCell.style.fontSize = '10px';
-            rateLabelCell.style.fontWeight = 'bold';
-            rateRow.appendChild(rateLabelCell);
-            
-            this.resourceTypes.forEach(resource => {
-                const cell = document.createElement('td');
-                cell.id = `tw-exchange-rate-${rateType.type}-${resource}`;
-                cell.textContent = '—';
-                cell.style.fontSize = '10px';
-                cell.style.fontWeight = 'bold';
-                rateRow.appendChild(cell);
-            });
-            
-            tbody.appendChild(rateRow);
-        });
         
         table.appendChild(tbody);
         container.appendChild(table);
@@ -1601,6 +1538,11 @@ class ExchangeTracker {
             if (value >= 1 && value <= 1000000) {
                 this.autoTrade.resourceAmount = value;
                 this.saveAutoTradeSettings();
+                
+                // Trigger exchange rate check when amount changes
+                if (this.isStatVisible) {
+                    this.checkExchangeRates();
+                }
             } else {
                 e.target.value = this.autoTrade.resourceAmount;
             }
