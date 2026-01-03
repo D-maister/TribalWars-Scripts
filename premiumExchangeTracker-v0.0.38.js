@@ -41,7 +41,6 @@ class ExchangeTracker {
         this.loadData();
         this.startResourceMonitoring();
         this.setupMutationObserver();
-        this.startExchangeRateMonitoring();
         console.log('[TW Exchange Tracker] Initialized');
     }
 
@@ -70,10 +69,6 @@ class ExchangeTracker {
                 sellCondition: saved.sellCondition || 'never',
                 resourceAmount: saved.resourceAmount || 1000
             };
-            // Load exchange rate data
-            if (saved.exchangeRateData) {
-                this.exchangeRateData = saved.exchangeRateData;
-            }
         } catch (e) {
             // Keep default values
         }
@@ -83,8 +78,7 @@ class ExchangeTracker {
         const data = {
             buyCondition: this.autoTrade.buyCondition,
             sellCondition: this.autoTrade.sellCondition,
-            resourceAmount: this.autoTrade.resourceAmount,
-            exchangeRateData: this.exchangeRateData
+            resourceAmount: this.autoTrade.resourceAmount
         };
         localStorage.setItem(this.autoTradeKey, JSON.stringify(data));
     }
@@ -651,6 +645,11 @@ class ExchangeTracker {
                 font-weight: bold;
             }
             
+            .tw-exchange-rate-price {
+                background-color: rgba(227, 242, 253, 0.7);
+                font-weight: bold;
+            }
+            
             .tw-exchange-rate-buy {
                 background-color: rgba(232, 245, 233, 0.7);
             }
@@ -665,6 +664,17 @@ class ExchangeTracker {
                 margin-bottom: 5px;
                 color: #000;
                 font-size: 12px;
+            }
+            
+            .tw-price-with-tag {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+            }
+            
+            .tw-price-value {
+                font-weight: bold;
             }
         `;
         document.head.appendChild(style);
@@ -735,6 +745,20 @@ class ExchangeTracker {
         }, this.updateInterval);
     }
 
+    startExchangeRateMonitoring() {
+        // We don't need periodic checking anymore
+        // Just clear any existing interval
+        if (this.exchangeRateInterval) {
+            clearInterval(this.exchangeRateInterval);
+            this.exchangeRateInterval = null;
+        }
+        
+        // Exchange rates will now only be checked when:
+        // 1. Prices change (via MutationObserver)
+        // 2. Resource amount input changes
+        // 3. Stats are first opened
+    }
+
     monitorRateElements() {
         const rateElements = [
             '#premium_exchange_rate_wood',
@@ -765,168 +789,6 @@ class ExchangeTracker {
                 this.rateObservers.push({ element: element, observer: observer });
             }
         });
-    }
-
-    startExchangeRateMonitoring() {
-        // Clear existing interval
-        if (this.exchangeRateInterval) {
-            clearInterval(this.exchangeRateInterval);
-            this.exchangeRateInterval = null;
-        }
-        
-        // Exchange rates will now only be checked when:
-        // 1. Prices change (via MutationObserver)
-        // 2. Resource amount input changes
-        // 3. Stats are first opened
-    }
-
-    checkExchangeRates() {
-        if (!this.isStatVisible) return;
-        
-        // Get resource amount from input#tw-resource-amount
-        const amountInput = document.querySelector('#tw-resource-amount');
-        if (!amountInput) return;
-        
-        const resourceAmount = parseInt(amountInput.value) || 1000;
-        
-        // Get current resource amounts
-        const currentResources = {};
-        this.resourceTypes.forEach(resource => {
-            const elem = document.getElementById(resource);
-            if (elem && elem.classList.contains('res')) {
-                const text = elem.textContent || elem.innerText;
-                currentResources[resource] = parseInt(text.replace(/\s+/g, '')) || 0;
-            } else {
-                currentResources[resource] = 0;
-            }
-        });
-        
-        // No delay needed here since we're already in a MutationObserver callback
-        // which fires after the price change has started
-        
-        // Check buy rates for all resources
-        this.resourceTypes.forEach(resource => {
-            this.getExchangeRate('buy', resource, resourceAmount);
-        });
-        
-        // Check sell rates for all resources
-        this.resourceTypes.forEach(resource => {
-            const sellAmount = Math.min(resourceAmount, currentResources[resource]);
-            if (sellAmount > 0) {
-                this.getExchangeRate('sell', resource, sellAmount);
-            } else {
-                this.updateExchangeRateDisplay('sell', resource, '—');
-            }
-        });
-    }
-
-    checkSingleResource(resource, currentAmount) {
-        // Check buy rate
-        if (this.exchangeRateData.buy[resource] > 0) {
-            this.getExchangeRate('buy', resource, this.exchangeRateData.buy[resource]);
-        }
-        
-        // Check sell rate
-        if (this.exchangeRateData.sell[resource] > 0) {
-            const sellAmount = Math.min(this.exchangeRateData.sell[resource], currentAmount);
-            if (sellAmount > 0) {
-                this.getExchangeRate('sell', resource, sellAmount);
-            }
-        }
-    }
-
-    getExchangeRate(type, resource, amount) {
-        const inputSelector = `.premium-exchange-input[data-type="${type}"][data-resource="${resource}"]`;
-        const input = document.querySelector(inputSelector);
-        
-        if (!input) {
-            this.updateExchangeRateDisplay(type, resource, '—');
-            return;
-        }
-        
-        // Store current state
-        const currentValue = input.value;
-        const wasDisabled = input.disabled;
-        
-        // Make sure input is enabled
-        input.disabled = false;
-        
-        // Set new value
-        input.value = amount;
-        
-        // Trigger input event to update cost
-        const event = new Event('input', { bubbles: true });
-        input.dispatchEvent(event);
-        
-        // Wait a bit for the cost to update
-        setTimeout(() => {
-            // Get the cost element
-            const costElement = input.closest('td')?.querySelector('.cost');
-            if (costElement) {
-                const premiumCost = this.extractPremiumCost(costElement);
-                if (premiumCost !== null) {
-                    const rate = `${amount} <-> ${premiumCost}`;
-                    this.updateExchangeRateDisplay(type, resource, rate);
-                } else {
-                    this.updateExchangeRateDisplay(type, resource, '—');
-                }
-            } else {
-                this.updateExchangeRateDisplay(type, resource, '—');
-            }
-            
-            // Clear the input field properly without disabling
-            input.value = '';
-            
-            // Restore disabled state if it was originally disabled
-            input.disabled = wasDisabled;
-            
-            // Trigger input event again to clear any visual feedback
-            const clearEvent = new Event('input', { bubbles: true });
-            input.dispatchEvent(clearEvent);
-            
-            // Also trigger change event for good measure
-            const changeEvent = new Event('change', { bubbles: true });
-            input.dispatchEvent(changeEvent);
-        }, 100);
-    }
-
-    extractPremiumCost(costElement) {
-        const costText = costElement.textContent || costElement.innerText;
-        
-        // Try different patterns to extract the premium cost
-        // Pattern 1: "14" (just the number)
-        const justNumber = costText.match(/^(\d+)$/);
-        if (justNumber) {
-            return parseInt(justNumber[1]);
-        }
-        
-        // Pattern 2: "10000 for 14 premium" or similar
-        const forPattern = costText.match(/for\s+(\d+)/i);
-        if (forPattern) {
-            return parseInt(forPattern[1]);
-        }
-        
-        // Pattern 3: "14 premium" or "14 PP" or similar
-        const premiumPattern = costText.match(/(\d+)\s+(?:premium|pp|gold)/i);
-        if (premiumPattern) {
-            return parseInt(premiumPattern[1]);
-        }
-        
-        // Pattern 4: Any number (last resort)
-        const anyNumber = costText.match(/\d+/);
-        if (anyNumber) {
-            return parseInt(anyNumber[0]);
-        }
-        
-        return null;
-    }
-
-    updateExchangeRateDisplay(type, resource, rate) {
-        const cellId = `tw-exchange-rate-${type}-${resource}`;
-        const cell = document.getElementById(cellId);
-        if (cell) {
-            cell.textContent = rate;
-        }
     }
 
     getExchangeData() {
@@ -1269,124 +1131,164 @@ class ExchangeTracker {
         }
     }
 
-    createSummaryTable() {
-        const table = document.createElement('table');
-        table.className = 'tw-summary-table';
+    checkExchangeRates() {
+        if (!this.isStatVisible) return;
         
-        const thead = document.createElement('thead');
+        // Get resource amount from input#tw-resource-amount
+        const amountInput = document.querySelector('#tw-resource-amount');
+        if (!amountInput) return;
         
-        // First header row
-        const headerRow1 = document.createElement('tr');
+        const resourceAmount = parseInt(amountInput.value) || 1000;
         
-        const resourceHeader = document.createElement('th');
-        resourceHeader.textContent = 'Resource';
-        resourceHeader.rowSpan = 2;
-        resourceHeader.style.width = '80px';
-        headerRow1.appendChild(resourceHeader);
-        
-        const minHeader = document.createElement('th');
-        minHeader.textContent = 'MIN';
-        minHeader.colSpan = 5;
-        minHeader.className = 'min-col';
-        headerRow1.appendChild(minHeader);
-        
-        const maxHeader = document.createElement('th');
-        maxHeader.textContent = 'MAX';
-        maxHeader.colSpan = 5;
-        maxHeader.className = 'max-col';
-        headerRow1.appendChild(maxHeader);
-        
-        thead.appendChild(headerRow1);
-        
-        // Second header row
-        const headerRow2 = document.createElement('tr');
-        
-        // Min sub-headers
-        const minSubHeaders = ['All Time', '30 min', '3 hours', '12 hours', '1 day'];
-        minSubHeaders.forEach(subHeader => {
-            const th = document.createElement('th');
-            th.textContent = subHeader;
-            th.className = 'min-col';
-            th.style.fontSize = '10px';
-            headerRow2.appendChild(th);
+        // Get current resource amounts
+        const currentResources = {};
+        this.resourceTypes.forEach(resource => {
+            const elem = document.getElementById(resource);
+            if (elem && elem.classList.contains('res')) {
+                const text = elem.textContent || elem.innerText;
+                currentResources[resource] = parseInt(text.replace(/\s+/g, '')) || 0;
+            } else {
+                currentResources[resource] = 0;
+            }
         });
         
-        // Max sub-headers
-        const maxSubHeaders = ['All Time', '30 min', '3 hours', '12 hours', '1 day'];
-        maxSubHeaders.forEach(subHeader => {
-            const th = document.createElement('th');
-            th.textContent = subHeader;
-            th.className = 'max-col';
-            th.style.fontSize = '10px';
-            headerRow2.appendChild(th);
+        // Check buy rates for all resources
+        this.resourceTypes.forEach(resource => {
+            this.getExchangeRate('buy', resource, resourceAmount);
         });
         
-        thead.appendChild(headerRow2);
-        table.appendChild(thead);
+        // Check sell rates for all resources
+        this.resourceTypes.forEach(resource => {
+            const sellAmount = Math.min(resourceAmount, currentResources[resource]);
+            if (sellAmount > 0) {
+                this.getExchangeRate('sell', resource, sellAmount);
+            } else {
+                this.updateExchangeRateDisplay('sell', resource, '—');
+            }
+        });
         
-        const tbody = document.createElement('tbody');
+        // Update price row in exchange rate table
+        this.updatePriceRow();
+    }
+
+    getExchangeRate(type, resource, amount) {
+        const inputSelector = `.premium-exchange-input[data-type="${type}"][data-resource="${resource}"]`;
+        const input = document.querySelector(inputSelector);
+        
+        if (!input) {
+            this.updateExchangeRateDisplay(type, resource, '—');
+            return;
+        }
+        
+        // Store current state
+        const currentValue = input.value;
+        const wasDisabled = input.disabled;
+        
+        // Make sure input is enabled
+        input.disabled = false;
+        
+        // Set new value
+        input.value = amount;
+        
+        // Trigger input event to update cost
+        const event = new Event('input', { bubbles: true });
+        input.dispatchEvent(event);
+        
+        // Wait a bit for the cost to update
+        setTimeout(() => {
+            // Get the cost element
+            const costElement = input.closest('td')?.querySelector('.cost');
+            if (costElement) {
+                const premiumCost = this.extractPremiumCost(costElement);
+                if (premiumCost !== null) {
+                    const rate = `${amount} <-> ${premiumCost}`;
+                    this.updateExchangeRateDisplay(type, resource, rate);
+                } else {
+                    this.updateExchangeRateDisplay(type, resource, '—');
+                }
+            } else {
+                this.updateExchangeRateDisplay(type, resource, '—');
+            }
+            
+            // Clear the input field properly without disabling
+            input.value = '';
+            
+            // Restore disabled state if it was originally disabled
+            input.disabled = wasDisabled;
+            
+            // Trigger input event again to clear any visual feedback
+            const clearEvent = new Event('input', { bubbles: true });
+            input.dispatchEvent(clearEvent);
+            
+            // Also trigger change event for good measure
+            const changeEvent = new Event('change', { bubbles: true });
+            input.dispatchEvent(changeEvent);
+        }, 100);
+    }
+
+    extractPremiumCost(costElement) {
+        const costText = costElement.textContent || costElement.innerText;
+        
+        // Try different patterns to extract the premium cost
+        // Pattern 1: "14" (just the number)
+        const justNumber = costText.match(/^(\d+)$/);
+        if (justNumber) {
+            return parseInt(justNumber[1]);
+        }
+        
+        // Pattern 2: "10000 for 14 premium" or similar
+        const forPattern = costText.match(/for\s+(\d+)/i);
+        if (forPattern) {
+            return parseInt(forPattern[1]);
+        }
+        
+        // Pattern 3: "14 premium" or "14 PP" or similar
+        const premiumPattern = costText.match(/(\d+)\s+(?:premium|pp|gold)/i);
+        if (premiumPattern) {
+            return parseInt(premiumPattern[1]);
+        }
+        
+        // Pattern 4: Any number (last resort)
+        const anyNumber = costText.match(/\d+/);
+        if (anyNumber) {
+            return parseInt(anyNumber[0]);
+        }
+        
+        return null;
+    }
+
+    updateExchangeRateDisplay(type, resource, rate) {
+        const cellId = `tw-exchange-rate-${type}-${resource}`;
+        const cell = document.getElementById(cellId);
+        if (cell) {
+            cell.textContent = rate;
+        }
+    }
+
+    updatePriceRow() {
+        if (!this.data.length) return;
+        
+        const currentData = this.data[0];
         
         this.resourceTypes.forEach(resource => {
-            const row = document.createElement('tr');
-            
-            const resourceCell = document.createElement('td');
-            resourceCell.className = 'resource-name';
-            resourceCell.textContent = this.resourceNames[resource];
-            row.appendChild(resourceCell);
-            
-            const recentCache = this.recentMinMaxCache[resource] || {
-                allTime: { min: 0, max: 0 },
-                last30m: { min: 0, max: 0 },
-                last3h: { min: 0, max: 0 },
-                last12h: { min: 0, max: 0 },
-                last1d: { min: 0, max: 0 }
-            };
-            
-            // Min values cells
-            const minPeriods = ['allTime', 'last30m', 'last3h', 'last12h', 'last1d'];
-            minPeriods.forEach(period => {
-                const cell = document.createElement('td');
-                const value = recentCache[period]?.min || 0;
-                cell.textContent = value > 0 ? value : '—';
-                cell.className = 'min-col';
+            const cellId = `tw-exchange-rate-price-${resource}`;
+            const cell = document.getElementById(cellId);
+            if (cell) {
+                const resData = currentData.resources[resource];
+                const tag = resData.tag;
                 
-                if (value > 0) {
-                    const currentCost = this.minMaxCache[resource]?.current || 0;
-                    if (currentCost === value) {
-                        cell.style.fontWeight = 'bold';
-                        cell.style.color = '#4CAF50';
-                    }
-                    cell.title = `${this.resourceNames[resource]} min in ${period.replace('last', '').replace('Time', ' time')}: ${value}`;
+                if (tag) {
+                    cell.innerHTML = `
+                        <div class="tw-price-with-tag">
+                            <span class="tw-price-value">${resData.cost}</span>
+                            <span class="tw-exchange-stat-tag ${tag}">${tag}</span>
+                        </div>
+                    `;
+                } else {
+                    cell.textContent = resData.cost;
                 }
-                
-                row.appendChild(cell);
-            });
-            
-            // Max values cells
-            const maxPeriods = ['allTime', 'last30m', 'last3h', 'last12h', 'last1d'];
-            maxPeriods.forEach(period => {
-                const cell = document.createElement('td');
-                const value = recentCache[period]?.max || 0;
-                cell.textContent = value > 0 ? value : '—';
-                cell.className = 'max-col';
-                
-                if (value > 0) {
-                    const currentCost = this.minMaxCache[resource]?.current || 0;
-                    if (currentCost === value) {
-                        cell.style.fontWeight = 'bold';
-                        cell.style.color = '#f44336';
-                    }
-                    cell.title = `${this.resourceNames[resource]} max in ${period.replace('last', '').replace('Time', ' time')}: ${value}`;
-                }
-                
-                row.appendChild(cell);
-            });
-            
-            tbody.appendChild(row);
+            }
         });
-        
-        table.appendChild(tbody);
-        return table;
     }
 
     createExchangeRateTable() {
@@ -1394,7 +1296,7 @@ class ExchangeTracker {
         
         const header = document.createElement('div');
         header.className = 'tw-exchange-rate-header';
-        header.textContent = 'Exchange Rate';
+        header.textContent = 'Exchange Rates';
         container.appendChild(header);
         
         const infoText = document.createElement('div');
@@ -1426,6 +1328,28 @@ class ExchangeTracker {
         
         // Body rows
         const tbody = document.createElement('tbody');
+        
+        // Price row (replaces current summary)
+        const priceRow = document.createElement('tr');
+        priceRow.className = 'tw-exchange-rate-price';
+        
+        const priceTypeCell = document.createElement('td');
+        priceTypeCell.textContent = 'Price';
+        priceTypeCell.style.fontSize = '10px';
+        priceTypeCell.style.fontWeight = 'bold';
+        priceRow.appendChild(priceTypeCell);
+        
+        this.resourceTypes.forEach(resource => {
+            const cell = document.createElement('td');
+            cell.className = 'tw-exchange-rate-cell';
+            cell.id = `tw-exchange-rate-price-${resource}`;
+            cell.textContent = '—';
+            cell.style.fontSize = '11px';
+            cell.style.fontWeight = 'bold';
+            priceRow.appendChild(cell);
+        });
+        
+        tbody.appendChild(priceRow);
         
         // Buy rate row
         const buyRow = document.createElement('tr');
@@ -1620,144 +1544,124 @@ class ExchangeTracker {
         return container;
     }
 
-    createStatsContainer() {
-        const container = document.createElement('div');
-        container.className = 'tw-exchange-stats-container';
-        container.style.display = 'none';
+    createSummaryTable() {
+        const table = document.createElement('table');
+        table.className = 'tw-summary-table';
         
-        const header = document.createElement('div');
-        header.className = 'tw-exchange-stats-header';
+        const thead = document.createElement('thead');
         
-        const title = document.createElement('h2');
-        title.className = 'tw-exchange-stats-title';
-        title.textContent = 'Premium Exchange Statistics';
+        // First header row
+        const headerRow1 = document.createElement('tr');
         
-        const closeBtn = document.createElement('button');
-        closeBtn.className = 'tw-exchange-stats-close';
-        closeBtn.textContent = '×';
-        closeBtn.title = 'Close statistics';
-        closeBtn.onclick = () => this.hideStats();
+        const resourceHeader = document.createElement('th');
+        resourceHeader.textContent = 'Resource';
+        resourceHeader.rowSpan = 2;
+        resourceHeader.style.width = '80px';
+        headerRow1.appendChild(resourceHeader);
         
-        header.appendChild(title);
-        header.appendChild(closeBtn);
+        const minHeader = document.createElement('th');
+        minHeader.textContent = 'MIN';
+        minHeader.colSpan = 5;
+        minHeader.className = 'min-col';
+        headerRow1.appendChild(minHeader);
         
-        const autoTradeControls = this.createAutoTradeControls();
+        const maxHeader = document.createElement('th');
+        maxHeader.textContent = 'MAX';
+        maxHeader.colSpan = 5;
+        maxHeader.className = 'max-col';
+        headerRow1.appendChild(maxHeader);
         
-        const controls = document.createElement('div');
-        controls.className = 'tw-exchange-stat-controls';
+        thead.appendChild(headerRow1);
         
-        const clearBtn = document.createElement('button');
-        clearBtn.textContent = 'Clear All Data';
-        clearBtn.onclick = () => {
-            if (confirm('Clear all saved data?')) {
-                localStorage.removeItem(this.storageKey);
-                this.data = [];
-                this.calculateMinMaxValues();
-                this.updateAllTags();
-                this.updateStatsUI();
-            }
-        };
+        // Second header row
+        const headerRow2 = document.createElement('tr');
         
-        controls.appendChild(clearBtn);
+        // Min sub-headers
+        const minSubHeaders = ['All Time', '30 min', '3 hours', '12 hours', '1 day'];
+        minSubHeaders.forEach(subHeader => {
+            const th = document.createElement('th');
+            th.textContent = subHeader;
+            th.className = 'min-col';
+            th.style.fontSize = '10px';
+            headerRow2.appendChild(th);
+        });
         
-        const currentSummary = document.createElement('div');
-        currentSummary.style.marginBottom = '15px';
-        currentSummary.style.padding = '10px';
-        currentSummary.style.backgroundColor = 'rgba(227, 242, 253, 0.7)';
-        currentSummary.style.borderRadius = '4px';
-        currentSummary.style.fontSize = '12px';
-        currentSummary.id = 'tw-current-summary';
+        // Max sub-headers
+        const maxSubHeaders = ['All Time', '30 min', '3 hours', '12 hours', '1 day'];
+        maxSubHeaders.forEach(subHeader => {
+            const th = document.createElement('th');
+            th.textContent = subHeader;
+            th.className = 'max-col';
+            th.style.fontSize = '10px';
+            headerRow2.appendChild(th);
+        });
         
-        const summaryTable = document.createElement('div');
-        summaryTable.id = 'tw-summary-table';
+        thead.appendChild(headerRow2);
+        table.appendChild(thead);
         
-        const tableContainer = document.createElement('div');
-        tableContainer.className = 'tw-table-container';
-        tableContainer.id = 'tw-data-table';
+        const tbody = document.createElement('tbody');
         
-        const status = document.createElement('div');
-        status.style.marginTop = '10px';
-        status.style.fontSize = '11px';
-        status.style.color = '#666';
-        status.style.textAlign = 'center';
-        status.id = 'tw-exchange-status';
-        
-        container.appendChild(header);
-        container.appendChild(autoTradeControls);
-        container.appendChild(controls);
-        container.appendChild(currentSummary);
-        container.appendChild(summaryTable);
-        container.appendChild(tableContainer);
-        container.appendChild(status);
-        
-        return container;
-    }
-
-    updateStatsUI() {
-        if (!this.isStatVisible) return;
-        
-        const container = document.querySelector('.tw-exchange-stats-container');
-        if (!container) return;
-        
-        const currentSummary = container.querySelector('#tw-current-summary');
-        if (currentSummary && this.data.length > 0) {
-            const current = this.data[0];
-            let summaryText = '<strong>Current values:</strong> ';
-            this.resourceTypes.forEach((resource, idx) => {
-                const resData = current.resources[resource];
-                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                
-                summaryText += `${this.resourceNames[resource]}: ${resData.cost} `;
-                if (resData.tag) {
-                    summaryText += `<span class="tw-current-tag tw-exchange-stat-tag ${resData.tag}">${resData.tag}</span>`;
-                }
-                if (idx < this.resourceTypes.length - 1) summaryText += ' | ';
-            });
-            currentSummary.innerHTML = summaryText;
-        }
-        
-        const summaryTable = container.querySelector('#tw-summary-table');
-        if (summaryTable) {
-            summaryTable.innerHTML = '';
-            summaryTable.appendChild(this.createSummaryTable());
-        }
-        
-        const tableContainer = container.querySelector('#tw-data-table');
-        if (tableContainer) {
-            tableContainer.innerHTML = '';
-            tableContainer.appendChild(this.createStatTable());
-        }
-        
-        const status = container.querySelector('#tw-exchange-status');
-        if (status) {
-            const ranges = this.resourceTypes.map(resource => {
-                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                return `${this.resourceNames[resource]}: ${cache.min}-${cache.max}`;
-            }).join(' | ');
+        this.resourceTypes.forEach(resource => {
+            const row = document.createElement('tr');
             
-            status.textContent = `Showing ${this.data.length} records (duplicates skipped) | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
-        }
+            const resourceCell = document.createElement('td');
+            resourceCell.className = 'resource-name';
+            resourceCell.textContent = this.resourceNames[resource];
+            row.appendChild(resourceCell);
+            
+            const recentCache = this.recentMinMaxCache[resource] || {
+                allTime: { min: 0, max: 0 },
+                last30m: { min: 0, max: 0 },
+                last3h: { min: 0, max: 0 },
+                last12h: { min: 0, max: 0 },
+                last1d: { min: 0, max: 0 }
+            };
+            
+            // Min values cells
+            const minPeriods = ['allTime', 'last30m', 'last3h', 'last12h', 'last1d'];
+            minPeriods.forEach(period => {
+                const cell = document.createElement('td');
+                const value = recentCache[period]?.min || 0;
+                cell.textContent = value > 0 ? value : '—';
+                cell.className = 'min-col';
+                
+                if (value > 0) {
+                    const currentCost = this.minMaxCache[resource]?.current || 0;
+                    if (currentCost === value) {
+                        cell.style.fontWeight = 'bold';
+                        cell.style.color = '#4CAF50';
+                    }
+                    cell.title = `${this.resourceNames[resource]} min in ${period.replace('last', '').replace('Time', ' time')}: ${value}`;
+                }
+                
+                row.appendChild(cell);
+            });
+            
+            // Max values cells
+            const maxPeriods = ['allTime', 'last30m', 'last3h', 'last12h', 'last1d'];
+            maxPeriods.forEach(period => {
+                const cell = document.createElement('td');
+                const value = recentCache[period]?.max || 0;
+                cell.textContent = value > 0 ? value : '—';
+                cell.className = 'max-col';
+                
+                if (value > 0) {
+                    const currentCost = this.minMaxCache[resource]?.current || 0;
+                    if (currentCost === value) {
+                        cell.style.fontWeight = 'bold';
+                        cell.style.color = '#f44336';
+                    }
+                    cell.title = `${this.resourceNames[resource]} max in ${period.replace('last', '').replace('Time', ' time')}: ${value}`;
+                }
+                
+                row.appendChild(cell);
+            });
+            
+            tbody.appendChild(row);
+        });
         
-        let chartsContainer = container.querySelector('.tw-charts-container');
-        if (!chartsContainer) {
-            chartsContainer = this.createChartsContainer();
-            container.appendChild(chartsContainer);
-        }
-        
-        const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
-        if (toggleBtn) {
-            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
-        }
-        
-        const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
-        if (chartsGrid) {
-            if (this.showCharts && this.data.length > 0) {
-                chartsGrid.style.display = 'grid';
-                this.updateCharts();
-            } else {
-                chartsGrid.style.display = 'none';
-            }
-        }
+        table.appendChild(tbody);
+        return table;
     }
 
     createStatTable() {
@@ -1778,7 +1682,7 @@ class ExchangeTracker {
         this.resourceTypes.forEach(resource => {
             const resourceHeader = document.createElement('th');
             resourceHeader.textContent = this.resourceNames[resource];
-            resourceHeader.colSpan = 5;
+            resourceHeader.colSpan = 4; // Changed from 5 to 4 (removed amount, capacity)
             resourceHeader.className = `tw-exchange-stat-resource-header tw-exchange-stat-${resource}`;
             headerRow1.appendChild(resourceHeader);
         });
@@ -1788,7 +1692,7 @@ class ExchangeTracker {
         const headerRow2 = document.createElement('tr');
         
         this.resourceTypes.forEach(resource => {
-            const subHeaders = ['Amount', 'Capacity', 'Cost', 'Diff', 'Tag'];
+            const subHeaders = ['Cost', 'Available', 'Diff', 'Tag']; // Removed Amount, Capacity
             subHeaders.forEach(subHeader => {
                 const subHeaderCell = document.createElement('th');
                 subHeaderCell.textContent = subHeader;
@@ -1813,7 +1717,7 @@ class ExchangeTracker {
         if (this.data.length === 0) {
             const emptyRow = document.createElement('tr');
             const emptyCell = document.createElement('td');
-            emptyCell.colSpan = 16;
+            emptyCell.colSpan = 13; // Updated column count (1 time + 3 resources * 4 columns)
             emptyCell.textContent = 'No data collected yet. Data is saved when exchange rates change.';
             emptyCell.style.textAlign = 'center';
             emptyCell.style.padding = '20px';
@@ -1822,6 +1726,12 @@ class ExchangeTracker {
             tbody.appendChild(emptyRow);
             return;
         }
+        
+        // Track the current best tags for each resource
+        const currentTags = {};
+        this.resourceTypes.forEach(resource => {
+            currentTags[resource] = '';
+        });
         
         this.data.forEach((record, index) => {
             const row = document.createElement('tr');
@@ -1838,31 +1748,37 @@ class ExchangeTracker {
             this.resourceTypes.forEach(resource => {
                 const resData = record.resources[resource];
                 
-                const amountCell = document.createElement('td');
-                amountCell.className = 'tw-exchange-stat-amount';
-                amountCell.textContent = resData.amount.toLocaleString();
-                row.appendChild(amountCell);
-                
-                const capacityCell = document.createElement('td');
-                capacityCell.className = 'tw-exchange-stat-capacity';
-                capacityCell.textContent = resData.capacity.toLocaleString();
-                
-                if (resData.capacity > 0) {
-                    const percentage = Math.round((resData.amount / resData.capacity) * 100);
-                    capacityCell.title = `${percentage}% full`;
-                    
-                    if (percentage >= 90) capacityCell.style.backgroundColor = 'rgba(255, 235, 238, 0.7)';
-                    else if (percentage >= 75) capacityCell.style.backgroundColor = 'rgba(255, 243, 224, 0.7)';
-                    else if (percentage >= 50) capacityCell.style.backgroundColor = 'rgba(232, 245, 233, 0.7)';
-                }
-                
-                row.appendChild(capacityCell);
-                
+                // Cost cell
                 const costCell = document.createElement('td');
                 costCell.className = 'tw-exchange-stat-cost';
                 costCell.textContent = resData.cost;
                 row.appendChild(costCell);
                 
+                // Available cell (capacity - amount)
+                const availableCell = document.createElement('td');
+                availableCell.className = 'tw-exchange-stat-amount'; // Reusing this class
+                const available = resData.capacity - resData.amount;
+                availableCell.textContent = available.toLocaleString();
+                availableCell.title = `Capacity: ${resData.capacity.toLocaleString()}, Amount: ${resData.amount.toLocaleString()}`;
+                
+                // Color coding based on availability percentage
+                if (resData.capacity > 0) {
+                    const availablePercentage = (available / resData.capacity) * 100;
+                    if (availablePercentage <= 10) {
+                        availableCell.style.backgroundColor = 'rgba(255, 235, 238, 0.7)';
+                        availableCell.title += ` (Only ${Math.round(availablePercentage)}% available)`;
+                    } else if (availablePercentage <= 25) {
+                        availableCell.style.backgroundColor = 'rgba(255, 243, 224, 0.7)';
+                        availableCell.title += ` (${Math.round(availablePercentage)}% available)`;
+                    } else {
+                        availableCell.style.backgroundColor = 'rgba(232, 245, 233, 0.7)';
+                        availableCell.title += ` (${Math.round(availablePercentage)}% available)`;
+                    }
+                }
+                
+                row.appendChild(availableCell);
+                
+                // Diff cell
                 const diffCell = document.createElement('td');
                 diffCell.className = `tw-exchange-stat-diff ${resData.diff > 0 ? 'positive' : resData.diff < 0 ? 'negative' : 'neutral'}`;
                 
@@ -1882,15 +1798,35 @@ class ExchangeTracker {
                 
                 row.appendChild(diffCell);
                 
+                // Tag cell - only show if this is the best tag so far
                 const tagCell = document.createElement('td');
-                if (resData.tag) {
-                    tagCell.textContent = resData.tag;
-                    tagCell.className = `tw-exchange-stat-tag ${resData.tag}`;
+                let displayTag = resData.tag;
+                
+                // Check if this tag is "better" than current best tag
+                if (resData.tag && resData.tag !== '') {
+                    const tagPriority = this.getTagPriority(resData.tag);
+                    const currentPriority = this.getTagPriority(currentTags[resource]);
+                    
+                    if (tagPriority > currentPriority) {
+                        // This is a better tag, show it and update current
+                        currentTags[resource] = resData.tag;
+                    } else if (tagPriority === currentPriority && resData.tag === currentTags[resource]) {
+                        // Same priority and same tag, show it
+                        displayTag = resData.tag;
+                    } else {
+                        // Lower priority tag, don't show
+                        displayTag = '';
+                    }
+                }
+                
+                if (displayTag) {
+                    tagCell.textContent = displayTag;
+                    tagCell.className = `tw-exchange-stat-tag ${displayTag}`;
                     
                     const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
-                    if (resData.tag.includes('min')) {
+                    if (displayTag.includes('min')) {
                         tagCell.title = `Minimum: ${cache.min}, Current: ${resData.cost}`;
-                    } else if (resData.tag.includes('max')) {
+                    } else if (displayTag.includes('max')) {
                         tagCell.title = `Maximum: ${cache.max}, Current: ${resData.cost}`;
                     }
                 }
@@ -1901,8 +1837,24 @@ class ExchangeTracker {
         });
     }
 
-    // ... (rest of the methods remain the same, including createLineChart, createBarChart, etc.)
-    // Note: I've removed the getFilteredDataForCharts method since we no longer need to hide duplicates
+    getTagPriority(tag) {
+        // Define priority order (higher number = higher priority)
+        const priorities = {
+            'min': 100,
+            'min-30m': 90,
+            'min-3h': 80,
+            'min-12h': 70,
+            'min-1d': 60,
+            'max': 100,
+            'max-30m': 90,
+            'max-3h': 80,
+            'max-12h': 70,
+            'max-1d': 60,
+            '': 0
+        };
+        
+        return priorities[tag] || 0;
+    }
 
     createLineChart(resource, container) {
         if (!this.data.length) return;
@@ -2078,6 +2030,238 @@ class ExchangeTracker {
         }
     }
 
+    createBarChart(container) {
+        if (!this.data.length) return;
+        
+        const svgContainer = container.querySelector('.tw-chart-svg-container');
+        svgContainer.innerHTML = '';
+        
+        // Create SVG
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'tw-chart-svg');
+        svg.setAttribute('viewBox', '0 0 400 200');
+        svg.setAttribute('preserveAspectRatio', 'none');
+        
+        const padding = { top: 30, right: 30, bottom: 40, left: 60 };
+        const width = 400 - padding.left - padding.right;
+        const height = 200 - padding.top - padding.bottom;
+        
+        // Calculate max value for scaling
+        const allValues = [];
+        this.resourceTypes.forEach(resource => {
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
+            allValues.push(cache.min, cache.current, cache.max);
+        });
+        const maxValue = Math.max(...allValues) || 1;
+        
+        // Create Y-axis grid and labels
+        for (let i = 0; i <= 5; i++) {
+            const y = padding.top + (height * i / 5);
+            const value = Math.round(maxValue * (5 - i) / 5);
+            
+            // Grid line
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('class', 'tw-chart-grid-line');
+            line.setAttribute('x1', padding.left);
+            line.setAttribute('x2', 400 - padding.right);
+            line.setAttribute('y1', y);
+            line.setAttribute('y2', y);
+            svg.appendChild(line);
+            
+            // Y-axis label
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', padding.left - 5);
+            text.setAttribute('y', y + 3);
+            text.setAttribute('text-anchor', 'end');
+            text.textContent = value;
+            svg.appendChild(text);
+        }
+        
+        // Create bars
+        const barWidth = 25;
+        const groupSpacing = 15;
+        const barSpacing = 8;
+        const totalGroupWidth = barWidth * 3 + barSpacing * 2;
+        
+        this.resourceTypes.forEach((resource, resourceIndex) => {
+            const cache = this.minMaxCache[resource] || { min: 0, max: 0, current: 0 };
+            const groupX = padding.left + resourceIndex * (totalGroupWidth + groupSpacing);
+            
+            // Min bar (green)
+            const minHeight = (cache.min / maxValue) * height;
+            const minY = padding.top + height - minHeight;
+            const minBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            minBar.setAttribute('class', 'tw-bar-chart-bar');
+            minBar.setAttribute('x', groupX);
+            minBar.setAttribute('y', minY);
+            minBar.setAttribute('width', barWidth);
+            minBar.setAttribute('height', minHeight);
+            minBar.setAttribute('fill', '#4CAF50');
+            svg.appendChild(minBar);
+            
+            // Current bar (blue)
+            const currentHeight = (cache.current / maxValue) * height;
+            const currentY = padding.top + height - currentHeight;
+            const currentBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            currentBar.setAttribute('class', 'tw-bar-chart-bar');
+            currentBar.setAttribute('x', groupX + barWidth + barSpacing);
+            currentBar.setAttribute('y', currentY);
+            currentBar.setAttribute('width', barWidth);
+            currentBar.setAttribute('height', currentHeight);
+            currentBar.setAttribute('fill', '#2196F3');
+            svg.appendChild(currentBar);
+            
+            // Max bar (red)
+            const maxHeight = (cache.max / maxValue) * height;
+            const maxY = padding.top + height - maxHeight;
+            const maxBar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            maxBar.setAttribute('class', 'tw-bar-chart-bar');
+            maxBar.setAttribute('x', groupX + (barWidth + barSpacing) * 2);
+            maxBar.setAttribute('y', maxY);
+            maxBar.setAttribute('width', barWidth);
+            maxBar.setAttribute('height', maxHeight);
+            maxBar.setAttribute('fill', '#f44336');
+            svg.appendChild(maxBar);
+            
+            // Add value labels on bars
+            [minBar, currentBar, maxBar].forEach((bar, barIndex) => {
+                const barX = parseFloat(bar.getAttribute('x'));
+                const barY = parseFloat(bar.getAttribute('y'));
+                const barHeight = parseFloat(bar.getAttribute('height'));
+                
+                if (barHeight > 15) {
+                    const values = [cache.min, cache.current, cache.max];
+                    const valueText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    valueText.setAttribute('class', 'tw-bar-value');
+                    valueText.setAttribute('x', barX + barWidth / 2);
+                    valueText.setAttribute('y', barY + barHeight / 2 + 3);
+                    valueText.textContent = values[barIndex];
+                    svg.appendChild(valueText);
+                }
+            });
+            
+            // Add resource label
+            const resourceLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            resourceLabel.setAttribute('class', 'tw-bar-label');
+            resourceLabel.setAttribute('x', groupX + totalGroupWidth / 2);
+            resourceLabel.setAttribute('y', 200 - padding.bottom + 15);
+            resourceLabel.textContent = this.resourceNames[resource];
+            svg.appendChild(resourceLabel);
+        });
+        
+        // Add legend
+        const legendData = [
+            { label: 'Min', color: '#4CAF50', x: padding.left, y: padding.top - 10 },
+            { label: 'Current', color: '#2196F3', x: padding.left + 80, y: padding.top - 10 },
+            { label: 'Max', color: '#f44336', x: padding.left + 180, y: padding.top - 10 }
+        ];
+        
+        legendData.forEach(item => {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', item.x);
+            rect.setAttribute('y', item.y);
+            rect.setAttribute('width', 12);
+            rect.setAttribute('height', 12);
+            rect.setAttribute('fill', item.color);
+            svg.appendChild(rect);
+            
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'tw-chart-axis-label');
+            text.setAttribute('x', item.x + 20);
+            text.setAttribute('y', item.y + 10);
+            text.textContent = item.label;
+            svg.appendChild(text);
+        });
+        
+        svgContainer.appendChild(svg);
+    }
+
+    createChartsContainer() {
+        const container = document.createElement('div');
+        container.className = 'tw-charts-container';
+        
+        const header = document.createElement('div');
+        header.className = 'tw-charts-header';
+        
+        const title = document.createElement('h3');
+        title.className = 'tw-charts-title';
+        title.textContent = 'Price History Charts';
+        
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'tw-charts-toggle';
+        toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        toggleBtn.onclick = () => this.toggleCharts();
+        
+        header.appendChild(title);
+        header.appendChild(toggleBtn);
+        container.appendChild(header);
+        
+        if (this.showCharts) {
+            const grid = document.createElement('div');
+            grid.className = 'tw-charts-grid';
+            grid.id = 'tw-charts-grid';
+            
+            // Create 2x2 grid: 3 line charts + 1 bar chart
+            const chartOrder = ['wood', 'stone', 'iron', 'bar'];
+            
+            chartOrder.forEach((chartType, index) => {
+                const chartContainer = document.createElement('div');
+                chartContainer.className = 'tw-chart-container';
+                
+                if (chartType === 'bar') {
+                    chartContainer.id = 'tw-bar-chart';
+                    const chartTitle = document.createElement('h4');
+                    chartTitle.className = 'tw-chart-title';
+                    chartTitle.textContent = 'Min/Current/Max Comparison';
+                    chartContainer.appendChild(chartTitle);
+                    
+                    const svgContainer = document.createElement('div');
+                    svgContainer.className = 'tw-chart-svg-container';
+                    chartContainer.appendChild(svgContainer);
+                } else {
+                    chartContainer.id = `tw-chart-${chartType}`;
+                    const chartTitle = document.createElement('h4');
+                    chartTitle.className = 'tw-chart-title';
+                    chartTitle.textContent = `${this.resourceNames[chartType]} Price History`;
+                    chartContainer.appendChild(chartTitle);
+                    
+                    const svgContainer = document.createElement('div');
+                    svgContainer.className = 'tw-chart-svg-container';
+                    chartContainer.appendChild(svgContainer);
+                    
+                    const minMaxDiv = document.createElement('div');
+                    minMaxDiv.className = 'tw-chart-minmax';
+                    chartContainer.appendChild(minMaxDiv);
+                }
+                
+                grid.appendChild(chartContainer);
+            });
+            
+            container.appendChild(grid);
+        }
+        
+        return container;
+    }
+
+    updateCharts() {
+        if (!this.showCharts || !this.data.length) return;
+        
+        // Update line charts
+        this.resourceTypes.forEach(resource => {
+            const chartContainer = document.querySelector(`#tw-chart-${resource}`);
+            if (chartContainer) {
+                this.createLineChart(resource, chartContainer);
+            }
+        });
+        
+        // Update bar chart
+        const barChartContainer = document.querySelector('#tw-bar-chart');
+        if (barChartContainer) {
+            this.createBarChart(barChartContainer);
+        }
+    }
+
     toggleCharts() {
         this.showCharts = !this.showCharts;
         this.saveSettings();
@@ -2088,11 +2272,135 @@ class ExchangeTracker {
         const chartsContainer = container.querySelector('.tw-charts-container');
         if (!chartsContainer) return;
         
+        // Update toggle button
         const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
         if (toggleBtn) {
             toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
         }
         
+        // Show/hide charts grid
+        const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
+        if (chartsGrid) {
+            if (this.showCharts && this.data.length > 0) {
+                chartsGrid.style.display = 'grid';
+                this.updateCharts();
+            } else {
+                chartsGrid.style.display = 'none';
+            }
+        }
+    }
+
+    createStatsContainer() {
+        const container = document.createElement('div');
+        container.className = 'tw-exchange-stats-container';
+        container.style.display = 'none';
+        
+        const header = document.createElement('div');
+        header.className = 'tw-exchange-stats-header';
+        
+        const title = document.createElement('h2');
+        title.className = 'tw-exchange-stats-title';
+        title.textContent = 'Premium Exchange Statistics';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'tw-exchange-stats-close';
+        closeBtn.textContent = '×';
+        closeBtn.title = 'Close statistics';
+        closeBtn.onclick = () => this.hideStats();
+        
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        
+        const autoTradeControls = this.createAutoTradeControls();
+        
+        const controls = document.createElement('div');
+        controls.className = 'tw-exchange-stat-controls';
+        
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = 'Clear All Data';
+        clearBtn.onclick = () => {
+            if (confirm('Clear all saved data?')) {
+                localStorage.removeItem(this.storageKey);
+                this.data = [];
+                this.calculateMinMaxValues();
+                this.updateAllTags();
+                this.updateStatsUI();
+            }
+        };
+        
+        controls.appendChild(clearBtn);
+        
+        // Removed currentSummary div since it's now in the exchange rate table
+        
+        const summaryTable = document.createElement('div');
+        summaryTable.id = 'tw-summary-table';
+        
+        const tableContainer = document.createElement('div');
+        tableContainer.className = 'tw-table-container';
+        tableContainer.id = 'tw-data-table';
+        
+        const status = document.createElement('div');
+        status.style.marginTop = '10px';
+        status.style.fontSize = '11px';
+        status.style.color = '#666';
+        status.style.textAlign = 'center';
+        status.id = 'tw-exchange-status';
+        
+        container.appendChild(header);
+        container.appendChild(autoTradeControls);
+        container.appendChild(controls);
+        container.appendChild(summaryTable);
+        container.appendChild(tableContainer);
+        container.appendChild(status);
+        
+        return container;
+    }
+
+    updateStatsUI() {
+        if (!this.isStatVisible) return;
+        
+        const container = document.querySelector('.tw-exchange-stats-container');
+        if (!container) return;
+        
+        // Update price row in exchange rate table
+        this.updatePriceRow();
+        
+        const summaryTable = container.querySelector('#tw-summary-table');
+        if (summaryTable) {
+            summaryTable.innerHTML = '';
+            summaryTable.appendChild(this.createSummaryTable());
+        }
+        
+        const tableContainer = container.querySelector('#tw-data-table');
+        if (tableContainer) {
+            tableContainer.innerHTML = '';
+            tableContainer.appendChild(this.createStatTable());
+        }
+        
+        const status = container.querySelector('#tw-exchange-status');
+        if (status) {
+            const ranges = this.resourceTypes.map(resource => {
+                const cache = this.minMaxCache[resource] || { min: 0, max: 0 };
+                return `${this.resourceNames[resource]}: ${cache.min}-${cache.max}`;
+            }).join(' | ');
+            
+            status.textContent = `Showing ${this.data.length} records (duplicates skipped) | Ranges: ${ranges} | Last update: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        // Always ensure charts container exists when stats are visible
+        let chartsContainer = container.querySelector('.tw-charts-container');
+        if (!chartsContainer) {
+            chartsContainer = this.createChartsContainer();
+            container.appendChild(chartsContainer);
+        }
+        
+        // Update the toggle button text
+        const toggleBtn = chartsContainer.querySelector('.tw-charts-toggle');
+        if (toggleBtn) {
+            toggleBtn.textContent = this.showCharts ? 'Hide Charts' : 'Show Charts';
+        }
+        
+        // Only show charts if enabled
         const chartsGrid = chartsContainer.querySelector('#tw-charts-grid');
         if (chartsGrid) {
             if (this.showCharts && this.data.length > 0) {
@@ -2120,14 +2428,6 @@ class ExchangeTracker {
         return container;
     }
 
-    toggleStats() {
-        if (this.isStatVisible) {
-            this.hideStats();
-        } else {
-            this.showStats();
-        }
-    }
-
     showStats() {
         const container = this.insertStatsContainer();
         if (container) {
@@ -2135,9 +2435,11 @@ class ExchangeTracker {
             this.isStatVisible = true;
             this.updateStatsUI();
             
-            // Check exchange rates when stats are first opened
+            // Exchange rates will only be checked on price changes now
+            // But we should check once when stats are first opened
             setTimeout(() => this.checkExchangeRates(), 500);
             
+            // Keep UI refresh interval for stats display
             if (this.statRefreshInterval) {
                 clearInterval(this.statRefreshInterval);
             }
@@ -2163,6 +2465,14 @@ class ExchangeTracker {
                 clearInterval(this.statRefreshInterval);
                 this.statRefreshInterval = null;
             }
+        }
+    }
+
+    toggleStats() {
+        if (this.isStatVisible) {
+            this.hideStats();
+        } else {
+            this.showStats();
         }
     }
 }
